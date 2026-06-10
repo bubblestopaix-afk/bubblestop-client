@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "345934565840",
+    "project_id": "bubble-stop",
+    "storage_bucket": "bubble-stop.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:345934565840:android:7daededfabe72dc8cb69d5",
+        "android_client_info": {
+          "package_name": "com.bubblestop.client"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAu7Wp-zvQ3GiBaj3TVmrP7Fhf_BOvWjm0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
