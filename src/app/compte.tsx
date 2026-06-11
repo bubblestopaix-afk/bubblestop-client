@@ -13,6 +13,7 @@ import type { Session } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
 import { enregistrerPush } from '@/lib/push';
+import { GoogleLogo } from '@/components/google-logo';
 import { MAGASINS, MagasinId } from '@/store/magasin';
 
 const VIOLET = '#3A2A5E';
@@ -980,7 +981,8 @@ export default function CompteScreen() {
 
             {/* Connexion / inscription via Google (OAuth Supabase) */}
             <Pressable style={styles.btnGoogle} onPress={loginGoogle} disabled={enCours}>
-              <Text style={styles.btnGoogleTexte}>G  Continuer avec Google</Text>
+              <GoogleLogo size={20} />
+              <Text style={styles.btnGoogleTexte}>Continuer avec Google</Text>
             </Pressable>
 
             <Pressable
@@ -1018,7 +1020,8 @@ const styles = StyleSheet.create({
   },
   btnGoogle: {
     width: '85%', backgroundColor: '#fff', borderRadius: 14, padding: 15,
-    alignItems: 'center', borderWidth: 1, borderColor: '#d8cfe2',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    borderWidth: 1, borderColor: '#d8cfe2',
   },
   btnGoogleTexte: { color: VIOLET_PROFOND, fontWeight: '800', fontSize: 16 },
   message: { color: '#FFD166', fontSize: 14, textAlign: 'center', paddingHorizontal: 16 },
