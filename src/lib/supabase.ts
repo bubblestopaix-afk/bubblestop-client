@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 // Les clés viennent du fichier .env (jamais en dur dans le code)
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
@@ -15,6 +16,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: estServeur ? undefined : AsyncStorage,
     autoRefreshToken: !estServeur,
     persistSession: !estServeur,
-    detectSessionInUrl: false, // pas de redirection web en mobile
+    // Web/PWA : lit la session renvoyée dans l'URL après le retour OAuth (Google).
+    // Natif : pas de redirection web.
+    detectSessionInUrl: !estServeur && Platform.OS === 'web',
   },
 });

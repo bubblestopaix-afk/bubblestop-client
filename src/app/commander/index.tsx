@@ -45,56 +45,28 @@ export default function CommanderScreen() {
   const { categories } = useCatalogueCloud(); // carte cloud du magasin choisi
   const lignes = usePanier();
 
-  // === Magasin d'inscription : verrouille les commandes sur le magasin du client ===
-  // (déblocage par mot de passe). null = pas encore fixé (compte avant 1er passage caisse).
+  // === Verrou « 1ère commande en boutique » ===
+  // La commande en ligne n'est possible qu'une fois la carte de fidélité LIÉE
+  // (la carte n'existe que si une première commande a été faite en caisse).
+  // Le magasin du client = celui de sa 1ère commande : il ne voit pas les autres.
   const [magasinInscription, setMagasinInscription] = useState<string | null>(null);
-  const [modalMdp, setModalMdp] = useState<{ cible: MagasinId; nom: string } | null>(null);
-  const [mdp, setMdp] = useState('');
-  const [erreurMdp, setErreurMdp] = useState('');
-  const [enverif, setEnverif] = useState(false);
+  const [carteLiee, setCarteLiee] = useState<boolean | null>(null); // null = chargement
 
   useEffect(() => {
     let actif = true;
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const { data } = await supabase.from('profils').select('magasin').eq('id', session.user.id).maybeSingle();
-      if (!actif || !data?.magasin) return;
+      if (!session) { if (actif) setCarteLiee(false); return; }
+      const { data } = await supabase.from('profils').select('magasin,numero_fidelite').eq('id', session.user.id).maybeSingle();
+      if (!actif) return;
+      setCarteLiee(!!data?.numero_fidelite);
+      if (!data?.magasin) return;
       setMagasinInscription(data.magasin);
-      // Force le magasin de l'app sur celui d'inscription
+      // Force le magasin de l'app sur celui du client (verrouillé)
       if (getMagasin() !== data.magasin) { setMagasin(data.magasin as MagasinId); viderPanier(); }
     })();
     return () => { actif = false; };
   }, []);
-
-  // Tap sur un magasin : libre si non verrouillé, sinon demande le mot de passe
-  const choisirMagasin = (m: { id: MagasinId; nom: string }) => {
-    if (magasin === m.id) return;
-    if (magasinInscription) { setModalMdp({ cible: m.id, nom: m.nom }); setMdp(''); setErreurMdp(''); }
-    else { setMagasin(m.id); viderPanier(); }
-  };
-
-  // Confirme le changement de magasin d'inscription après vérif du mot de passe
-  const confirmerChangementMagasin = async () => {
-    if (!modalMdp || enverif) return;
-    setEnverif(true); setErreurMdp('');
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const email = session?.user?.email;
-      if (!email) { setErreurMdp('Session expirée, reconnecte-toi.'); return; }
-      const { error } = await supabase.auth.signInWithPassword({ email, password: mdp });
-      if (error) { setErreurMdp('Mot de passe incorrect.'); return; }
-      await supabase.from('profils').update({ magasin: modalMdp.cible }).eq('id', session.user.id);
-      setMagasinInscription(modalMdp.cible);
-      setMagasin(modalMdp.cible);
-      viderPanier();
-      setModalMdp(null);
-    } catch (_) {
-      setErreurMdp('Erreur, réessaie.');
-    } finally {
-      setEnverif(false);
-    }
-  };
   const favoris = useFavoris();
   const nbArticles = lignes.reduce((s, l) => s + l.quantite, 0);
 
@@ -149,6 +121,30 @@ export default function CommanderScreen() {
     return () => { actif = false; clearInterval(t); };
   }, []);
 
+  // === Pas encore client en boutique → la commande en ligne est bloquée ===
+  if (carteLiee === false) {
+    return (
+      <View style={styles.fond}>
+        <SafeAreaView style={styles.safe}>
+          <ScrollView contentContainerStyle={[styles.contenu, { flexGrow: 1, justifyContent: 'center' }]}>
+            <View style={styles.gateCarte}>
+              <Text style={styles.gateTitre}>🧋 Ta première commande se passe en boutique</Text>
+              <Text style={styles.gateTexte}>
+                Viens commander dans ton Bubble Stop : on te crée ta carte de fidélité avec un code PIN.
+              </Text>
+              <Text style={styles.gateTexte}>
+                Ensuite, lie ta carte dans l'onglet Fidélité — et tu pourras commander en avance depuis l'appli, dans ton magasin.
+              </Text>
+              <Pressable style={styles.gateBtn} onPress={() => router.push('/explore' as any)}>
+                <Text style={styles.gateBtnTexte}>🎟 Lier ma carte de fidélité</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.fond}>
       <SafeAreaView style={styles.safe}>
@@ -159,23 +155,15 @@ export default function CommanderScreen() {
               <Text style={styles.lienSuivi}>Mes commandes ›</Text>
             </Pressable>
           </View>
-          {/* Choix du magasin (catalogue, horaires et commandes en découlent) */}
-          <View style={styles.magasins}>
-            {MAGASINS.map((m) => (
-              <Pressable
-                key={m.id}
-                style={[styles.magasinChip, magasin === m.id && styles.magasinChipActif]}
-                onPress={() => choisirMagasin(m)}>
-                <Text style={[styles.magasinTexte, magasin === m.id && styles.magasinTexteActif]}>
-                  {magasinInscription && magasin === m.id ? '🔒' : '📍'} {m.nom}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          {/* Magasin du client (celui de sa 1ère commande) — les autres ne sont pas proposés */}
           {magasinInscription && (
-            <Text style={styles.magasinAide}>
-              Magasin verrouillé sur ton inscription. Pour en changer, appuie sur un autre magasin (mot de passe requis).
-            </Text>
+            <View style={styles.magasins}>
+              <View style={[styles.magasinChip, styles.magasinChipActif]}>
+                <Text style={[styles.magasinTexte, styles.magasinTexteActif]}>
+                  📍 {MAGASINS.find((m) => m.id === magasinInscription)?.nom || magasinInscription}
+                </Text>
+              </View>
+            </View>
           )}
 
           <Text style={styles.sousTitre}>Choisis ta catégorie</Text>
@@ -257,38 +245,7 @@ export default function CommanderScreen() {
         )}
       </SafeAreaView>
 
-      {/* Modal : changement de magasin d'inscription (confirmation mot de passe) */}
-      <Modal visible={!!modalMdp} transparent animationType="fade" onRequestClose={() => setModalMdp(null)}>
-        <View style={styles.modalFond}>
-          <View style={styles.modalBoite}>
-            <Text style={styles.modalTitre}>Changer de magasin</Text>
-            <Text style={styles.modalTexte}>
-              Pour passer sur {modalMdp?.nom}, confirme avec ton mot de passe. Ton magasin d'inscription sera mis à jour.
-            </Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Mot de passe"
-              placeholderTextColor="#9a8fb0"
-              secureTextEntry
-              autoCapitalize="none"
-              value={mdp}
-              onChangeText={(t) => { setMdp(t); setErreurMdp(''); }}
-            />
-            {!!erreurMdp && <Text style={styles.modalErreur}>{erreurMdp}</Text>}
-            <View style={styles.modalActions}>
-              <Pressable style={styles.modalBtnGhost} onPress={() => setModalMdp(null)}>
-                <Text style={styles.modalBtnGhostTxt}>Annuler</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalBtnOk, (!mdp || enverif) && { opacity: 0.5 }]}
-                disabled={!mdp || enverif}
-                onPress={confirmerChangementMagasin}>
-                <Text style={styles.modalBtnOkTxt}>{enverif ? '…' : 'Confirmer'}</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* (Plus de changement de magasin : le client est rattaché à celui de sa 1ère commande) */}
     </View>
   );
 }
@@ -313,6 +270,12 @@ const styles = StyleSheet.create({
   magasinTexte: { color: LAVANDE, fontWeight: '700', fontSize: 13 },
   magasinTexteActif: { color: VIOLET_PROFOND },
   magasinAide: { fontSize: 11.5, color: '#9a8fb5', marginTop: -4 },
+  // Écran « première commande en boutique » (commande en ligne bloquée)
+  gateCarte: { backgroundColor: '#fff', borderRadius: 18, padding: 22, gap: 12 },
+  gateTitre: { fontSize: 20, fontWeight: '900', color: VIOLET_PROFOND },
+  gateTexte: { fontSize: 15, color: '#4a4060', lineHeight: 22 },
+  gateBtn: { backgroundColor: VERT, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 6 },
+  gateBtnTexte: { color: VIOLET_PROFOND, fontWeight: '900', fontSize: 16 },
   // Modal changement de magasin (mot de passe)
   modalFond: { flex: 1, backgroundColor: '#00000088', justifyContent: 'center', padding: 26 },
   modalBoite: { backgroundColor: '#fff', borderRadius: 18, padding: 22, gap: 12 },

@@ -10,15 +10,26 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
 
   // Marque le profil "utilise l'appli" (la borne masque alors la promo de téléchargement)
+  // + garantit qu'une ligne profils existe (ex. première connexion via Google).
   useEffect(() => {
     const marquer = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          await supabase.from('profils')
-            .update({ app_utilisee: true })
-            .eq('id', session.user.id)
-            .eq('app_utilisee', false); // n'écrit que si nécessaire
+          const { data: existe } = await supabase.from('profils').select('id').eq('id', session.user.id).maybeSingle();
+          if (!existe) {
+            await supabase.from('profils').insert({
+              id: session.user.id,
+              email: session.user.email,
+              nom: (session.user.user_metadata as any)?.full_name || null,
+              app_utilisee: true,
+            });
+          } else {
+            await supabase.from('profils')
+              .update({ app_utilisee: true })
+              .eq('id', session.user.id)
+              .eq('app_utilisee', false); // n'écrit que si nécessaire
+          }
         }
       } catch (_) { /* silencieux */ }
     };

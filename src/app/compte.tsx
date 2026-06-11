@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import {
   StyleSheet, View, Text, TextInput, Pressable,
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert, Switch,
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert, Switch, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -307,6 +307,21 @@ export default function CompteScreen() {
         : txt);
     } finally {
       setEditionEnCours(false);
+    }
+  };
+
+  // === Connexion / inscription via Google (OAuth Supabase) ===
+  // Web/PWA : redirection de la page puis retour (session lue dans l'URL).
+  // Natif : ouverture de la page de consentement Google.
+  const loginGoogle = async () => {
+    setMessage(null);
+    try {
+      const redirectTo = (Platform.OS === 'web' && typeof window !== 'undefined') ? window.location.origin : undefined;
+      const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+      if (error) throw error;
+      if (Platform.OS !== 'web' && data?.url) Linking.openURL(data.url);
+    } catch (e: any) {
+      setMessage(String(e?.message ?? e));
     }
   };
 
@@ -963,6 +978,11 @@ export default function CompteScreen() {
                 : <Text style={styles.btnTexte}>{mode === 'connexion' ? 'Me connecter' : "M'inscrire"}</Text>}
             </Pressable>
 
+            {/* Connexion / inscription via Google (OAuth Supabase) */}
+            <Pressable style={styles.btnGoogle} onPress={loginGoogle} disabled={enCours}>
+              <Text style={styles.btnGoogleTexte}>G  Continuer avec Google</Text>
+            </Pressable>
+
             <Pressable
               style={styles.btnGhost}
               onPress={() => { setMode(mode === 'connexion' ? 'inscription' : 'connexion'); setMessage(null); }}>
@@ -996,6 +1016,11 @@ const styles = StyleSheet.create({
     width: '85%', backgroundColor: '#fff', borderRadius: 14, padding: 16,
     fontSize: 17, fontWeight: '600', color: VIOLET_PROFOND,
   },
+  btnGoogle: {
+    width: '85%', backgroundColor: '#fff', borderRadius: 14, padding: 15,
+    alignItems: 'center', borderWidth: 1, borderColor: '#d8cfe2',
+  },
+  btnGoogleTexte: { color: VIOLET_PROFOND, fontWeight: '800', fontSize: 16 },
   message: { color: '#FFD166', fontSize: 14, textAlign: 'center', paddingHorizontal: 16 },
   reglesMdp: { color: '#9a8fb5', fontSize: 12.5, textAlign: 'center', paddingHorizontal: 16 },
   btn: {
