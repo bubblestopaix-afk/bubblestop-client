@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 import type { Session } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
@@ -715,6 +716,16 @@ export default function CompteScreen() {
             <Pressable style={styles.btnGhost} onPress={supprimerCompte}>
               <Text style={styles.btnDanger}>Supprimer mon compte</Text>
             </Pressable>
+
+            {/* === Section ADMIN : toutes les commandes (master) === */}
+            {estAdmin && (
+              <View style={styles.admin}>
+                <Text style={styles.adminTitre}>🛠️ Admin — Commandes</Text>
+                <Pressable style={styles.btnSection} onPress={() => router.push('/commander/admin-commandes' as any)}>
+                  <Text style={styles.btnTexte}>📋 Toutes les commandes (3 magasins)</Text>
+                </Pressable>
+              </View>
+            )}
 
             {/* === Section ADMIN : offres / annonces === */}
             {estAdmin && (
