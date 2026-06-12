@@ -1,10 +1,10 @@
-// === Commander : personnalisation d'une boisson ===
+// === Fiche produit immersive : photo, saveurs, options, ajout au panier ===
 // Saveur → format → sucre → température → toppings → suppléments → panier.
 // Réutilise les règles de prix/portions du POS (catalogue.js).
 import { useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { StyleSheet, View, Text, ScrollView, Pressable, Switch, TextInput } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, View, Text, ScrollView, Pressable, Switch, TextInput, Image } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // @ts-ignore — règles de prix partagées avec le POS (fonctions pures)
 import {
@@ -13,34 +13,18 @@ import {
   PRIX_DOUBLE_PORTION, SUPPLEMENT_CHANTILLY, SUPPLEMENT_LAIT_AVOINE,
 } from '@/data/catalogue';
 import { useCatalogueCloud } from '@/data/catalogue-cloud';
+import { photoCategorie } from '@/data/photos-categories';
 import { ajouterLigne, getLigne, remplacerLigne } from '@/store/panier';
 import { ajouterFavori, retirerFavori, favoriExistant, useFavoris } from '@/store/favoris';
+import { C, F, R, OMBRE } from '@/constants/charte';
+import { BoutonRetour, Chip, Stepper } from '@/components/ui-kit';
 
-const VIOLET = '#3A2A5E';
-const VIOLET_PROFOND = '#2A1D46';
-const VERT = '#A3C724';
-const LAVANDE = '#EFE9F6';
-
-// Affiche l'icône du catalogue ; les pictos SVG du POS n'existent pas ici → fallback
-// (avec correspondances emoji pour les pictos connus)
-const EMOJI_SVG: Record<string, string> = {
-  'svg-bubble-tea-matcha': '🍵',
-  'svg-peche': '🍑',
-  'svg-framboise': '🫐',
-  'svg-litchi': '🤍',
-  'svg-passion': '🧡',
-  'svg-grain-cafe': '☕',
-  'svg-vanille': '🌼',
-  'svg-brown-sugar': '🟤',
-};
-const icone = (i: string | undefined, fallback: string) =>
-  i && !i.startsWith('svg-') ? i : (i && EMOJI_SVG[i]) || fallback;
-
-// Libellé de portion : ½, 1, 1½, 2
+// Pastille de couleur pour les saveurs/toppings (les pictos SVG du POS n'existent pas ici)
 const libPortion = (p: number) =>
   p === 0.5 ? '½' : p === 1 ? '1' : p === 1.5 ? '1½' : String(p);
 
 export default function PersonnalisationScreen() {
+  const insets = useSafeAreaInsets();
   const { categorieId, ligneId } = useLocalSearchParams<{ categorieId: string; ligneId?: string }>();
   const { categories, toppings: tousToppings } = useCatalogueCloud();
   // any : le catalogue n'a pas de types stricts
@@ -73,6 +57,7 @@ export default function PersonnalisationScreen() {
   const sansToppings = !!cat.sansToppings || cat.id === 'mochi-glace';
   const sansGlacons = !!cat.sansGlacons || cat.id === 'mochi-glace';
   const froidForce = cat.froidUniquement || saveur?.froid;
+  const photo = photoCategorie(cat);
 
   const prix = calculerPrix({
     categorie: cat, saveur, format,
@@ -98,9 +83,9 @@ export default function PersonnalisationScreen() {
       chantilly, laitAvoine, doublePortion,
       quantite,
       prixUnitaire: prix,
-    };
-    if (ligneEdit) remplacerLigne(ligneEdit.id, data); // édition → remplace
-    else ajouterLigne(data);
+    } as const;
+    if (ligneEdit) remplacerLigne(ligneEdit.id, data as any); // édition → remplace
+    else ajouterLigne(data as any);
     router.back();
   };
 
@@ -125,32 +110,39 @@ export default function PersonnalisationScreen() {
 
   return (
     <View style={styles.fond}>
-      <SafeAreaView style={styles.safe}>
-        <ScrollView contentContainerStyle={styles.contenu}>
-          <Pressable onPress={() => router.back()}>
-            <Text style={styles.retour}>‹ Retour</Text>
-          </Pressable>
-          <Text style={styles.titre}>{cat.emoji} {cat.nom}</Text>
+      <ScrollView contentContainerStyle={{ paddingBottom: 130 }}>
+        {/* === En-tête immersif : photo de la catégorie === */}
+        <View style={styles.hero}>
+          {photo
+            ? <Image source={photo} style={styles.heroPhoto} />
+            : <View style={[styles.heroPhoto, styles.heroEmoji]}><Text style={{ fontSize: 72 }}>{cat.emoji}</Text></View>}
+          <View style={[styles.heroBarre, { top: insets.top + 10 }]}>
+            <BoutonRetour onPress={() => router.back()} surPhoto />
+            {/* Cœur favori (actif quand la config courante est enregistrée) */}
+            {saveur && (
+              <Pressable style={styles.coeur} onPress={basculerFavori} hitSlop={8}>
+                <Text style={{ fontSize: 20 }}>{dejaFavori ? '❤️' : '🤍'}</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.contenu}>
+          <Text style={styles.titre}>{cat.nom}</Text>
+          {!!cat.sousTitre && <Text style={styles.sousTitre}>{cat.sousTitre}</Text>}
 
           {/* === Saveur === */}
           <Text style={styles.section}>Saveur</Text>
           <View style={styles.grille}>
             {cat.saveurs.map((s: any) => (
-              <Pressable
+              <Chip
                 key={s.id}
-                style={[
-                  styles.puce, { backgroundColor: s.couleur },
-                  saveurId === s.id && styles.puceActive,
-                  s.horsStock && styles.puceOff,
-                ]}
+                label={`${s.nom}${s.reco ? ' ⭐' : ''}${s.supplement ? ` +${s.supplement.toFixed(2).replace('.', ',')} €` : ''}${s.horsStock ? ' — épuisé' : ''}`}
+                pastille={s.couleur}
+                actif={saveurId === s.id}
                 disabled={!!s.horsStock}
-                onPress={() => setSaveurId(s.id)}>
-                <Text style={styles.puceTexte}>
-                  {icone(s.icone, cat.emoji)} {s.nom}{s.reco ? ' ⭐' : ''}
-                  {s.supplement ? ` (+${s.supplement.toFixed(2).replace('.', ',')} €)` : ''}
-                  {s.horsStock ? ' — épuisé' : ''}
-                </Text>
-              </Pressable>
+                onPress={() => setSaveurId(s.id)}
+              />
             ))}
           </View>
 
@@ -160,14 +152,12 @@ export default function PersonnalisationScreen() {
               <Text style={styles.section}>Format</Text>
               <View style={styles.ligne}>
                 {cat.formats.map((f: string) => (
-                  <Pressable
+                  <Chip
                     key={f}
-                    style={[styles.choix, format === f && styles.choixActif]}
-                    onPress={() => setFormat(f)}>
-                    <Text style={[styles.choixTexte, format === f && styles.choixTexteActif]}>
-                      {f} — {cat.prix[f].toFixed(2).replace('.', ',')} €
-                    </Text>
-                  </Pressable>
+                    label={`${f} — ${cat.prix[f].toFixed(2).replace('.', ',')} €`}
+                    actif={format === f}
+                    onPress={() => setFormat(f)}
+                  />
                 ))}
               </View>
             </>
@@ -179,12 +169,7 @@ export default function PersonnalisationScreen() {
               <Text style={styles.section}>Sucre</Text>
               <View style={styles.ligne}>
                 {niveauxSucre.map((n: any) => (
-                  <Pressable
-                    key={n.id}
-                    style={[styles.choix, sucre === n.id && styles.choixActif]}
-                    onPress={() => setSucre(n.id)}>
-                    <Text style={[styles.choixTexte, sucre === n.id && styles.choixTexteActif]}>{n.label}</Text>
-                  </Pressable>
+                  <Chip key={n.id} label={n.label} actif={sucre === n.id} onPress={() => setSucre(n.id)} />
                 ))}
               </View>
             </>
@@ -196,14 +181,12 @@ export default function PersonnalisationScreen() {
               <Text style={styles.section}>Température</Text>
               <View style={styles.ligne}>
                 {(['glace', 'chaud'] as const).map((t) => (
-                  <Pressable
+                  <Chip
                     key={t}
-                    style={[styles.choix, temperature === t && styles.choixActif]}
-                    onPress={() => setTemperature(t)}>
-                    <Text style={[styles.choixTexte, temperature === t && styles.choixTexteActif]}>
-                      {t === 'glace' ? '🧊 Glacé' : '♨️ Chaud'}
-                    </Text>
-                  </Pressable>
+                    label={t === 'glace' ? '🧊 Glacé' : '♨️ Chaud'}
+                    actif={temperature === t}
+                    onPress={() => setTemperature(t)}
+                  />
                 ))}
               </View>
             </>
@@ -218,14 +201,14 @@ export default function PersonnalisationScreen() {
                   : `(1 portion offerte — ${totalPortions(selToppings)}/${doublePortion ? 2 : 1})`}
               </Text>
               {!cat.toppingPayantUnit && (
-                <View style={styles.ligneToggle}>
-                  <Text style={styles.choixTexte}>
+                <View style={styles.toggleCarte}>
+                  <Text style={styles.toggleTexte}>
                     Double portion (+{PRIX_DOUBLE_PORTION.toFixed(2).replace('.', ',')} €)
                   </Text>
                   <Switch
                     value={doublePortion}
                     onValueChange={(v) => { setDoublePortion(v); setSelToppings({}); }}
-                    trackColor={{ false: '#ffffff33', true: VERT }}
+                    trackColor={{ false: C.bord, true: C.vert }}
                     thumbColor="#fff"
                   />
                 </View>
@@ -234,20 +217,14 @@ export default function PersonnalisationScreen() {
                 {tousToppings.map((t: any) => {
                   const portion = selToppings[t.id];
                   return (
-                    <Pressable
+                    <Chip
                       key={t.id}
-                      style={[
-                        styles.puce, { backgroundColor: t.couleur },
-                        !!portion && styles.puceActive,
-                        t.horsStock && styles.puceOff,
-                      ]}
+                      label={`${t.nom}${portion ? ` ×${libPortion(portion)}` : ''}${t.horsStock ? ' — épuisé' : ''}`}
+                      pastille={t.couleur}
+                      actif={!!portion}
                       disabled={!!t.horsStock}
-                      onPress={() => tapTopping(t.id)}>
-                      <Text style={styles.puceTexte}>
-                        {icone(t.icone, '🧋')} {t.nom}{portion ? `  ×${libPortion(portion)}` : ''}
-                        {t.horsStock ? ' — épuisé' : ''}
-                      </Text>
-                    </Pressable>
+                      onPress={() => tapTopping(t.id)}
+                    />
                   );
                 })}
               </View>
@@ -260,38 +237,30 @@ export default function PersonnalisationScreen() {
               <Text style={styles.section}>Suppléments</Text>
               <View style={styles.ligne}>
                 {cat.optionChantilly && (
-                  <Pressable
-                    style={[styles.choix, chantilly && styles.choixActif]}
-                    onPress={() => setChantilly(!chantilly)}>
-                    <Text style={[styles.choixTexte, chantilly && styles.choixTexteActif]}>
-                      Chantilly (+{SUPPLEMENT_CHANTILLY.toFixed(2).replace('.', ',')} €)
-                    </Text>
-                  </Pressable>
+                  <Chip
+                    label={`Chantilly +${SUPPLEMENT_CHANTILLY.toFixed(2).replace('.', ',')} €`}
+                    actif={chantilly}
+                    onPress={() => setChantilly(!chantilly)}
+                  />
                 )}
                 {cat.optionLaitAvoine && (
-                  <Pressable
-                    style={[styles.choix, laitAvoine && styles.choixActif]}
-                    onPress={() => setLaitAvoine(!laitAvoine)}>
-                    <Text style={[styles.choixTexte, laitAvoine && styles.choixTexteActif]}>
-                      Lait d'avoine (+{SUPPLEMENT_LAIT_AVOINE.toFixed(2).replace('.', ',')} €)
-                    </Text>
-                  </Pressable>
+                  <Chip
+                    label={`Lait d'avoine +${SUPPLEMENT_LAIT_AVOINE.toFixed(2).replace('.', ',')} €`}
+                    actif={laitAvoine}
+                    onPress={() => setLaitAvoine(!laitAvoine)}
+                  />
                 )}
               </View>
             </>
           )}
+
           {/* === Glaçons (boissons froides, sauf catégories sans glaçons) === */}
           {(froidForce || temperature === 'glace') && !sansGlacons && (
             <>
               <Text style={styles.section}>Glaçons</Text>
               <View style={styles.ligne}>
                 {([['avec', '🧊 Avec'], ['peu', 'Peu'], ['sans', 'Sans']] as const).map(([id, label]) => (
-                  <Pressable
-                    key={id}
-                    style={[styles.choix, glacons === id && styles.choixActif]}
-                    onPress={() => setGlacons(id)}>
-                    <Text style={[styles.choixTexte, glacons === id && styles.choixTexteActif]}>{label}</Text>
-                  </Pressable>
+                  <Chip key={id} label={label} actif={glacons === id} onPress={() => setGlacons(id)} />
                 ))}
               </View>
             </>
@@ -304,87 +273,82 @@ export default function PersonnalisationScreen() {
             value={note}
             onChangeText={setNote}
             placeholder="Ex : peu de sucre, allergie…"
-            placeholderTextColor="#9a8fb5"
+            placeholderTextColor={C.texte3}
             maxLength={60}
           />
+        </View>
+      </ScrollView>
 
-          {/* === Quantité === */}
-          <Text style={styles.section}>Quantité</Text>
-          <View style={styles.stepper}>
-            <Pressable style={styles.stepperBtn} onPress={() => setQuantite(Math.max(1, quantite - 1))}>
-              <Text style={styles.stepperBtnTexte}>−</Text>
-            </Pressable>
-            <Text style={styles.stepperNb}>{quantite}</Text>
-            <Pressable style={styles.stepperBtn} onPress={() => setQuantite(Math.min(10, quantite + 1))}>
-              <Text style={styles.stepperBtnTexte}>+</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
-
-        {/* Cœur favori (au-dessus du bouton ajout) */}
-        {saveur && (
-          <Pressable style={styles.btnCoeur} onPress={basculerFavori}>
-            <Text style={{ fontSize: 24 }}>{dejaFavori ? '❤️' : '🤍'}</Text>
-          </Pressable>
-        )}
-
-        {/* Bouton ajout */}
+      {/* === Barre du bas : quantité + ajout === */}
+      <View style={[styles.barreBas, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <Stepper
+          valeur={quantite}
+          onMoins={() => setQuantite(Math.max(1, quantite - 1))}
+          onPlus={() => setQuantite(Math.min(10, quantite + 1))}
+        />
         <Pressable
-          style={[styles.btnAjout, !saveur && styles.btnOff]}
+          style={[styles.btnAjout, !saveur && { opacity: 0.45 }]}
           disabled={!saveur}
           onPress={valider}>
           <Text style={styles.btnAjoutTexte}>
             {saveur
-              ? `${ligneEdit ? 'Modifier' : 'Ajouter'} ${quantite > 1 ? `×${quantite} ` : ''}— ${(prix * quantite).toFixed(2).replace('.', ',')} €`
+              ? `${ligneEdit ? 'Modifier' : 'Ajouter'} · ${(prix * quantite).toFixed(2).replace('.', ',')} €`
               : 'Choisis une saveur'}
           </Text>
         </Pressable>
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  fond: { flex: 1, backgroundColor: VIOLET },
-  safe: { flex: 1 },
-  contenu: { padding: 20, paddingBottom: 110 },
-  retour: { color: LAVANDE, fontSize: 16, fontWeight: '700', marginBottom: 8 },
-  titre: { fontSize: 26, fontWeight: '900', color: '#fff', marginBottom: 4 },
-  section: { fontSize: 17, fontWeight: '800', color: VERT, marginTop: 18, marginBottom: 10 },
+  fond: { flex: 1, backgroundColor: C.fond },
+
+  // En-tête photo
+  hero: { width: '100%', height: 210 },
+  heroPhoto: { width: '100%', height: '100%', backgroundColor: C.violet },
+  heroEmoji: { alignItems: 'center', justifyContent: 'center' },
+  heroBarre: {
+    position: 'absolute', left: 14, right: 14,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+  },
+  coeur: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(42,29,70,0.45)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  contenu: {
+    backgroundColor: C.fond, borderTopLeftRadius: 26, borderTopRightRadius: 26,
+    marginTop: -24, padding: 20, paddingTop: 22,
+  },
+  titre: { fontFamily: F.titre, fontSize: 25, color: C.violet },
+  sousTitre: { fontFamily: F.t600, fontSize: 14, color: C.texte2, marginTop: 2 },
+  section: { fontFamily: F.titre, fontSize: 16, color: C.violet, marginTop: 20, marginBottom: 10 },
   grille: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   ligne: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  puce: { borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, opacity: 0.92 },
-  puceActive: { borderWidth: 3, borderColor: VERT, opacity: 1 },
-  puceOff: { opacity: 0.35 },
-  puceTexte: { fontWeight: '700', color: '#1a1325', fontSize: 14 },
-  choix: { backgroundColor: '#ffffff22', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14 },
-  ligneToggle: {
+
+  toggleCarte: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#ffffff22', borderRadius: 12, padding: 12, marginBottom: 10,
+    backgroundColor: C.carte, borderRadius: 14, padding: 14, marginBottom: 10, ...OMBRE,
   },
-  choixActif: { backgroundColor: VERT },
-  choixTexte: { color: LAVANDE, fontWeight: '700', fontSize: 14 },
-  choixTexteActif: { color: VIOLET_PROFOND },
+  toggleTexte: { fontFamily: F.t700, fontSize: 14, color: C.texte },
+
   noteInput: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14,
-    fontSize: 15, fontWeight: '600', color: VIOLET_PROFOND,
+    backgroundColor: C.carte, borderRadius: 12, borderWidth: 1.5, borderColor: C.bord,
+    padding: 14, fontFamily: F.t600, fontSize: 15, color: C.texte,
   },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 18, alignSelf: 'flex-start' },
-  stepperBtn: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: '#ffffff22',
-    alignItems: 'center', justifyContent: 'center',
+
+  // Barre du bas (sticky)
+  barreBas: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    backgroundColor: C.carte, borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    paddingTop: 12, paddingHorizontal: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    shadowColor: '#3A2A5E', shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: -4 }, elevation: 10,
   },
-  stepperBtnTexte: { color: '#fff', fontSize: 24, fontWeight: '900' },
-  stepperNb: { color: '#fff', fontSize: 20, fontWeight: '900', minWidth: 24, textAlign: 'center' },
   btnAjout: {
-    position: 'absolute', left: 16, right: 16, bottom: 12,
-    backgroundColor: VERT, borderRadius: 16, padding: 18, alignItems: 'center',
+    flex: 1, backgroundColor: C.vert, borderRadius: 16,
+    paddingVertical: 16, alignItems: 'center',
   },
-  btnCoeur: {
-    position: 'absolute', right: 16, bottom: 84,
-    width: 52, height: 52, borderRadius: 26, backgroundColor: '#ffffff22',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  btnOff: { opacity: 0.45 },
-  btnAjoutTexte: { fontWeight: '900', fontSize: 17, color: VIOLET_PROFOND },
+  btnAjoutTexte: { fontFamily: F.t800, fontSize: 16, color: C.violetProfond },
 });

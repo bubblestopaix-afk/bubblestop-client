@@ -1,26 +1,33 @@
-// === Écran d'accueil Bubblestop ===
-// Utile dès l'ouverture : bonjour personnalisé, suivi LIVE de la commande en cours,
-// vraie carte à tampons (9 = 1 offerte), horaires du jour, offres, accès rapides.
+// === Accueil Bubble Stop (style app food pro) ===
+// Header de marque violet, suivi LIVE de la commande, CTA Commander,
+// raccourcis catalogue en photos, carte de fidélité, offres, favoris.
 import { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, View, Text, ScrollView, Pressable, Image, RefreshControl } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { supabase } from '@/lib/supabase';
 import { MAGASINS } from '@/store/magasin';
+import { useCatalogueCloud, trouverCategorieCloud, trouverSaveurCloud } from '@/data/catalogue-cloud';
+import { photoCategorie } from '@/data/photos-categories';
+import { useFavoris, Favori } from '@/store/favoris';
+import { usePanier, ajouterLigne, totalPanier } from '@/store/panier';
+// @ts-ignore — règles de prix partagées avec le POS
+import { calculerPrix } from '@/data/catalogue';
+import { C, F, R, OMBRE } from '@/constants/charte';
+import { Chevron } from '@/components/ui-kit';
 
-const VIOLET = '#3A2A5E';
-const VIOLET_PROFOND = '#2A1D46';
-const VERT = '#A3C724';
-const LAVANDE = '#EFE9F6';
-
-const STATUT_LIB: Record<string, { txt: string; emoji: string }> = {
-  en_attente: { txt: 'Commande reçue', emoji: '📨' },
-  en_preparation: { txt: 'En préparation', emoji: '👩‍🍳' },
-  prete: { txt: 'Prête — viens la chercher !', emoji: '✅' },
+const STATUT_LIB: Record<string, { txt: string; etape: number }> = {
+  en_attente: { txt: 'Commande reçue', etape: 1 },
+  en_preparation: { txt: 'En préparation', etape: 2 },
+  prete: { txt: 'Prête — viens la chercher !', etape: 3 },
 };
 
 export default function AccueilScreen() {
+  const insets = useSafeAreaInsets();
+  const { categories } = useCatalogueCloud();
+  const favoris = useFavoris();
+  const lignes = usePanier();
   const [prenom, setPrenom] = useState('');
   const [magasinId, setMagasinId] = useState<string | null>(null);
   const [carte, setCarte] = useState<{ tampons: number; cadeaux: number } | null>(null);
@@ -82,140 +89,259 @@ export default function AccueilScreen() {
 
   const onRefresh = async () => { setRefresh(true); await charger(); setRefresh(false); };
 
+  // Ajoute un favori au panier, au prix actuel de la carte
+  const ajouterFavoriAuPanier = (f: Favori) => {
+    const categorie = trouverCategorieCloud(f.categorieId);
+    const saveur = trouverSaveurCloud(f.categorieId, f.saveurId);
+    if (!categorie || !saveur || categorie.horsStock || saveur.horsStock) return;
+    const prix = calculerPrix({
+      categorie, saveur, format: f.format,
+      toppings: f.toppings || {}, chantilly: f.chantilly, laitAvoine: f.laitAvoine,
+    });
+    ajouterLigne({
+      categorieId: f.categorieId, saveurId: f.saveurId, format: f.format,
+      sucre: f.sucre, temperature: f.temperature, glacons: f.glacons,
+      toppings: f.toppings || {}, chantilly: f.chantilly, laitAvoine: f.laitAvoine,
+      doublePortion: f.doublePortion, quantite: 1, prixUnitaire: prix,
+    });
+  };
+
   const nomMagasin = magasinId ? (MAGASINS.find((m) => m.id === magasinId)?.nom || magasinId) : null;
   const tampons = carte?.tampons ?? 0;
   const statut = cmdActive ? STATUT_LIB[cmdActive.statut] : null;
+  const nbArticles = lignes.reduce((s, l) => s + l.quantite, 0);
+  const catsAvecPhoto = categories.filter((c: any) => !c.horsStock);
 
   return (
     <View style={styles.fond}>
-      <SafeAreaView style={styles.safe}>
-        <ScrollView
-          contentContainerStyle={styles.contenu}
-          refreshControl={<RefreshControl refreshing={refresh} onRefresh={onRefresh} tintColor="#fff" />}
-        >
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 28 }}
+        refreshControl={<RefreshControl refreshing={refresh} onRefresh={onRefresh} tintColor="#fff" />}
+      >
+        {/* === Header de marque (violet, arrondi en bas) === */}
+        <View style={[styles.header, { paddingTop: insets.top + 18 }]}>
           <Text style={styles.logo}>BUBBLE STOP</Text>
-          <Text style={styles.slogan}>
-            {prenom ? `Salut ${prenom} 👋` : 'Ton bubble tea préféré, dans ta poche 🥤'}
-            {nomMagasin ? `  ·  ${nomMagasin}` : ''}
+          <Text style={styles.salut}>
+            {prenom ? `Salut ${prenom} 👋` : 'Ton bubble tea préféré, dans ta poche'}
           </Text>
-          {horairesJour && <Text style={styles.horaires}>{horairesJour}</Text>}
+          {(nomMagasin || horairesJour) && (
+            <View style={styles.infosMag}>
+              {!!nomMagasin && <Text style={styles.infosMagTxt}>📍 {nomMagasin}</Text>}
+              {!!horairesJour && <Text style={styles.infosMagHoraires}>{horairesJour}</Text>}
+            </View>
+          )}
+        </View>
 
+        <View style={styles.contenu}>
           {/* === Suivi LIVE de la commande en cours (l'info n°1 quand elle existe) === */}
           {cmdActive && statut && (
             <Pressable
               style={[styles.suivi, cmdActive.statut === 'prete' && styles.suiviPrete]}
               onPress={() => router.push('/commander/mes-commandes' as any)}
             >
-              <Text style={styles.suiviEmoji}>{statut.emoji}</Text>
-              <View style={{ flex: 1 }}>
+              <View style={styles.suiviHaut}>
                 <Text style={styles.suiviTitre}>Commande n°{cmdActive.numero}</Text>
-                <Text style={styles.suiviTexte}>{statut.txt}</Text>
+                <Chevron couleur={C.texte3} />
               </View>
-              <Text style={styles.suiviChevron}>›</Text>
+              {/* Barre d'étapes : reçue → préparation → prête */}
+              <View style={styles.etapes}>
+                {[1, 2, 3].map((e) => (
+                  <View key={e} style={[styles.etape, e <= statut.etape && styles.etapeFaite]} />
+                ))}
+              </View>
+              <Text style={[styles.suiviTexte, cmdActive.statut === 'prete' && { color: C.vertFonce }]}>
+                {statut.txt}
+              </Text>
             </Pressable>
           )}
 
-          {/* Action principale, comme toute app food : commander en 1 tap */}
-          <Pressable style={styles.ctaCommander} onPress={() => router.push('/commander' as any)}>
-            <Text style={styles.ctaCommanderTexte}>🥤 Commander</Text>
-            <Text style={styles.ctaCommanderSous}>Retrait en boutique, sans attendre ›</Text>
+          {/* === CTA Commander (action n°1) === */}
+          <Pressable style={styles.cta} onPress={() => router.push('/commander' as any)}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.ctaTitre}>Commander</Text>
+              <Text style={styles.ctaSous}>
+                {nbArticles > 0
+                  ? `Panier en cours · ${totalPanier().toFixed(2).replace('.', ',')} €`
+                  : 'Retrait en boutique, sans attendre'}
+              </Text>
+            </View>
+            <View style={styles.ctaRond}>
+              <Chevron couleur={C.violetProfond} size={22} />
+            </View>
           </Pressable>
 
-          {/* === Carte de fidélité RÉELLE : tampons en direct === */}
+          {/* === La carte : raccourcis catégories en photos === */}
+          <Text style={styles.sectionTitre}>La carte</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRail}>
+            {catsAvecPhoto.map((cat: any) => {
+              const photo = photoCategorie(cat);
+              return (
+                <Pressable key={cat.id} style={styles.catTuile} onPress={() => router.push(`/commander/${cat.id}` as any)}>
+                  {photo
+                    ? <Image source={photo} style={styles.catPhoto} />
+                    : <View style={[styles.catPhoto, styles.catEmoji]}><Text style={{ fontSize: 34 }}>{cat.emoji}</Text></View>}
+                  <Text style={styles.catNom} numberOfLines={1}>{cat.nom}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          {/* === Carte de fidélité (tampons en direct) === */}
           {carteLiee && carte ? (
-            <Pressable style={styles.carte} onPress={() => router.push('/explore' as any)}>
-              <View style={styles.carteLigneTitre}>
-                <Text style={styles.carteTitre}>🎁 Ma carte de fidélité</Text>
-                <Text style={styles.carteCompteur}>{tampons}/9</Text>
+            <Pressable style={styles.fidelite} onPress={() => router.push('/explore' as any)}>
+              <View style={styles.fideliteHaut}>
+                <Text style={styles.fideliteTitre}>Ma fidélité</Text>
+                <Text style={styles.fideliteCompteur}>{tampons}/9</Text>
               </View>
-              {/* Rangée de tampons : remplis / vides */}
               <View style={styles.tampons}>
                 {Array.from({ length: 9 }).map((_, i) => (
-                  <View key={i} style={[styles.tampon, i < tampons && styles.tamponPlein]}>
-                    {i < tampons && <Text style={styles.tamponTxt}>🥤</Text>}
-                  </View>
+                  <View key={i} style={[styles.tampon, i < tampons && styles.tamponPlein]} />
                 ))}
               </View>
-              <Text style={styles.carteTexte}>
+              <Text style={styles.fideliteTexte}>
                 {carte.cadeaux > 0
-                  ? `🎉 ${carte.cadeaux} boisson${carte.cadeaux > 1 ? 's' : ''} offerte${carte.cadeaux > 1 ? 's' : ''} à utiliser !`
-                  : `Encore ${9 - tampons} boisson${9 - tampons > 1 ? 's' : ''} avant la prochaine offerte ›`}
+                  ? `🎉 ${carte.cadeaux} boisson${carte.cadeaux > 1 ? 's' : ''} offerte${carte.cadeaux > 1 ? 's' : ''} à utiliser`
+                  : `Encore ${9 - tampons} boisson${9 - tampons > 1 ? 's' : ''} avant la prochaine offerte`}
               </Text>
             </Pressable>
           ) : carteLiee === false ? (
-            <Pressable style={styles.carte} onPress={() => router.push('/explore' as any)}>
-              <Text style={styles.carteTitre}>🎟 Lie ta carte de fidélité</Text>
-              <Text style={styles.carteTexte}>
-                Ton QR code et tes tampons en direct : 9 boissons = 1 offerte ›
-              </Text>
+            <Pressable style={styles.fidelite} onPress={() => router.push('/explore' as any)}>
+              <Text style={styles.fideliteTitre}>Active ta carte de fidélité</Text>
+              <Text style={styles.fideliteTexte}>Ton QR et tes tampons en direct : 9 boissons = 1 offerte ›</Text>
             </Pressable>
           ) : null}
 
-          {/* Offres en cours (publiées depuis la caisse ou le compte admin) */}
-          {offres.map((o) => (
-            <View key={o.id} style={styles.offre}>
-              <Text style={styles.offreTitre}>📣 {o.titre}</Text>
-              <Text style={styles.offreMessage}>{o.message}</Text>
-            </View>
-          ))}
+          {/* === Mes favoris : re-commander en 1 tap === */}
+          {favoris.length > 0 && (
+            <>
+              <Text style={styles.sectionTitre}>Mes favoris</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.favRail}>
+                {favoris.map((f) => {
+                  const indispo = !trouverSaveurCloud(f.categorieId, f.saveurId)
+                    || trouverCategorieCloud(f.categorieId)?.horsStock
+                    || trouverSaveurCloud(f.categorieId, f.saveurId)?.horsStock;
+                  return (
+                    <Pressable
+                      key={f.id}
+                      style={[styles.favCarte, indispo && { opacity: 0.45 }]}
+                      disabled={!!indispo}
+                      onPress={() => ajouterFavoriAuPanier(f)}>
+                      <Text style={styles.favPlus}>+</Text>
+                      <Text style={styles.favNom} numberOfLines={2}>{f.nom}</Text>
+                      {!!indispo && <Text style={styles.favIndispo}>Indispo</Text>}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </>
+          )}
+
+          {/* === Offres en cours === */}
+          {offres.length > 0 && (
+            <>
+              <Text style={styles.sectionTitre}>En ce moment</Text>
+              {offres.slice(0, 2).map((o) => (
+                <Pressable key={o.id} style={styles.offre} onPress={() => router.push('/offres' as any)}>
+                  <Text style={styles.offreTitre}>{o.titre}</Text>
+                  <Text style={styles.offreMessage} numberOfLines={2}>{o.message}</Text>
+                </Pressable>
+              ))}
+              {offres.length > 2 && (
+                <Pressable style={styles.lien} onPress={() => router.push('/offres' as any)}>
+                  <Text style={styles.lienTexte}>Voir toutes les offres ›</Text>
+                </Pressable>
+              )}
+            </>
+          )}
 
           {/* Accès rapide : historique des commandes */}
           <Pressable style={styles.lien} onPress={() => router.push('/commander/mes-commandes' as any)}>
-            <Text style={styles.lienTexte}>🧾 Mes commandes passées ›</Text>
+            <Text style={styles.lienTexte}>Mes commandes passées ›</Text>
           </Pressable>
-        </ScrollView>
-      </SafeAreaView>
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  fond: { flex: 1, backgroundColor: VIOLET },
-  safe: { flex: 1 },
-  contenu: { padding: 24, gap: 16 },
-  logo: {
-    fontSize: 34, fontWeight: '900', color: '#fff', textAlign: 'center',
-    letterSpacing: 1, marginTop: 24,
+  fond: { flex: 1, backgroundColor: C.fond },
+
+  // Header de marque
+  header: {
+    backgroundColor: C.violet,
+    borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
+    paddingHorizontal: 22, paddingBottom: 40, gap: 6,
   },
-  slogan: { fontSize: 16, color: LAVANDE, textAlign: 'center' },
-  horaires: { fontSize: 13, color: '#cdbfe6', textAlign: 'center', marginTop: -10 },
+  logo: { fontFamily: F.titre, fontSize: 30, color: '#fff', letterSpacing: 0.5 },
+  salut: { fontFamily: F.t600, fontSize: 15.5, color: C.lavande },
+  infosMag: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  infosMagTxt: {
+    fontFamily: F.t700, fontSize: 12.5, color: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: R.pill,
+    paddingVertical: 6, paddingHorizontal: 12, overflow: 'hidden',
+  },
+  infosMagHoraires: { fontFamily: F.t600, fontSize: 12.5, color: '#CDBFE6' },
+
+  // Le contenu chevauche le bas du header (cartes "posées" dessus)
+  contenu: { paddingHorizontal: 18, gap: 14, marginTop: -24 },
 
   // Suivi de commande live
-  suivi: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#fff', borderRadius: 18, padding: 18,
-    borderWidth: 2, borderColor: '#FFD166',
+  suivi: { backgroundColor: C.carte, borderRadius: R.carte, padding: 18, gap: 10, ...OMBRE },
+  suiviPrete: { borderWidth: 2, borderColor: C.vert },
+  suiviHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  suiviTitre: { fontFamily: F.t800, fontSize: 16, color: C.texte },
+  suiviTexte: { fontFamily: F.t700, fontSize: 14, color: C.texte2 },
+  etapes: { flexDirection: 'row', gap: 6 },
+  etape: { flex: 1, height: 6, borderRadius: 3, backgroundColor: C.lavande },
+  etapeFaite: { backgroundColor: C.vert },
+
+  // CTA Commander
+  cta: {
+    backgroundColor: C.vert, borderRadius: R.carte, padding: 20,
+    flexDirection: 'row', alignItems: 'center', gap: 12, ...OMBRE,
   },
-  suiviPrete: { borderColor: VERT, backgroundColor: '#F3FADC' },
-  suiviEmoji: { fontSize: 28 },
-  suiviTitre: { fontSize: 16, fontWeight: '900', color: VIOLET_PROFOND },
-  suiviTexte: { fontSize: 14, color: VIOLET_PROFOND, opacity: 0.8 },
-  suiviChevron: { fontSize: 26, color: VIOLET_PROFOND, opacity: 0.5, fontWeight: '700' },
-
-  // Gros bouton « Commander » (action n°1 de l'app)
-  ctaCommander: { backgroundColor: VERT, borderRadius: 18, padding: 22, alignItems: 'center', gap: 4 },
-  ctaCommanderTexte: { fontSize: 22, fontWeight: '900', color: VIOLET_PROFOND },
-  ctaCommanderSous: { fontSize: 14, color: VIOLET_PROFOND, opacity: 0.8 },
-
-  carte: { backgroundColor: '#fff', borderRadius: 18, padding: 20, gap: 8 },
-  carteLigneTitre: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  carteTitre: { fontSize: 18, fontWeight: '800', color: VIOLET_PROFOND },
-  carteCompteur: { fontSize: 16, fontWeight: '900', color: VERT },
-  carteTexte: { fontSize: 15, color: VIOLET_PROFOND, lineHeight: 22 },
-
-  // Tampons de fidélité
-  tampons: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginVertical: 4 },
-  tampon: {
-    width: 30, height: 30, borderRadius: 15, backgroundColor: LAVANDE,
-    borderWidth: 1.5, borderColor: '#d9cdee', alignItems: 'center', justifyContent: 'center',
+  ctaTitre: { fontFamily: F.titre, fontSize: 21, color: C.violetProfond },
+  ctaSous: { fontFamily: F.t600, fontSize: 13.5, color: C.violetProfond, opacity: 0.75, marginTop: 2 },
+  ctaRond: {
+    width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff',
+    alignItems: 'center', justifyContent: 'center',
   },
-  tamponPlein: { backgroundColor: '#E9F4C7', borderColor: VERT },
-  tamponTxt: { fontSize: 15 },
 
-  offre: { backgroundColor: '#FFD166', borderRadius: 16, padding: 16, gap: 4 },
-  offreTitre: { fontSize: 16, fontWeight: '900', color: VIOLET_PROFOND },
-  offreMessage: { fontSize: 14, color: VIOLET_PROFOND, lineHeight: 20 },
+  sectionTitre: { fontFamily: F.titre, fontSize: 18, color: C.violet, marginTop: 8, marginBottom: -2 },
 
-  lien: { paddingVertical: 6, alignItems: 'center' },
-  lienTexte: { fontSize: 15, color: LAVANDE, fontWeight: '700' },
+  // Rail catégories
+  catRail: { gap: 12, paddingVertical: 4, paddingRight: 6 },
+  catTuile: { alignItems: 'center', gap: 7, width: 86 },
+  catPhoto: { width: 82, height: 82, borderRadius: 24, backgroundColor: C.lavande },
+  catEmoji: { alignItems: 'center', justifyContent: 'center' },
+  catNom: { fontFamily: F.t700, fontSize: 12.5, color: C.texte, textAlign: 'center' },
+
+  // Carte fidélité
+  fidelite: { backgroundColor: C.violet, borderRadius: R.carte, padding: 20, gap: 10, ...OMBRE },
+  fideliteHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  fideliteTitre: { fontFamily: F.titre, fontSize: 17, color: '#fff' },
+  fideliteCompteur: { fontFamily: F.t800, fontSize: 16, color: C.vert },
+  tampons: { flexDirection: 'row', gap: 7 },
+  tampon: { flex: 1, height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.18)' },
+  tamponPlein: { backgroundColor: C.vert },
+  fideliteTexte: { fontFamily: F.t600, fontSize: 13.5, color: C.lavande },
+
+  // Favoris
+  favRail: { gap: 10, paddingVertical: 4, paddingRight: 6 },
+  favCarte: {
+    backgroundColor: C.carte, borderRadius: 16, padding: 14,
+    width: 150, gap: 4, ...OMBRE,
+  },
+  favPlus: { fontFamily: F.t800, fontSize: 18, color: C.vertFonce },
+  favNom: { fontFamily: F.t700, fontSize: 13, color: C.texte, lineHeight: 18 },
+  favIndispo: { fontFamily: F.t700, fontSize: 11.5, color: C.danger },
+
+  // Offres
+  offre: { backgroundColor: C.jaune, borderRadius: 18, padding: 16, gap: 4, ...OMBRE },
+  offreTitre: { fontFamily: F.t800, fontSize: 15.5, color: C.violetProfond },
+  offreMessage: { fontFamily: F.t600, fontSize: 13.5, color: C.violetProfond, opacity: 0.8, lineHeight: 19 },
+
+  lien: { paddingVertical: 4, alignItems: 'center' },
+  lienTexte: { fontFamily: F.t700, fontSize: 14, color: C.violetClair },
 });

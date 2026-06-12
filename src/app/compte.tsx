@@ -1,13 +1,12 @@
-// === Compte client Bubblestop (Supabase Auth) ===
-// Inscription / connexion par email + mot de passe.
-// À l'inscription, on crée aussi la ligne "profils" liée,
-// en récupérant le numéro de fidélité déjà saisi dans l'onglet Fidélité.
+// === Compte client Bubble Stop (Supabase Auth) ===
+// Hub de compte type app pro : profil, sécurité (email + mot de passe confirmés
+// par code email), fidélité, aide, admin. Inscription / connexion / Google OAuth.
 import { useEffect, useState } from 'react';
 import {
   StyleSheet, View, Text, TextInput, Pressable,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert, Switch, Linking,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import type { Session } from '@supabase/supabase-js';
@@ -16,11 +15,89 @@ import { supabase } from '@/lib/supabase';
 import { enregistrerPush } from '@/lib/push';
 import { GoogleLogo } from '@/components/google-logo';
 import { MAGASINS, MagasinId } from '@/store/magasin';
+import { C, F, R, OMBRE } from '@/constants/charte';
+import {
+  Carte, LigneMenu, ChampTexte, Message, BoutonPrimaire, BoutonGhost, TitreSection,
+} from '@/components/ui-kit';
 
-const VIOLET = '#3A2A5E';
-const VIOLET_PROFOND = '#2A1D46';
-const VERT = '#A3C724';
-const LAVANDE = '#EFE9F6';
+const URL_CONFIDENTIALITE = 'https://zpnoopitysojsvuqnbuo.supabase.co/functions/v1/confidentialite';
+const EMAIL_CONTACT = 'bubblestopaix@gmail.com';
+
+// === Presets d'offres (admin) : modèles prêts à publier ===
+// Tap = pré-remplit titre + message (modifiables avant publication).
+// `conseil` = note pour l'admin, jamais publiée.
+const PRESETS_OFFRES = [
+  {
+    id: 'happy-hour', emoji: '⚡', nom: 'Happy hour',
+    apercu: 'Remplir les heures creuses',
+    titre: '⚡ Happy hour : -30 % de 15h à 17h',
+    message: 'Aujourd\'hui seulement : -30 % sur toutes les boissons entre 15h et 17h. File en boutique !',
+    conseil: 'Adapte l\'horaire à ton heure creuse du jour. La remise s\'applique manuellement en caisse.',
+  },
+  {
+    id: 'avant-premiere', emoji: '🆕', nom: 'Avant-première',
+    apercu: 'Nouveauté réservée aux membres',
+    titre: '🆕 Nouvelle saveur en avant-première',
+    message: 'La nouvelle saveur arrive ! Réservée aux membres de l\'appli pendant 3 jours — viens la goûter avant tout le monde.',
+    conseil: 'Remplace par le nom de la saveur. L\'exclusivité = montrer l\'appli en caisse.',
+  },
+  {
+    id: 'tampon-double', emoji: '✌️', nom: 'Tampons ×2',
+    apercu: 'Booster ton jour le plus creux',
+    titre: '✌️ Mardi = tampons ×2',
+    message: 'Tous les mardis, ta carte avance deux fois plus vite : 1 boisson achetée = 2 tampons. À demain ?',
+    conseil: 'Choisis ton jour le plus creux. En caisse : ajouter le 2e tampon manuellement.',
+  },
+  {
+    id: 'canicule', emoji: '☀️', nom: 'Canicule',
+    apercu: 'Pousser les citronnades quand il fait chaud',
+    titre: '☀️ Alerte chaleur : citronnades -20 %',
+    message: 'Il fait chaud ! -20 % sur toutes les citronnades aujourd\'hui. Fraîcheur garantie 🍋',
+    conseil: 'À envoyer les jours de grosse chaleur, le matin. Produit frais, bonne marge.',
+  },
+  {
+    id: 'pluie', emoji: '🌧️', nom: 'Jour de pluie',
+    apercu: 'Boissons chaudes les jours gris',
+    titre: '🌧️ Il pleut ? On te réchauffe',
+    message: '-20 % sur les boissons chaudes aujourd\'hui. Le bubble tea chaud, c\'est la vie.',
+    conseil: 'Spontané = efficace. Push le matin même quand la météo est moche.',
+  },
+  {
+    id: 'duo', emoji: '👯', nom: 'Offre duo',
+    apercu: 'Faire venir à deux',
+    titre: '👯 À deux c\'est mieux',
+    message: 'Ce week-end : 1 topping offert sur chaque boisson quand vous venez à deux. Ramène ton/ta meilleur(e) ami(e) !',
+    conseil: 'Coût faible (2 toppings) et fait découvrir la boutique à de nouveaux clients.',
+  },
+  {
+    id: 'precommande', emoji: '📲', nom: 'Click & collect',
+    apercu: 'Pousser la commande sur l\'appli',
+    titre: '📲 Commande sur l\'appli, zéro attente',
+    message: 'Commande en avance depuis l\'appli et récupère ta boisson sans faire la queue. Teste, tu vas adorer.',
+    conseil: 'À republier ~1×/mois pour installer le réflexe click & collect.',
+  },
+  {
+    id: 'mystere', emoji: '🎁', nom: 'Boisson mystère',
+    apercu: 'Fun + écouler une saveur',
+    titre: '🎁 La boisson mystère est de retour',
+    message: 'Aujourd\'hui : boisson mystère taille M à 4,50 €. Saveur surprise choisie par l\'équipe — t\'oses ?',
+    conseil: 'Parfait pour écouler un stock de saveur. Garde un prix rond et simple.',
+  },
+  {
+    id: 'parrainage', emoji: '🤝', nom: 'Parrainage',
+    apercu: 'Tes clients recrutent pour toi',
+    titre: '🤝 Amène un ami, gagnez 2 tampons',
+    message: 'Ton ami commande pour la 1ère fois en donnant ton numéro de carte ? Vous gagnez chacun 1 tampon !',
+    conseil: 'En caisse : ajouter le tampon manuellement chez le parrain ET le filleul.',
+  },
+  {
+    id: 'story', emoji: '📸', nom: 'Story = topping',
+    apercu: 'De la pub gratuite par tes clients',
+    titre: '📸 Ta story = 1 topping offert',
+    message: 'Poste ta boisson en story en nous identifiant, montre-la en caisse : topping offert sur ta prochaine commande.',
+    conseil: 'Contenu gratuit sur les réseaux — l\'équipe vérifie la story au comptoir.',
+  },
+] as const;
 
 // Règles de mot de passe (alignées sur Supabase) :
 // 8 caractères min, une minuscule, une majuscule, un chiffre
@@ -29,7 +106,21 @@ function mdpValide(mdp: string): boolean {
   return mdp.length >= 8 && /[a-z]/.test(mdp) && /[A-Z]/.test(mdp) && /[0-9]/.test(mdp);
 }
 
+// Confirmation destructive qui marche aussi sur web (Alert y est muet)
+function confirmer(titre: string, texte: string, onOk: () => void) {
+  if (Platform.OS === 'web') {
+    // eslint-disable-next-line no-alert
+    if (typeof window !== 'undefined' && window.confirm(`${titre}\n\n${texte}`)) onOk();
+    return;
+  }
+  Alert.alert(titre, texte, [
+    { text: 'Annuler', style: 'cancel' },
+    { text: 'Supprimer', style: 'destructive', onPress: onOk },
+  ]);
+}
+
 export default function CompteScreen() {
+  const insets = useSafeAreaInsets();
   const [session, setSession] = useState<Session | null>(null);
   const [chargement, setChargement] = useState(true);
 
@@ -58,10 +149,11 @@ export default function CompteScreen() {
   const [prenom, setPrenom] = useState('');
   const [telFidelite, setTelFidelite] = useState('');
   const [prenomSurTicket, setPrenomSurTicket] = useState(false);
+  const [magasinClient, setMagasinClient] = useState<string | null>(null);
   const [infosOk, setInfosOk] = useState(false);
   const [estAdmin, setEstAdmin] = useState(false);
-  // Édition email / mot de passe : null | 'email' | 'email-code' | 'mdp'
-  const [edition, setEdition] = useState<null | 'email' | 'email-code' | 'mdp'>(null);
+  // Section dépliée : null | 'profil' | 'email' | 'email-code' | 'mdp' | 'pin'
+  const [edition, setEdition] = useState<null | 'profil' | 'email' | 'email-code' | 'mdp' | 'pin'>(null);
   const [nouvelEmail, setNouvelEmail] = useState('');
   const [codeEmail, setCodeEmail] = useState('');
   const [nouveauMdp, setNouveauMdp] = useState('');
@@ -71,12 +163,13 @@ export default function CompteScreen() {
   useEffect(() => {
     if (!session) { setEstAdmin(false); return; }
     enregistrerPush();
-    supabase.from('profils').select('nom, numero_fidelite, est_admin, prenom_sur_ticket').eq('id', session.user.id).maybeSingle()
+    supabase.from('profils').select('nom, numero_fidelite, est_admin, prenom_sur_ticket, magasin').eq('id', session.user.id).maybeSingle()
       .then(({ data }) => {
         setPrenom(data?.nom ?? '');
         setTelFidelite(data?.numero_fidelite ?? '');
         setPrenomSurTicket(!!data?.prenom_sur_ticket);
         setEstAdmin(!!data?.est_admin);
+        setMagasinClient(data?.magasin ?? null);
       });
   }, [session]);
 
@@ -85,6 +178,16 @@ export default function CompteScreen() {
   const [offreMessage, setOffreMessage] = useState('');
   const [offres, setOffres] = useState<any[]>([]);
   const [offreEtat, setOffreEtat] = useState<string | null>(null);
+  // Preset sélectionné (pré-remplit les champs, modifiables ensuite)
+  const [presetId, setPresetId] = useState<string | null>(null);
+  const choisirPreset = (p: (typeof PRESETS_OFFRES)[number]) => {
+    if (presetId === p.id) { setPresetId(null); setOffreTitre(''); setOffreMessage(''); return; }
+    setPresetId(p.id);
+    setOffreTitre(p.titre);
+    setOffreMessage(p.message);
+    setOffreEtat(null);
+  };
+  const presetActif = PRESETS_OFFRES.find((p) => p.id === presetId);
   const chargerOffres = async () => {
     const { data } = await supabase.from('offres').select('*').order('created_at', { ascending: false }).limit(10);
     setOffres(data ?? []);
@@ -110,7 +213,7 @@ export default function CompteScreen() {
           ? '✅ Publiée, ⚠️ push échoué'
           : `✅ Publiée + push envoyé à ${data?.destinataires ?? 0} appareil(s)`;
       }
-      setOffreTitre(''); setOffreMessage('');
+      setOffreTitre(''); setOffreMessage(''); setPresetId(null);
       setOffreEtat(txt);
       chargerOffres();
     } catch (e: any) {
@@ -178,7 +281,6 @@ export default function CompteScreen() {
   };
 
   // === Changement du PIN fidélité (appliqué par la caisse sous ~1 min) ===
-  const [pinOuvert, setPinOuvert] = useState(false);
   const [ancienPin, setAncienPin] = useState('');
   const [nouveauPin, setNouveauPin] = useState('');
   const [pinMsg, setPinMsg] = useState<string | null>(null);
@@ -201,7 +303,7 @@ export default function CompteScreen() {
 
   const envoyerDemandePin = async () => {
     const t = telFidelite.replace(/\D/g, '');
-    if (t.length !== 10) { setPinMsg('Enregistre d\'abord ton numéro de fidélité ci-dessus.'); return; }
+    if (t.length !== 10) { setPinMsg('Enregistre d\'abord ton numéro de fidélité dans Mon profil.'); return; }
     if (!/^\d{4}$/.test(nouveauPin)) { setPinMsg('Le nouveau PIN doit faire 4 chiffres.'); return; }
     setPinMsg(null);
     const { error } = await supabase.from('fidelite_pin_demandes').insert({
@@ -212,7 +314,7 @@ export default function CompteScreen() {
     if (error) {
       setPinMsg(String(error.message));
     } else {
-      setAncienPin(''); setNouveauPin(''); setPinOuvert(false);
+      setAncienPin(''); setNouveauPin(''); setEdition(null);
       setPinMsg('✓ Demande envoyée — ton PIN sera mis à jour en boutique d\'ici quelques minutes.');
     }
   };
@@ -269,7 +371,7 @@ export default function CompteScreen() {
 
   // === Changement de mot de passe (connecté) — confirmation par code email ===
   const [codeMdp, setCodeMdp] = useState('');
-  // 1. Clic sur "Modifier" → envoi du code à l'adresse du compte
+  // 1. Ouverture de la section → envoi du code à l'adresse du compte
   const demanderChangementMdp = async () => {
     if (!session?.user.email) return;
     setEdition('mdp');
@@ -491,289 +593,291 @@ export default function CompteScreen() {
 
   // === Suppression définitive du compte (RGPD / Play Store) ===
   const supprimerCompte = () => {
-    Alert.alert(
+    confirmer(
       'Supprimer mon compte',
       'Ton compte, tes commandes et ta carte seront supprimés définitivement. Cette action est irréversible.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { data, error } = await supabase.functions.invoke('supprimer-compte');
-              if (error || !data?.ok) throw error || new Error('échec de la suppression');
-              await supabase.auth.signOut();
-            } catch (e: any) {
-              Alert.alert('Erreur', String(e?.message ?? e));
-            }
-          },
-        },
-      ],
+      async () => {
+        try {
+          const { data, error } = await supabase.functions.invoke('supprimer-compte');
+          if (error || !data?.ok) throw error || new Error('échec de la suppression');
+          await supabase.auth.signOut();
+        } catch (e: any) {
+          if (Platform.OS === 'web') setInfoMsg(String(e?.message ?? e));
+          else Alert.alert('Erreur', String(e?.message ?? e));
+        }
+      },
     );
   };
 
   if (chargement) {
     return (
       <View style={[styles.fond, styles.centre]}>
-        <ActivityIndicator color={VERT} size="large" />
+        <ActivityIndicator color={C.violet} size="large" />
       </View>
     );
   }
 
-  // === Connecté : infos du compte ===
+  // === Connecté : hub du compte ===
   if (session) {
+    const initiale = (prenom || session.user.email || '?').trim().charAt(0).toUpperCase();
+    const nomMagasin = magasinClient ? (MAGASINS.find((m) => m.id === magasinClient)?.nom || magasinClient) : null;
     return (
       <View style={styles.fond}>
-        <SafeAreaView style={styles.safe}>
-          <ScrollView contentContainerStyle={styles.contenu} keyboardShouldPersistTaps="handled">
-            <Text style={styles.titre}>Mon compte</Text>
+        <ScrollView
+          contentContainerStyle={[styles.contenu, { paddingTop: insets.top + 18 }]}
+          keyboardShouldPersistTaps="handled">
+          <Text style={styles.titre}>Mon compte</Text>
 
-            {/* === Mes informations === */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitre}>Mes informations</Text>
-              <Text style={styles.label}>Prénom</Text>
-              <TextInput
-                style={styles.champ}
-                value={prenom}
-                onChangeText={setPrenom}
-                placeholder="Prénom"
-                placeholderTextColor="#9a8fb5"
-                autoCapitalize="words"
-              />
-              <Text style={styles.label}>N° de téléphone (carte fidélité)</Text>
-              <TextInput
-                style={styles.champ}
-                value={telFidelite}
-                onChangeText={setTelFidelite}
-                placeholder="06 12 34 56 78"
-                placeholderTextColor="#9a8fb5"
-                keyboardType="number-pad"
-                maxLength={14}
-              />
-              <Text style={[styles.label, { fontWeight: '600' }]}>
-                Jamais utilisé pour du démarchage — uniquement pour identifier ta carte en
-                caisse si tu n'as pas ton QR.
-              </Text>
-              {/* Prénom imprimé sur les tickets en boutique (au choix du client) */}
-              <View style={styles.ligneInfo}>
-                <Text style={[styles.valeur, { flex: 1, fontSize: 14 }]}>
-                  Afficher mon prénom sur mes tickets
-                </Text>
-                <Switch
-                  value={prenomSurTicket}
-                  onValueChange={setPrenomSurTicket}
-                  trackColor={{ false: '#ffffff33', true: VERT }}
-                  thumbColor="#fff"
+          {/* === En-tête profil === */}
+          <Carte style={styles.profil}>
+            <View style={styles.avatar}><Text style={styles.avatarTxt}>{initiale}</Text></View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={styles.profilNom}>{prenom || 'Mon profil'}</Text>
+              <Text style={styles.profilEmail} numberOfLines={1}>{session.user.email}</Text>
+              {!!nomMagasin && <Text style={styles.profilMagasin}>📍 {nomMagasin}</Text>}
+            </View>
+          </Carte>
+
+          {/* === Mon profil (infos + prénom ticket) === */}
+          <TitreSection texte="Mon profil" />
+          <Carte style={{ paddingVertical: 4 }}>
+            <LigneMenu
+              titre="Mes informations"
+              sousTitre="Prénom, numéro de carte, prénom sur les tickets"
+              onPress={() => (edition === 'profil' ? fermerEdition() : setEdition('profil'))}
+            />
+            {edition === 'profil' && (
+              <View style={styles.depli}>
+                <ChampTexte label="Prénom" value={prenom} onChangeText={setPrenom} placeholder="Prénom" autoCapitalize="words" />
+                <ChampTexte
+                  label="N° de téléphone (carte fidélité)"
+                  value={telFidelite}
+                  onChangeText={setTelFidelite}
+                  placeholder="06 12 34 56 78"
+                  keyboardType="number-pad"
+                  maxLength={14}
                 />
-              </View>
-
-              <Pressable style={styles.btnSection} onPress={enregistrerInfos}>
-                <Text style={styles.btnTexte}>{infosOk ? '✓ Enregistré' : 'Enregistrer'}</Text>
-              </Pressable>
-
-              {/* Code PIN fidélité (utilisé en caisse avec le numéro) */}
-              <View style={styles.ligneInfo}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Code PIN fidélité</Text>
-                  <Text style={styles.valeur}>••••</Text>
+                <Text style={styles.aideChamp}>
+                  Jamais utilisé pour du démarchage — uniquement pour identifier ta carte en caisse si tu n'as pas ton QR.
+                </Text>
+                <View style={styles.ligneSwitch}>
+                  <Text style={styles.ligneSwitchTxt}>Afficher mon prénom sur mes tickets</Text>
+                  <Switch
+                    value={prenomSurTicket}
+                    onValueChange={setPrenomSurTicket}
+                    trackColor={{ false: C.bord, true: C.vert }}
+                    thumbColor="#fff"
+                  />
                 </View>
-                <Pressable onPress={() => { setPinOuvert(!pinOuvert); setPinMsg(null); }}>
-                  <Text style={styles.lien}>{pinOuvert ? 'Annuler' : 'Modifier'}</Text>
-                </Pressable>
+                <BoutonPrimaire titre={infosOk ? '✓ Enregistré' : 'Enregistrer'} onPress={enregistrerInfos} />
               </View>
-              {pinOuvert && (
-                <>
-                  <TextInput
-                    style={styles.champ}
-                    value={ancienPin}
-                    onChangeText={setAncienPin}
-                    placeholder="Ancien PIN (vide si jamais défini)"
-                    placeholderTextColor="#9a8fb5"
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    secureTextEntry
-                  />
-                  <TextInput
-                    style={styles.champ}
-                    value={nouveauPin}
-                    onChangeText={setNouveauPin}
-                    placeholder="Nouveau PIN (4 chiffres)"
-                    placeholderTextColor="#9a8fb5"
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    secureTextEntry
-                  />
-                  <Pressable style={styles.btnSection} onPress={envoyerDemandePin}>
-                    <Text style={styles.btnTexte}>Changer mon PIN</Text>
-                  </Pressable>
-                </>
-              )}
-              {pinMsg && <Text style={styles.message}>{pinMsg}</Text>}
-            </View>
+            )}
+            <LigneMenu
+              titre="Ma carte de fidélité"
+              sousTitre="QR, tampons et boissons offertes"
+              onPress={() => router.push('/explore' as any)}
+            />
+            <LigneMenu
+              titre="Mes commandes"
+              sousTitre="Suivi et historique"
+              onPress={() => router.push('/commander/mes-commandes' as any)}
+              separateur={false}
+            />
+          </Carte>
 
-            {/* === Connexion & sécurité === */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitre}>Connexion & sécurité</Text>
-
-              {/* Email actuel + Modifier */}
-              <View style={styles.ligneInfo}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Adresse email</Text>
-                  <Text style={styles.valeur}>{session.user.email}</Text>
-                </View>
-                <Pressable
-                  onPress={() => (edition === 'email' || edition === 'email-code') ? fermerEdition() : setEdition('email')}>
-                  <Text style={styles.lien}>{(edition === 'email' || edition === 'email-code') ? 'Annuler' : 'Modifier'}</Text>
-                </Pressable>
+          {/* === Connexion & sécurité === */}
+          <TitreSection texte="Connexion & sécurité" />
+          <Carte style={{ paddingVertical: 4 }}>
+            <LigneMenu
+              titre="Adresse email"
+              sousTitre={session.user.email ?? ''}
+              onPress={() => ((edition === 'email' || edition === 'email-code') ? fermerEdition() : setEdition('email'))}
+            />
+            {edition === 'email' && (
+              <View style={styles.depli}>
+                <ChampTexte
+                  label="Nouvelle adresse email"
+                  value={nouvelEmail}
+                  onChangeText={setNouvelEmail}
+                  placeholder="nouvelle@adresse.fr"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <BoutonPrimaire titre="Recevoir le code de confirmation" onPress={demanderChangementEmail} loading={editionEnCours} />
               </View>
-
-              {edition === 'email' && (
-                <>
-                  <TextInput
-                    style={styles.champ}
-                    value={nouvelEmail}
-                    onChangeText={setNouvelEmail}
-                    placeholder="Nouvelle adresse email"
-                    placeholderTextColor="#9a8fb5"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <Pressable style={styles.btnSection} onPress={demanderChangementEmail} disabled={editionEnCours}>
-                    {editionEnCours ? <ActivityIndicator color={VIOLET_PROFOND} /> : <Text style={styles.btnTexte}>Recevoir le code de confirmation</Text>}
-                  </Pressable>
-                </>
-              )}
-
-              {edition === 'email-code' && (
-                <>
-                  <TextInput
-                    style={styles.champ}
-                    value={codeEmail}
-                    onChangeText={setCodeEmail}
-                    placeholder="Code reçu par email"
-                    placeholderTextColor="#9a8fb5"
-                    keyboardType="number-pad"
-                    maxLength={10}
-                  />
-                  <Pressable style={styles.btnSection} onPress={validerChangementEmail} disabled={editionEnCours}>
-                    {editionEnCours ? <ActivityIndicator color={VIOLET_PROFOND} /> : <Text style={styles.btnTexte}>Confirmer le changement</Text>}
-                  </Pressable>
-                </>
-              )}
-
-              {/* Mot de passe + Modifier */}
-              <View style={styles.ligneInfo}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Mot de passe</Text>
-                  <Text style={styles.valeur}>••••••••</Text>
-                </View>
-                <Pressable onPress={() => edition === 'mdp' ? fermerEdition() : demanderChangementMdp()}>
-                  <Text style={styles.lien}>{edition === 'mdp' ? 'Annuler' : 'Modifier'}</Text>
-                </Pressable>
-              </View>
-
-              {edition === 'mdp' && (
-                <>
-                  <TextInput
-                    style={styles.champ}
-                    value={codeMdp}
-                    onChangeText={setCodeMdp}
-                    placeholder="Code reçu par email"
-                    placeholderTextColor="#9a8fb5"
-                    keyboardType="number-pad"
-                    maxLength={10}
-                  />
-                  <TextInput
-                    style={styles.champ}
-                    value={nouveauMdp}
-                    onChangeText={setNouveauMdp}
-                    placeholder="Nouveau mot de passe"
-                    placeholderTextColor="#9a8fb5"
-                    secureTextEntry
-                  />
-                  <TextInput
-                    style={styles.champ}
-                    value={nouveauMdp2}
-                    onChangeText={setNouveauMdp2}
-                    placeholder="Confirme le nouveau mot de passe"
-                    placeholderTextColor="#9a8fb5"
-                    secureTextEntry
-                  />
-                  <Pressable style={styles.btnSection} onPress={changerMdp} disabled={editionEnCours}>
-                    {editionEnCours ? <ActivityIndicator color={VIOLET_PROFOND} /> : <Text style={styles.btnTexte}>Changer le mot de passe</Text>}
-                  </Pressable>
-                </>
-              )}
-
-              {infoMsg && <Text style={styles.message}>{infoMsg}</Text>}
-            </View>
-
-            <Pressable style={styles.btnGhost} onPress={deconnexion}>
-              <Text style={styles.btnGhostTexte}>Se déconnecter</Text>
-            </Pressable>
-            <Pressable style={styles.btnGhost} onPress={supprimerCompte}>
-              <Text style={styles.btnDanger}>Supprimer mon compte</Text>
-            </Pressable>
-
-            {/* === Section ADMIN : toutes les commandes (master) === */}
-            {estAdmin && (
-              <View style={styles.admin}>
-                <Text style={styles.adminTitre}>🛠️ Admin — Commandes</Text>
-                <Pressable style={styles.btnSection} onPress={() => router.push('/commander/admin-commandes' as any)}>
-                  <Text style={styles.btnTexte}>📋 Toutes les commandes (3 magasins)</Text>
-                </Pressable>
+            )}
+            {edition === 'email-code' && (
+              <View style={styles.depli}>
+                <ChampTexte
+                  label="Code reçu par email"
+                  value={codeEmail}
+                  onChangeText={setCodeEmail}
+                  placeholder="123456"
+                  keyboardType="number-pad"
+                  maxLength={10}
+                />
+                <BoutonPrimaire titre="Confirmer le changement" onPress={validerChangementEmail} loading={editionEnCours} />
               </View>
             )}
 
-            {/* === Section ADMIN : offres / annonces === */}
-            {estAdmin && (
-              <View style={styles.admin}>
-                <Text style={styles.adminTitre}>🛠️ Admin — Offres</Text>
-                <TextInput
-                  style={styles.input}
+            <LigneMenu
+              titre="Mot de passe"
+              sousTitre="Modification confirmée par code email"
+              onPress={() => (edition === 'mdp' ? fermerEdition() : demanderChangementMdp())}
+            />
+            {edition === 'mdp' && (
+              <View style={styles.depli}>
+                <ChampTexte
+                  label="Code reçu par email"
+                  value={codeMdp}
+                  onChangeText={setCodeMdp}
+                  placeholder="123456"
+                  keyboardType="number-pad"
+                  maxLength={10}
+                />
+                <ChampTexte
+                  label="Nouveau mot de passe"
+                  value={nouveauMdp}
+                  onChangeText={setNouveauMdp}
+                  placeholder={REGLES_MDP}
+                  secureTextEntry
+                />
+                <ChampTexte
+                  label="Confirme le nouveau mot de passe"
+                  value={nouveauMdp2}
+                  onChangeText={setNouveauMdp2}
+                  placeholder="••••••••"
+                  secureTextEntry
+                />
+                <BoutonPrimaire titre="Changer le mot de passe" onPress={changerMdp} loading={editionEnCours} />
+              </View>
+            )}
+
+            <LigneMenu
+              titre="Code PIN fidélité"
+              sousTitre="Utilisé en caisse avec ton numéro"
+              onPress={() => {
+                if (edition === 'pin') { fermerEdition(); return; }
+                setEdition('pin'); setPinMsg(null);
+              }}
+              separateur={false}
+            />
+            {edition === 'pin' && (
+              <View style={styles.depli}>
+                <ChampTexte
+                  label="Ancien PIN (vide si jamais défini)"
+                  value={ancienPin}
+                  onChangeText={setAncienPin}
+                  placeholder="••••"
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  secureTextEntry
+                />
+                <ChampTexte
+                  label="Nouveau PIN (4 chiffres)"
+                  value={nouveauPin}
+                  onChangeText={setNouveauPin}
+                  placeholder="••••"
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  secureTextEntry
+                />
+                <BoutonPrimaire titre="Changer mon PIN" onPress={envoyerDemandePin} />
+              </View>
+            )}
+            {!!pinMsg && <View style={{ paddingBottom: 12 }}><Message texte={pinMsg} /></View>}
+            {!!infoMsg && <View style={{ paddingBottom: 12 }}><Message texte={infoMsg} type={infoMsg.startsWith('✓') ? 'ok' : 'info'} /></View>}
+          </Carte>
+
+          {/* === Aide === */}
+          <TitreSection texte="Aide" />
+          <Carte style={{ paddingVertical: 4 }}>
+            <LigneMenu
+              titre="Nous contacter"
+              sousTitre={EMAIL_CONTACT}
+              onPress={() => Linking.openURL(`mailto:${EMAIL_CONTACT}`)}
+            />
+            <LigneMenu
+              titre="Politique de confidentialité"
+              onPress={() => Linking.openURL(URL_CONFIDENTIALITE)}
+              separateur={false}
+            />
+          </Carte>
+
+          <BoutonGhost titre="Se déconnecter" onPress={deconnexion} />
+          <BoutonGhost titre="Supprimer mon compte" onPress={supprimerCompte} danger />
+
+          {/* === Section ADMIN === */}
+          {estAdmin && (
+            <>
+              <TitreSection texte="🛠️ Admin" />
+              <Carte style={{ gap: 10 }}>
+                <BoutonPrimaire
+                  titre="📋 Toutes les commandes (3 magasins)"
+                  onPress={() => router.push('/commander/admin-commandes' as any)}
+                />
+              </Carte>
+
+              {/* Offres / annonces */}
+              <Carte style={{ gap: 10 }}>
+                <Text style={styles.adminTitre}>Offres</Text>
+
+                {/* === Presets : modèles prêts à publier (scroll horizontal) === */}
+                <Text style={styles.presetsAide}>Choisis un modèle ou écris librement :</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetsRail}>
+                  {PRESETS_OFFRES.map((p) => (
+                    <Pressable
+                      key={p.id}
+                      style={[styles.preset, presetId === p.id && styles.presetActif]}
+                      onPress={() => choisirPreset(p)}>
+                      <Text style={styles.presetEmoji}>{p.emoji}</Text>
+                      <Text style={styles.presetNom} numberOfLines={1}>{p.nom}</Text>
+                      <Text style={styles.presetApercu} numberOfLines={2}>{p.apercu}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                {/* Conseil d'utilisation du preset (jamais publié) */}
+                {presetActif && <Message texte={`💡 ${presetActif.conseil}`} />}
+
+                <ChampTexte
                   value={offreTitre}
                   onChangeText={setOffreTitre}
                   placeholder="Titre (ex : -20 % aujourd'hui !)"
-                  placeholderTextColor="#9a8fb5"
                   maxLength={60}
                 />
                 <TextInput
-                  style={[styles.input, { minHeight: 70 }]}
+                  style={[styles.adminMultiligne]}
                   value={offreMessage}
                   onChangeText={setOffreMessage}
                   placeholder="Message de l'offre"
-                  placeholderTextColor="#9a8fb5"
+                  placeholderTextColor={C.texte3}
                   multiline
                   maxLength={180}
                 />
-                {offreEtat && <Text style={styles.message}>{offreEtat}</Text>}
+                {offreEtat && <Message texte={offreEtat} />}
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Pressable style={[styles.btn, { flex: 1 }]} onPress={() => publierOffre(false)}>
-                    <Text style={styles.btnTexte}>Publier</Text>
-                  </Pressable>
-                  <Pressable style={[styles.btn, { flex: 1 }]} onPress={() => publierOffre(true)}>
-                    <Text style={styles.btnTexte}>📣 + push</Text>
-                  </Pressable>
+                  <BoutonPrimaire titre="Publier" onPress={() => publierOffre(false)} style={{ flex: 1 }} />
+                  <BoutonPrimaire titre="📣 + push" onPress={() => publierOffre(true)} style={{ flex: 1 }} />
                 </View>
-
                 {offres.map((o) => (
                   <View key={o.id} style={styles.offreLigne}>
                     <Text style={[styles.offreLigneTexte, !o.active && { opacity: 0.45 }]} numberOfLines={1}>
                       {o.active ? '🟢' : '⚪'} {o.titre}
                     </Text>
                     <Pressable onPress={() => basculerOffre(o)} style={{ padding: 6 }}>
-                      <Text style={styles.btnGhostTexte}>{o.active ? 'Masquer' : 'Activer'}</Text>
+                      <Text style={styles.offreAction}>{o.active ? 'Masquer' : 'Activer'}</Text>
                     </Pressable>
                     <Pressable onPress={() => supprimerOffre(o)} style={{ padding: 6 }}>
                       <Text style={{ fontSize: 15 }}>🗑️</Text>
                     </Pressable>
                   </View>
                 ))}
+              </Carte>
 
-                {/* === Message affiché EN GROS sur l'écran pickup de la caisse === */}
-                <Text style={[styles.adminTitre, { marginTop: 18 }]}>📢 Message à la caisse (pickup)</Text>
+              {/* Message affiché EN GROS sur l'écran pickup de la caisse */}
+              <Carte style={{ gap: 10 }}>
+                <Text style={styles.adminTitre}>📢 Message à la caisse (pickup)</Text>
                 <View style={styles.msgCaisseMags}>
                   {MAGASINS.map((m) => (
                     <Pressable
@@ -787,30 +891,28 @@ export default function CompteScreen() {
                   ))}
                 </View>
                 <TextInput
-                  style={[styles.input, { minHeight: 80 }]}
+                  style={styles.adminMultiligne}
                   value={msgCaisseTexte}
                   onChangeText={setMsgCaisseTexte}
                   placeholder="Ex : Pensez à proposer la nouvelle saveur matcha fraise !"
-                  placeholderTextColor="#9a8fb5"
+                  placeholderTextColor={C.texte3}
                   multiline
                   maxLength={200}
                 />
-                {msgCaisseEtat && <Text style={styles.message}>{msgCaisseEtat}</Text>}
+                {msgCaisseEtat && <Message texte={msgCaisseEtat} />}
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Pressable
-                    style={[styles.btn, { flex: 1 }, !msgCaisseTexte.trim() && styles.btnOff]}
+                  <BoutonPrimaire
+                    titre="Afficher à la caisse"
+                    onPress={() => enregistrerMessageCaisse(false)}
                     disabled={!msgCaisseTexte.trim()}
-                    onPress={() => enregistrerMessageCaisse(false)}>
-                    <Text style={styles.btnTexte}>Afficher à la caisse</Text>
-                  </Pressable>
-                  <Pressable style={[styles.btn, styles.btnGhost]} onPress={() => enregistrerMessageCaisse(true)}>
-                    <Text style={styles.btnGhostTexte}>Retirer</Text>
-                  </Pressable>
+                    style={{ flex: 1 }}
+                  />
+                  <BoutonGhost titre="Retirer" onPress={() => enregistrerMessageCaisse(true)} style={{ alignSelf: 'center' }} />
                 </View>
-              </View>
-            )}
-          </ScrollView>
-        </SafeAreaView>
+              </Carte>
+            </>
+          )}
+        </ScrollView>
       </View>
     );
   }
@@ -819,42 +921,32 @@ export default function CompteScreen() {
   if (mode === 'confirmation') {
     return (
       <View style={styles.fond}>
-        <SafeAreaView style={styles.safe}>
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScrollView contentContainerStyle={styles.contenu} keyboardShouldPersistTaps="handled">
-              <Text style={styles.titre}>Confirme ton compte</Text>
-              <Text style={styles.aide}>Entre le code reçu par email.</Text>
-              <TextInput
-                style={styles.input}
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={[styles.contenuAuth, { paddingTop: insets.top + 18 }]} keyboardShouldPersistTaps="handled">
+            <Text style={styles.logoAuth}>BUBBLE STOP</Text>
+            <Carte style={styles.carteAuth}>
+              <Text style={styles.titreAuth}>Confirme ton compte</Text>
+              <Text style={styles.aideAuth}>Entre le code reçu par email.</Text>
+              <ChampTexte
                 value={codeReset}
                 onChangeText={setCodeReset}
                 placeholder="Code reçu par email"
-                placeholderTextColor="#9a8fb5"
                 keyboardType="number-pad"
                 maxLength={10}
               />
-              {message && <Text style={styles.message}>{message}</Text>}
-              <Pressable style={[styles.btn, enCours && styles.btnOff]} onPress={validerConfirmation} disabled={enCours}>
-                {enCours ? <ActivityIndicator color={VIOLET_PROFOND} /> : <Text style={styles.btnTexte}>Confirmer mon compte</Text>}
-              </Pressable>
-              <Pressable
-                style={styles.btnGhost}
+              {message && <Message texte={message} />}
+              <BoutonPrimaire titre="Confirmer mon compte" onPress={validerConfirmation} loading={enCours} />
+              <BoutonGhost
+                titre="Renvoyer le code"
                 onPress={async () => {
                   await supabase.auth.resend({ type: 'signup', email: email.trim().toLowerCase() }).catch(() => {});
                   setMessage('Nouveau code envoyé !');
-                }}>
-                <Text style={styles.btnGhostTexte}>Renvoyer le code</Text>
-              </Pressable>
-              <Pressable
-                style={styles.btnGhost}
-                onPress={() => { setMode('connexion'); setMessage(null); setCodeReset(''); }}>
-                <Text style={styles.btnGhostTexte}>‹ Retour à la connexion</Text>
-              </Pressable>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
+                }}
+              />
+              <BoutonGhost titre="‹ Retour à la connexion" onPress={() => { setMode('connexion'); setMessage(null); setCodeReset(''); }} />
+            </Carte>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     );
   }
@@ -863,132 +955,112 @@ export default function CompteScreen() {
   if (mode === 'reset-email' || mode === 'reset-code') {
     return (
       <View style={styles.fond}>
-        <SafeAreaView style={styles.safe}>
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScrollView contentContainerStyle={styles.contenu} keyboardShouldPersistTaps="handled">
-              <Text style={styles.titre}>Mot de passe oublié</Text>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={[styles.contenuAuth, { paddingTop: insets.top + 18 }]} keyboardShouldPersistTaps="handled">
+            <Text style={styles.logoAuth}>BUBBLE STOP</Text>
+            <Carte style={styles.carteAuth}>
+              <Text style={styles.titreAuth}>Mot de passe oublié</Text>
 
               {mode === 'reset-email' ? (
                 <>
-                  <Text style={styles.aide}>On t'envoie un code par email pour choisir un nouveau mot de passe.</Text>
-                  <TextInput
-                    style={styles.input}
+                  <Text style={styles.aideAuth}>On t'envoie un code par email pour choisir un nouveau mot de passe.</Text>
+                  <ChampTexte
                     value={email}
                     onChangeText={setEmail}
                     placeholder="Email"
-                    placeholderTextColor="#9a8fb5"
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
-                  {message && <Text style={styles.message}>{message}</Text>}
-                  <Pressable style={[styles.btn, enCours && styles.btnOff]} onPress={envoyerCode} disabled={enCours}>
-                    {enCours ? <ActivityIndicator color={VIOLET_PROFOND} /> : <Text style={styles.btnTexte}>Envoyer le code</Text>}
-                  </Pressable>
+                  {message && <Message texte={message} />}
+                  <BoutonPrimaire titre="Envoyer le code" onPress={envoyerCode} loading={enCours} />
                 </>
               ) : (
                 <>
-                  <Text style={styles.aide}>Entre le code reçu par email et ton nouveau mot de passe.</Text>
-                  <TextInput
-                    style={styles.input}
+                  <Text style={styles.aideAuth}>Entre le code reçu par email et ton nouveau mot de passe.</Text>
+                  <ChampTexte
                     value={codeReset}
                     onChangeText={setCodeReset}
                     placeholder="Code reçu par email"
-                    placeholderTextColor="#9a8fb5"
                     keyboardType="number-pad"
                     maxLength={10}
                   />
-                  <TextInput
-                    style={styles.input}
+                  <ChampTexte
                     value={mdp}
                     onChangeText={setMdp}
                     placeholder="Nouveau mot de passe"
-                    placeholderTextColor="#9a8fb5"
                     secureTextEntry
                   />
-                  {message && <Text style={styles.message}>{message}</Text>}
-                  <Pressable style={[styles.btn, enCours && styles.btnOff]} onPress={validerNouveauMdp} disabled={enCours}>
-                    {enCours ? <ActivityIndicator color={VIOLET_PROFOND} /> : <Text style={styles.btnTexte}>Changer le mot de passe</Text>}
-                  </Pressable>
+                  {message && <Message texte={message} />}
+                  <BoutonPrimaire titre="Changer le mot de passe" onPress={validerNouveauMdp} loading={enCours} />
                 </>
               )}
 
-              <Pressable
-                style={styles.btnGhost}
-                onPress={() => { setMode('connexion'); setMessage(null); setCodeReset(''); }}>
-                <Text style={styles.btnGhostTexte}>‹ Retour à la connexion</Text>
-              </Pressable>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
+              <BoutonGhost titre="‹ Retour à la connexion" onPress={() => { setMode('connexion'); setMessage(null); setCodeReset(''); }} />
+            </Carte>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     );
   }
 
-  // === Pas connecté : formulaire ===
+  // === Pas connecté : connexion / inscription ===
   return (
     <View style={styles.fond}>
-      <SafeAreaView style={styles.safe}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.contenu} keyboardShouldPersistTaps="handled">
-            <Text style={styles.titre}>
-              {mode === 'connexion' ? 'Connexion' : 'Créer mon compte'}
-            </Text>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={[styles.contenuAuth, { paddingTop: insets.top + 18 }]} keyboardShouldPersistTaps="handled">
+          <Text style={styles.logoAuth}>BUBBLE STOP</Text>
+
+          <Carte style={styles.carteAuth}>
+            {/* Bascule connexion / inscription */}
+            <View style={styles.segments}>
+              {(['connexion', 'inscription'] as const).map((m) => (
+                <Pressable
+                  key={m}
+                  style={[styles.segment, mode === m && styles.segmentActif]}
+                  onPress={() => { setMode(m); setMessage(null); }}>
+                  <Text style={[styles.segmentTxt, mode === m && styles.segmentTxtActif]}>
+                    {m === 'connexion' ? 'Connexion' : 'Inscription'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
 
             {mode === 'inscription' && (
               <>
-                <TextInput
-                  style={styles.input}
-                  value={nom}
-                  onChangeText={setNom}
-                  placeholder="Prénom"
-                  placeholderTextColor="#9a8fb5"
-                  autoCapitalize="words"
-                />
-                <TextInput
-                  style={styles.input}
+                <ChampTexte value={nom} onChangeText={setNom} placeholder="Prénom" autoCapitalize="words" />
+                <ChampTexte
                   value={telephone}
                   onChangeText={setTelephone}
                   placeholder="N° de téléphone (carte fidélité)"
-                  placeholderTextColor="#9a8fb5"
                   keyboardType="number-pad"
                   maxLength={14}
                 />
               </>
             )}
-            <TextInput
-              style={styles.input}
+            <ChampTexte
               value={email}
               onChangeText={setEmail}
               placeholder="Email"
-              placeholderTextColor="#9a8fb5"
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
             />
-            <TextInput
-              style={styles.input}
+            <ChampTexte
               value={mdp}
               onChangeText={setMdp}
               placeholder="Mot de passe"
-              placeholderTextColor="#9a8fb5"
               secureTextEntry
             />
-            {mode === 'inscription' && (
-              <Text style={styles.reglesMdp}>{REGLES_MDP}</Text>
-            )}
+            {mode === 'inscription' && <Text style={styles.reglesMdp}>{REGLES_MDP}</Text>}
 
-            {message && <Text style={styles.message}>{message}</Text>}
+            {message && <Message texte={message} />}
 
-            <Pressable style={[styles.btn, enCours && styles.btnOff]} onPress={valider} disabled={enCours}>
-              {enCours
-                ? <ActivityIndicator color={VIOLET_PROFOND} />
-                : <Text style={styles.btnTexte}>{mode === 'connexion' ? 'Me connecter' : "M'inscrire"}</Text>}
-            </Pressable>
+            <BoutonPrimaire
+              titre={mode === 'connexion' ? 'Me connecter' : "M'inscrire"}
+              onPress={valider}
+              loading={enCours}
+            />
 
             {/* Connexion / inscription via Google (OAuth Supabase) */}
             <Pressable style={styles.btnGoogle} onPress={loginGoogle} disabled={enCours}>
@@ -996,84 +1068,85 @@ export default function CompteScreen() {
               <Text style={styles.btnGoogleTexte}>Continuer avec Google</Text>
             </Pressable>
 
-            <Pressable
-              style={styles.btnGhost}
-              onPress={() => { setMode(mode === 'connexion' ? 'inscription' : 'connexion'); setMessage(null); }}>
-              <Text style={styles.btnGhostTexte}>
-                {mode === 'connexion' ? "Pas encore de compte ? M'inscrire" : 'Déjà un compte ? Me connecter'}
-              </Text>
-            </Pressable>
             {mode === 'connexion' && (
-              <Pressable
-                style={styles.btnGhost}
-                onPress={() => { setMode('reset-email'); setMessage(null); }}>
-                <Text style={styles.btnGhostTexte}>Mot de passe oublié ?</Text>
-              </Pressable>
+              <BoutonGhost titre="Mot de passe oublié ?" onPress={() => { setMode('reset-email'); setMessage(null); }} />
             )}
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
+          </Carte>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  fond: { flex: 1, backgroundColor: VIOLET },
+  fond: { flex: 1, backgroundColor: C.fond },
   centre: { alignItems: 'center', justifyContent: 'center' },
-  safe: { flex: 1 },
-  contenu: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 14 },
-  titre: { fontSize: 26, fontWeight: '900', color: '#fff', marginBottom: 8 },
-  aide: { fontSize: 15, color: LAVANDE, textAlign: 'center' },
-  email: { fontSize: 18, fontWeight: '800', color: VERT },
-  input: {
-    width: '85%', backgroundColor: '#fff', borderRadius: 14, padding: 16,
-    fontSize: 17, fontWeight: '600', color: VIOLET_PROFOND,
+  contenu: { padding: 18, gap: 12, paddingBottom: 36 },
+  titre: { fontFamily: F.titre, fontSize: 26, color: C.violet },
+
+  // En-tête profil
+  profil: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatar: {
+    width: 54, height: 54, borderRadius: 27, backgroundColor: C.violet,
+    alignItems: 'center', justifyContent: 'center',
   },
-  btnGoogle: {
-    width: '85%', backgroundColor: '#fff', borderRadius: 14, padding: 15,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    borderWidth: 1, borderColor: '#d8cfe2',
+  avatarTxt: { fontFamily: F.titre, fontSize: 22, color: '#fff' },
+  profilNom: { fontFamily: F.t800, fontSize: 17, color: C.texte },
+  profilEmail: { fontFamily: F.t400, fontSize: 13, color: C.texte2 },
+  profilMagasin: { fontFamily: F.t700, fontSize: 12, color: C.violetClair, marginTop: 2 },
+
+  // Sections dépliables
+  depli: { gap: 12, paddingBottom: 16, paddingTop: 4 },
+  aideChamp: { fontFamily: F.t400, fontSize: 12, color: C.texte3, lineHeight: 17 },
+  ligneSwitch: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  ligneSwitchTxt: { flex: 1, fontFamily: F.t600, fontSize: 14, color: C.texte },
+
+  // Admin
+  adminTitre: { fontFamily: F.titre, fontSize: 15.5, color: C.violet },
+  // Presets d'offres
+  presetsAide: { fontFamily: F.t600, fontSize: 12.5, color: C.texte3, marginBottom: -2 },
+  presetsRail: { gap: 9, paddingVertical: 2, paddingRight: 6 },
+  preset: {
+    width: 128, backgroundColor: C.fond, borderRadius: 14, padding: 11, gap: 3,
+    borderWidth: 1.5, borderColor: C.bord,
   },
-  btnGoogleTexte: { color: VIOLET_PROFOND, fontWeight: '800', fontSize: 16 },
-  message: { color: '#FFD166', fontSize: 14, textAlign: 'center', paddingHorizontal: 16 },
-  reglesMdp: { color: '#9a8fb5', fontSize: 12.5, textAlign: 'center', paddingHorizontal: 16 },
-  btn: {
-    backgroundColor: VERT, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 32,
-    minWidth: 180, alignItems: 'center',
+  presetActif: { backgroundColor: C.vertPale, borderColor: C.vert },
+  presetEmoji: { fontSize: 20 },
+  presetNom: { fontFamily: F.t800, fontSize: 12.5, color: C.texte },
+  presetApercu: { fontFamily: F.t400, fontSize: 11, color: C.texte2, lineHeight: 14 },
+  adminMultiligne: {
+    backgroundColor: C.fond, borderRadius: 12, borderWidth: 1.5, borderColor: C.bord,
+    padding: 14, minHeight: 76, fontFamily: F.t600, fontSize: 14.5, color: C.texte,
+    textAlignVertical: 'top',
   },
-  btnOff: { opacity: 0.6 },
-  btnTexte: { color: VIOLET_PROFOND, fontWeight: '800', fontSize: 17 },
-  btnGhost: { marginTop: 4, padding: 12 },
-  btnGhostTexte: { color: LAVANDE, fontWeight: '700', fontSize: 15, textDecorationLine: 'underline' },
-  btnDanger: { color: '#E07A8A', fontWeight: '700', fontSize: 14, textDecorationLine: 'underline' },
-  // Sections type "carte" (compte connecté)
-  section: { width: '100%', backgroundColor: '#ffffff15', borderRadius: 16, padding: 16, gap: 8 },
-  sectionTitre: { fontSize: 16, fontWeight: '900', color: VERT, marginBottom: 4 },
-  label: { fontSize: 12.5, fontWeight: '700', color: '#9a8fb5' },
-  valeur: { fontSize: 15.5, fontWeight: '700', color: '#fff' },
-  champ: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14,
-    fontSize: 15.5, fontWeight: '600', color: VIOLET_PROFOND, width: '100%',
-  },
-  btnSection: {
-    backgroundColor: VERT, borderRadius: 12, paddingVertical: 13,
-    alignItems: 'center', width: '100%',
-  },
-  ligneInfo: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
-  lien: { color: VERT, fontWeight: '800', fontSize: 14 },
-  admin: {
-    width: '100%', marginTop: 24, paddingTop: 18, gap: 10,
-    borderTopWidth: 1, borderTopColor: '#ffffff33',
-  },
-  adminTitre: { fontSize: 18, fontWeight: '900', color: VERT, textAlign: 'center' },
   offreLigne: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#ffffff15', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: C.fond, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4,
   },
-  offreLigneTexte: { flex: 1, color: LAVANDE, fontWeight: '700', fontSize: 13.5 },
-  msgCaisseMags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
-  msgCaisseChip: { backgroundColor: '#ffffff22', borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 },
-  msgCaisseChipActif: { backgroundColor: VERT },
-  msgCaisseChipTxt: { color: LAVANDE, fontWeight: '700', fontSize: 13 },
-  msgCaisseChipTxtActif: { color: VIOLET_PROFOND },
+  offreLigneTexte: { flex: 1, fontFamily: F.t700, fontSize: 13, color: C.texte },
+  offreAction: { fontFamily: F.t700, fontSize: 13, color: C.violetClair },
+  msgCaisseMags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  msgCaisseChip: { backgroundColor: C.lavande, borderRadius: R.pill, paddingVertical: 8, paddingHorizontal: 14 },
+  msgCaisseChipActif: { backgroundColor: C.vert },
+  msgCaisseChipTxt: { fontFamily: F.t700, fontSize: 13, color: C.texte2 },
+  msgCaisseChipTxtActif: { color: C.violetProfond },
+
+  // Écrans d'authentification
+  contenuAuth: { flexGrow: 1, justifyContent: 'center', padding: 22, gap: 18, paddingBottom: 40 },
+  logoAuth: { fontFamily: F.titre, fontSize: 28, color: C.violet, textAlign: 'center', letterSpacing: 0.5 },
+  carteAuth: { gap: 13 },
+  titreAuth: { fontFamily: F.t800, fontSize: 19, color: C.texte, textAlign: 'center' },
+  aideAuth: { fontFamily: F.t400, fontSize: 14, color: C.texte2, textAlign: 'center', lineHeight: 20 },
+  segments: { flexDirection: 'row', backgroundColor: C.fond, borderRadius: R.pill, padding: 4 },
+  segment: { flex: 1, paddingVertical: 10, borderRadius: R.pill, alignItems: 'center' },
+  segmentActif: { backgroundColor: C.violet },
+  segmentTxt: { fontFamily: F.t700, fontSize: 14, color: C.texte2 },
+  segmentTxtActif: { color: '#fff' },
+  reglesMdp: { fontFamily: F.t400, fontSize: 12, color: C.texte3, textAlign: 'center' },
+  btnGoogle: {
+    backgroundColor: '#fff', borderRadius: R.btn + 2, paddingVertical: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    borderWidth: 1.5, borderColor: C.bord,
+  },
+  btnGoogleTexte: { fontFamily: F.t700, fontSize: 15, color: C.texte },
 });

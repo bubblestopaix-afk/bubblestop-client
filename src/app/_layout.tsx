@@ -1,13 +1,21 @@
 import { useEffect } from 'react';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useColorScheme } from 'react-native';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { useFonts } from 'expo-font';
+import { PaytoneOne_400Regular } from '@expo-google-fonts/paytone-one';
+import {
+  Outfit_400Regular, Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
+} from '@expo-google-fonts/outfit';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
 import { supabase } from '@/lib/supabase';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  // Polices DA : Paytone One (titres) + Outfit (textes)
+  const [polices] = useFonts({
+    PaytoneOne_400Regular,
+    Outfit_400Regular, Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
+  });
 
   // Marque le profil "utilise l'appli" (la borne masque alors la promo de téléchargement)
   // + garantit qu'une ligne profils existe (ex. première connexion via Google).
@@ -39,8 +47,13 @@ export default function TabLayout() {
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // Splash natif visible tant que les polices chargent
+  if (!polices) return null;
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    // Design clair fixe (comme les apps food) — pas de bascule sombre
+    <ThemeProvider value={DefaultTheme}>
       <AnimatedSplashOverlay />
       <AppTabs />
     </ThemeProvider>
