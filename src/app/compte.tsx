@@ -35,6 +35,13 @@ const PRESETS_OFFRES = [
     conseil: 'Adapte l\'horaire à ton heure creuse du jour. La remise s\'applique manuellement en caisse.',
   },
   {
+    id: 'install-appli', emoji: '📲', nom: 'Bonus install',
+    apercu: 'Faire installer l\'appli (+1 tampon auto)',
+    titre: '📲 Installe l\'appli = 1 tampon offert',
+    message: 'Télécharge l\'appli Bubble Stop et lie ta carte de fidélité : 1 tampon de bienvenue offert automatiquement. Commande en avance, suis tes tampons, profite des offres !',
+    conseil: 'Le tampon de bienvenue est crédité automatiquement à la liaison de la carte — aucune manip en caisse.',
+  },
+  {
     id: 'avant-premiere', emoji: '🆕', nom: 'Avant-première',
     apercu: 'Nouveauté réservée aux membres',
     titre: '🆕 Nouvelle saveur en avant-première',
@@ -148,6 +155,7 @@ export default function CompteScreen() {
   // Connecté → enregistre le token push (silencieux sous Expo Go) + charge le profil
   const [prenom, setPrenom] = useState('');
   const [telFidelite, setTelFidelite] = useState('');
+  const [dateNaissance, setDateNaissance] = useState(''); // JJ/MM/AAAA
   const [prenomSurTicket, setPrenomSurTicket] = useState(false);
   const [magasinClient, setMagasinClient] = useState<string | null>(null);
   const [infosOk, setInfosOk] = useState(false);
@@ -163,13 +171,15 @@ export default function CompteScreen() {
   useEffect(() => {
     if (!session) { setEstAdmin(false); return; }
     enregistrerPush();
-    supabase.from('profils').select('nom, numero_fidelite, est_admin, prenom_sur_ticket, magasin').eq('id', session.user.id).maybeSingle()
+    supabase.from('profils').select('nom, numero_fidelite, est_admin, prenom_sur_ticket, magasin, date_naissance').eq('id', session.user.id).maybeSingle()
       .then(({ data }) => {
         setPrenom(data?.nom ?? '');
         setTelFidelite(data?.numero_fidelite ?? '');
         setPrenomSurTicket(!!data?.prenom_sur_ticket);
         setEstAdmin(!!data?.est_admin);
         setMagasinClient(data?.magasin ?? null);
+        // date_naissance (YYYY-MM-DD) → affichage JJ/MM/AAAA
+        setDateNaissance(data?.date_naissance ? String(data.date_naissance).split('-').reverse().join('/') : '');
       });
   }, [session]);
 
@@ -253,13 +263,25 @@ export default function CompteScreen() {
     chargerOffres();
   };
 
-  // === Mes informations : prénom + numéro fidélité ===
+  // === Mes informations : prénom + numéro fidélité + date de naissance ===
   const enregistrerInfos = async () => {
     if (!session) return;
     const t = telFidelite.replace(/\D/g, '');
     if (telFidelite.trim() && t.length !== 10) {
       setInfoMsg('Le numéro de téléphone doit faire 10 chiffres.');
       return;
+    }
+    // Date de naissance JJ/MM/AAAA → YYYY-MM-DD (vide = effacée)
+    let naissanceIso: string | null = null;
+    if (dateNaissance.trim()) {
+      const m = dateNaissance.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      const [, j, mo, a] = m ?? [];
+      const valide = m && +mo >= 1 && +mo <= 12 && +j >= 1 && +j <= 31 && +a >= 1900 && +a <= new Date().getFullYear();
+      if (!valide) {
+        setInfoMsg('Date de naissance : format JJ/MM/AAAA.');
+        return;
+      }
+      naissanceIso = `${a}-${mo}-${j}`;
     }
     setInfoMsg(null);
     await supabase.from('profils').upsert({
@@ -268,6 +290,7 @@ export default function CompteScreen() {
       numero_fidelite: t || null,
       telephone: t || null,
       prenom_sur_ticket: prenomSurTicket,
+      date_naissance: naissanceIso,
     });
     if (t) AsyncStorage.setItem('fidelite.tel', t).catch(() => {});
     setInfosOk(true);
@@ -660,6 +683,21 @@ export default function CompteScreen() {
                 <Text style={styles.aideChamp}>
                   Jamais utilisé pour du démarchage — uniquement pour identifier ta carte en caisse si tu n'as pas ton QR.
                 </Text>
+                <ChampTexte
+                  label="Date de naissance 🎂 (boisson offerte le jour J)"
+                  value={dateNaissance}
+                  onChangeText={(v) => {
+                    // Auto-format JJ/MM/AAAA pendant la saisie
+                    const ch = v.replace(/\D/g, '').slice(0, 8);
+                    let aff = ch;
+                    if (ch.length > 4) aff = `${ch.slice(0, 2)}/${ch.slice(2, 4)}/${ch.slice(4)}`;
+                    else if (ch.length > 2) aff = `${ch.slice(0, 2)}/${ch.slice(2)}`;
+                    setDateNaissance(aff);
+                  }}
+                  placeholder="JJ/MM/AAAA"
+                  keyboardType="number-pad"
+                  maxLength={10}
+                />
                 <View style={styles.ligneSwitch}>
                   <Text style={styles.ligneSwitchTxt}>Afficher mon prénom sur mes tickets</Text>
                   <Switch

@@ -136,6 +136,7 @@ export default function FideliteScreen() {
   }, [charger]);
 
   // Relie le numéro au compte (modifiable ici, et corrigeable côté caisse)
+  const [bienvenue, setBienvenue] = useState<string | null>(null);
   const enregistrerNumero = async () => {
     const t = tel.replace(/\D/g, '');
     if (t.length !== 10) { setMsg('Entre un numéro à 10 chiffres.'); return; }
@@ -144,6 +145,9 @@ export default function FideliteScreen() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { setMsg('Connecte-toi dans l\'onglet Compte.'); return; }
+      // 1ère liaison ? (le trigger Supabase crédite alors +1 tampon de bienvenue)
+      const { data: avant } = await supabase.from('profils')
+        .select('bonus_app').eq('id', session.user.id).maybeSingle();
       const { error } = await supabase.from('profils')
         .update({ numero_fidelite: t, telephone: t }).eq('id', session.user.id);
       if (error) {
@@ -153,6 +157,9 @@ export default function FideliteScreen() {
         return;
       }
       AsyncStorage.setItem('fidelite.tel', t).catch(() => {});
+      if (avant && avant.bonus_app === false) {
+        setBienvenue('🎁 Carte activée ! Ton tampon de bienvenue arrive d\'ici quelques minutes.');
+      }
       setNumero(t);
     } finally {
       setEnreg(false);
@@ -183,6 +190,8 @@ export default function FideliteScreen() {
 
         {numero ? (
           <>
+            {/* Bonus de bienvenue crédité à la 1ère liaison */}
+            {bienvenue && <Message type="ok" texte={bienvenue} />}
             {/* === Carte membre violette avec QR === */}
             <View style={styles.carteMembre}>
               {/* Cercles décoratifs */}
