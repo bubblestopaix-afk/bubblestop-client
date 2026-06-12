@@ -57,10 +57,12 @@ export default function CommanderScreen() {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { if (actif) setCarteLiee(false); return; }
-      const { data } = await supabase.from('profils').select('magasin,numero_fidelite').eq('id', session.user.id).maybeSingle();
+      const { data } = await supabase.from('profils').select('magasin,numero_fidelite,est_admin').eq('id', session.user.id).maybeSingle();
       if (!actif) return;
-      setCarteLiee(!!data?.numero_fidelite);
-      if (!data?.magasin) return;
+      // ADMIN : pas besoin de carte fidélité liée pour commander (tests / gestion),
+      // et le magasin n'est pas verrouillé (il peut commander dans les 3).
+      setCarteLiee(!!data?.numero_fidelite || !!data?.est_admin);
+      if (!data?.magasin || data?.est_admin) return;
       setMagasinInscription(data.magasin);
       // Force le magasin de l'app sur celui du client (verrouillé)
       if (getMagasin() !== data.magasin) { setMagasin(data.magasin as MagasinId); viderPanier(); }
