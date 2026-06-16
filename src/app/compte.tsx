@@ -156,6 +156,7 @@ export default function CompteScreen() {
   const [prenom, setPrenom] = useState('');
   const [telFidelite, setTelFidelite] = useState('');
   const [dateNaissance, setDateNaissance] = useState(''); // JJ/MM/AAAA
+  const [naissanceVerrou, setNaissanceVerrou] = useState(false); // true = déjà enregistrée → non modifiable
   const [prenomSurTicket, setPrenomSurTicket] = useState(false);
   const [magasinClient, setMagasinClient] = useState<string | null>(null);
   const [infosOk, setInfosOk] = useState(false);
@@ -178,8 +179,9 @@ export default function CompteScreen() {
         setPrenomSurTicket(!!data?.prenom_sur_ticket);
         setEstAdmin(!!data?.est_admin);
         setMagasinClient(data?.magasin ?? null);
-        // date_naissance (YYYY-MM-DD) → affichage JJ/MM/AAAA
+        // date_naissance (YYYY-MM-DD) → affichage JJ/MM/AAAA ; verrouillée si déjà saisie
         setDateNaissance(data?.date_naissance ? String(data.date_naissance).split('-').reverse().join('/') : '');
+        setNaissanceVerrou(!!data?.date_naissance);
       });
   }, [session]);
 
@@ -284,14 +286,17 @@ export default function CompteScreen() {
       naissanceIso = `${a}-${mo}-${j}`;
     }
     setInfoMsg(null);
-    await supabase.from('profils').upsert({
+    const maj: Record<string, any> = {
       id: session.user.id,
       nom: prenom.trim() || null,
       numero_fidelite: t || null,
       telephone: t || null,
       prenom_sur_ticket: prenomSurTicket,
-      date_naissance: naissanceIso,
-    });
+    };
+    // Date de naissance : enregistrée UNE seule fois, ensuite non modifiable
+    if (!naissanceVerrou) maj.date_naissance = naissanceIso;
+    await supabase.from('profils').upsert(maj);
+    if (!naissanceVerrou && naissanceIso) setNaissanceVerrou(true); // verrouille après 1er enregistrement
     if (t) AsyncStorage.setItem('fidelite.tel', t).catch(() => {});
     setInfosOk(true);
     setTimeout(() => setInfosOk(false), 2000);
@@ -474,6 +479,14 @@ export default function CompteScreen() {
         // 1. Création du compte auth
         const { data, error } = await supabase.auth.signUp({ email: mail, password: mdp });
         if (error) throw error;
+
+        // Email DÉJÀ utilisé : par sécurité (anti-énumération) Supabase renvoie un
+        // utilisateur SANS identités au lieu d'une erreur → on le détecte et on prévient.
+        if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          setMessage('Cet email est déjà utilisé. Connecte-toi, ou utilise « Mot de passe oublié ».');
+          setEnCours(false);
+          return;
+        }
 
         // 2. Création du profil — numéro saisi à l'inscription, sinon celui mémorisé localement
         const telSaisi = telephone.replace(/\D/g, '');
@@ -686,7 +699,9 @@ export default function CompteScreen() {
                 <ChampTexte
                   label="Date de naissance 🎂 (boisson offerte le jour J)"
                   value={dateNaissance}
+                  editable={!naissanceVerrou}
                   onChangeText={(v) => {
+                    if (naissanceVerrou) return; // non modifiable une fois enregistrée
                     // Auto-format JJ/MM/AAAA pendant la saisie
                     const ch = v.replace(/\D/g, '').slice(0, 8);
                     let aff = ch;
@@ -698,6 +713,9 @@ export default function CompteScreen() {
                   keyboardType="number-pad"
                   maxLength={10}
                 />
+                {naissanceVerrou && (
+                  <Text style={styles.aideChamp}>🔒 Date de naissance enregistrée — non modifiable.</Text>
+                )}
                 <View style={styles.ligneSwitch}>
                   <Text style={styles.ligneSwitchTxt}>Afficher mon prénom sur mes tickets</Text>
                   <Switch

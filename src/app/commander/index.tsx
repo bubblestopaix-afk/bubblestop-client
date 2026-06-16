@@ -27,12 +27,12 @@ export default function CommanderScreen() {
   const { categories } = useCatalogueCloud(); // carte cloud du magasin choisi
   const lignes = usePanier();
 
-  // === Verrou « 1ère commande en boutique » ===
-  // La commande en ligne n'est possible qu'une fois la carte de fidélité LIÉE
-  // (la carte n'existe que si une première commande a été faite en caisse).
+  // === Verrou commande : carte de fidélité COMPLÉTÉE au moins une fois ===
+  // La commande en ligne n'est ouverte qu'aux clients ayant déjà rempli une carte
+  // entière (≥ 1 carte complétée dans leur historique). L'admin n'est pas soumis à ça.
   // Le magasin du client = celui de sa 1ère commande : il ne voit pas les autres.
   const [magasinInscription, setMagasinInscription] = useState<string | null>(null);
-  const [carteLiee, setCarteLiee] = useState<boolean | null>(null); // null = chargement
+  const [carteLiee, setCarteLiee] = useState<boolean | null>(null); // null = chargement ; ici = ÉLIGIBLE à commander
 
   useEffect(() => {
     let actif = true;
@@ -41,9 +41,15 @@ export default function CommanderScreen() {
       if (!session) { if (actif) setCarteLiee(false); return; }
       const { data } = await supabase.from('profils').select('magasin,numero_fidelite,est_admin').eq('id', session.user.id).maybeSingle();
       if (!actif) return;
-      // ADMIN : pas besoin de carte fidélité liée pour commander (tests / gestion),
-      // et le magasin n'est pas verrouillé (il peut commander dans les 3).
-      setCarteLiee(!!data?.numero_fidelite || !!data?.est_admin);
+      // ADMIN : accès libre (tests / gestion), magasin non verrouillé.
+      let eligible = !!data?.est_admin;
+      if (!eligible && data?.numero_fidelite) {
+        const { data: f } = await supabase.from('fidelite_cloud')
+          .select('cartes_completees,cadeaux').eq('telephone', data.numero_fidelite).maybeSingle();
+        // Éligible si au moins 1 carte complétée à vie (ou un cadeau dispo, qui en est la preuve)
+        eligible = (Number(f?.cartes_completees) || 0) >= 1 || (Number(f?.cadeaux) || 0) >= 1;
+      }
+      setCarteLiee(eligible);
       if (!data?.magasin || data?.est_admin) return;
       setMagasinInscription(data.magasin);
       // Force le magasin de l'app sur celui du client (verrouillé)
@@ -101,14 +107,14 @@ export default function CommanderScreen() {
         <ScrollView contentContainerStyle={[styles.contenu, { paddingTop: insets.top + 18, flexGrow: 1, justifyContent: 'center' }]}>
           <View style={styles.gateCarte}>
             <Text style={styles.gateEmoji}>🧋</Text>
-            <Text style={styles.gateTitre}>Ta première commande se passe en boutique</Text>
+            <Text style={styles.gateTitre}>La commande en ligne se débloque avec la fidélité</Text>
             <Text style={styles.gateTexte}>
-              Viens commander dans ton Bubble Stop : on te crée ta carte de fidélité avec un code PIN.
+              Pour commander depuis l'appli, il faut avoir complété au moins une carte de fidélité entière (9 tampons) en boutique.
             </Text>
             <Text style={styles.gateTexte}>
-              Ensuite, lie ta carte dans l'onglet Fidélité — et tu pourras commander en avance depuis l'appli, dans ton magasin.
+              Continue à cumuler tes tampons en caisse — dès ta première carte complète, la commande en ligne s'ouvre pour toi !
             </Text>
-            <BoutonPrimaire titre="Lier ma carte de fidélité" onPress={() => router.push('/explore' as any)} />
+            <BoutonPrimaire titre="Voir ma fidélité" onPress={() => router.push('/explore' as any)} />
           </View>
         </ScrollView>
       </View>
@@ -123,6 +129,14 @@ export default function CommanderScreen() {
           <Pressable onPress={() => router.push('/commander/mes-commandes' as any)} hitSlop={8}>
             <Text style={styles.lienSuivi}>Mes commandes ›</Text>
           </Pressable>
+        </View>
+
+        {/* Disclaimer no-show : commander sans venir chercher + sans prévenir → accès retiré */}
+        <View style={styles.disclaimer}>
+          <Text style={styles.disclaimerTxt}>
+            ⚠️ Viens récupérer ta commande. Si tu commandes sans venir la chercher et sans prévenir,
+            tu peux perdre l'accès à la commande en ligne.
+          </Text>
         </View>
 
         {/* Magasin du client (celui de sa 1ère commande) — les autres ne sont pas proposés */}
@@ -234,6 +248,10 @@ const styles = StyleSheet.create({
     borderRadius: R.pill, paddingVertical: 7, paddingHorizontal: 13,
   },
   magasinTexte: { fontFamily: F.t700, fontSize: 13, color: C.violetProfond },
+
+  // Disclaimer no-show
+  disclaimer: { backgroundColor: '#FFF3E0', borderRadius: 14, borderWidth: 1, borderColor: '#F5C16C', padding: 12 },
+  disclaimerTxt: { fontFamily: F.t600, fontSize: 12.5, color: '#A06A00', lineHeight: 18 },
 
   // Écran « première commande en boutique » (commande en ligne bloquée)
   gateCarte: { backgroundColor: C.carte, borderRadius: R.carte, padding: 24, gap: 12, ...OMBRE },
