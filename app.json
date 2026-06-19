@@ -7,10 +7,14 @@
     "icon": "./assets/images/icon.png",
     "scheme": "bubblestop",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": false,
-      "bundleIdentifier": "com.bubblestop.client"
+      "bundleIdentifier": "com.bubblestop.client",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -37,6 +41,12 @@
             "image": "./assets/images/splash-icon.png",
             "imageWidth": 160
           }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#3A2A5E"
         }
       ]
     ],

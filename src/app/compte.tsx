@@ -139,6 +139,7 @@ export default function CompteScreen() {
   const [email, setEmail] = useState('');
   const [mdp, setMdp] = useState('');
   const [codeReset, setCodeReset] = useState('');
+  const [mdpReset2, setMdpReset2] = useState(''); // confirmation du nouveau mot de passe (mdp oublié)
   const [enCours, setEnCours] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -295,11 +296,32 @@ export default function CompteScreen() {
     };
     // Date de naissance : enregistrée UNE seule fois, ensuite non modifiable
     if (!naissanceVerrou) maj.date_naissance = naissanceIso;
-    await supabase.from('profils').upsert(maj);
-    if (!naissanceVerrou && naissanceIso) setNaissanceVerrou(true); // verrouille après 1er enregistrement
-    if (t) AsyncStorage.setItem('fidelite.tel', t).catch(() => {});
-    setInfosOk(true);
-    setTimeout(() => setInfosOk(false), 2000);
+
+    const appliquer = async () => {
+      const { error: errMaj } = await supabase.from('profils').upsert(maj);
+      if (errMaj) {
+        // 23505 = violation d'unicité → ce numéro est déjà rattaché à un autre compte
+        setInfoMsg(errMaj.code === '23505'
+          ? 'Ce numéro de téléphone est déjà rattaché à un autre compte.'
+          : `Erreur : ${errMaj.message}`);
+        return;
+      }
+      if (!naissanceVerrou && naissanceIso) setNaissanceVerrou(true); // verrouille après 1er enregistrement
+      if (t) AsyncStorage.setItem('fidelite.tel', t).catch(() => {});
+      setInfosOk(true);
+      setTimeout(() => setInfosOk(false), 2000);
+    };
+
+    // 1re saisie d'une date de naissance → confirmation explicite (devient non modifiable)
+    if (!naissanceVerrou && naissanceIso) {
+      confirmer(
+        'Date de naissance définitive',
+        `Confirme ta date de naissance : ${dateNaissance.trim()}.\n\n⚠️ Une fois enregistrée, elle ne pourra PLUS être modifiée.`,
+        appliquer,
+      );
+      return;
+    }
+    await appliquer();
   };
 
   const fermerEdition = () => {
@@ -457,6 +479,18 @@ export default function CompteScreen() {
     }
   };
 
+  // JJ/MM/AAAA → YYYY-MM-DD (null si invalide, dans le futur, ou improbable)
+  const naissanceVersIso = (saisie: string): string | null => {
+    const m = saisie.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return null;
+    const jour = +m[1], mois = +m[2], annee = +m[3];
+    if (mois < 1 || mois > 12 || jour < 1 || jour > 31 || annee < 1900) return null;
+    const d = new Date(annee, mois - 1, jour);
+    if (d.getFullYear() !== annee || d.getMonth() !== mois - 1 || d.getDate() !== jour) return null;
+    if (d.getTime() > Date.now()) return null;
+    return `${m[3]}-${m[2]}-${m[1]}`;
+  };
+
   const valider = async () => {
     setMessage(null);
     const mail = email.trim().toLowerCase();
@@ -472,6 +506,15 @@ export default function CompteScreen() {
     if (mode === 'connexion' && !mdp) {
       setMessage('Entre ton mot de passe.');
       return;
+    }
+    // Date de naissance OBLIGATOIRE à l'inscription (définitive ensuite)
+    let naissanceIso: string | null = null;
+    if (mode === 'inscription') {
+      naissanceIso = naissanceVersIso(dateNaissance);
+      if (!naissanceIso) {
+        setMessage('Renseigne ta date de naissance (JJ/MM/AAAA).');
+        return;
+      }
     }
     setEnCours(true);
     try {
@@ -503,8 +546,20 @@ export default function CompteScreen() {
             numero_fidelite: numeroFidelite,
             telephone: numeroFidelite,
             email: mail,
+            date_naissance: naissanceIso,
           });
-          if (errProfil && errProfil.code !== '23505') throw errProfil; // 23505 = déjà créé
+          if (errProfil && errProfil.code === '23505') {
+            // Unicité violée : si c'est sur le NUMÉRO, il est déjà pris par un autre compte.
+            const surNumero = /numero_fidelite/i.test(`${errProfil.message || ''} ${errProfil.details || ''}`);
+            if (surNumero) {
+              // On crée quand même le profil, mais SANS le numéro déjà utilisé, et on prévient
+              await supabase.from('profils').insert({ id: data.user.id, nom: nom.trim() || null, email: mail, date_naissance: naissanceIso }).catch(() => {});
+              setMessage('Compte créé, mais ce numéro de téléphone est déjà rattaché à un autre compte : il n\'a pas été lié.');
+            }
+            // sinon (profil déjà créé) : on ignore
+          } else if (errProfil) {
+            throw errProfil;
+          }
         } else {
           // Confirmation email activée : un code a été envoyé, on le demande ici
           setMode('confirmation');
@@ -556,6 +611,7 @@ export default function CompteScreen() {
           numero_fidelite: numeroFidelite,
           telephone: numeroFidelite,
           email: mail,
+          date_naissance: naissanceVersIso(dateNaissance),
         });
       }
       setCodeReset('');
@@ -602,6 +658,10 @@ export default function CompteScreen() {
       setMessage(`Mot de passe : ${REGLES_MDP}.`);
       return;
     }
+    if (mdp !== mdpReset2) {
+      setMessage('Les deux mots de passe ne correspondent pas.');
+      return;
+    }
     setEnCours(true);
     setMessage(null);
     try {
@@ -617,6 +677,7 @@ export default function CompteScreen() {
       setMode('connexion');
       setCodeReset('');
       setMdp('');
+      setMdpReset2('');
     } catch (e: any) {
       const txt = String(e?.message ?? e);
       setMessage(txt.includes('expired') || txt.includes('invalid')
@@ -999,7 +1060,7 @@ export default function CompteScreen() {
                   setMessage('Nouveau code envoyé !');
                 }}
               />
-              <BoutonGhost titre="‹ Retour à la connexion" onPress={() => { setMode('connexion'); setMessage(null); setCodeReset(''); }} />
+              <BoutonGhost titre="‹ Retour à la connexion" onPress={() => { setMode('connexion'); setMessage(null); setCodeReset(''); setMdpReset2(''); }} />
             </Carte>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -1047,12 +1108,18 @@ export default function CompteScreen() {
                     placeholder="Nouveau mot de passe"
                     secureTextEntry
                   />
+                  <ChampTexte
+                    value={mdpReset2}
+                    onChangeText={setMdpReset2}
+                    placeholder="Confirme le nouveau mot de passe"
+                    secureTextEntry
+                  />
                   {message && <Message texte={message} />}
                   <BoutonPrimaire titre="Changer le mot de passe" onPress={validerNouveauMdp} loading={enCours} />
                 </>
               )}
 
-              <BoutonGhost titre="‹ Retour à la connexion" onPress={() => { setMode('connexion'); setMessage(null); setCodeReset(''); }} />
+              <BoutonGhost titre="‹ Retour à la connexion" onPress={() => { setMode('connexion'); setMessage(null); setCodeReset(''); setMdpReset2(''); }} />
             </Carte>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -1092,6 +1159,20 @@ export default function CompteScreen() {
                   keyboardType="number-pad"
                   maxLength={14}
                 />
+                <ChampTexte
+                  value={dateNaissance}
+                  onChangeText={(v) => {
+                    const ch = v.replace(/\D/g, '').slice(0, 8);
+                    let aff = ch;
+                    if (ch.length > 4) aff = `${ch.slice(0, 2)}/${ch.slice(2, 4)}/${ch.slice(4)}`;
+                    else if (ch.length > 2) aff = `${ch.slice(0, 2)}/${ch.slice(2)}`;
+                    setDateNaissance(aff);
+                  }}
+                  placeholder="Date de naissance (JJ/MM/AAAA)"
+                  keyboardType="number-pad"
+                  maxLength={10}
+                />
+                <Text style={styles.reglesMdp}>🎂 Une boisson offerte le jour de ton anniversaire. Non modifiable une fois enregistrée.</Text>
               </>
             )}
             <ChampTexte

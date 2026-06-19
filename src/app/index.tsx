@@ -52,7 +52,8 @@ export default function AccueilScreen() {
       const { data: p } = await supabase.from('profils')
         .select('nom, prenom_sur_ticket, magasin, numero_fidelite')
         .eq('id', session.user.id).maybeSingle();
-      setPrenom(p?.prenom_sur_ticket || (p?.nom || '').split(' ')[0] || '');
+      // Salut PRÉNOM uniquement (1er mot du nom), pas le nom complet
+      setPrenom((p?.nom || '').trim().split(/\s+/)[0] || '');
       setMagasinId(p?.magasin ?? null);
       setCarteLiee(!!p?.numero_fidelite);
 

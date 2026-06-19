@@ -131,14 +131,6 @@ export default function CommanderScreen() {
           </Pressable>
         </View>
 
-        {/* Disclaimer no-show : commander sans venir chercher + sans prévenir → accès retiré */}
-        <View style={styles.disclaimer}>
-          <Text style={styles.disclaimerTxt}>
-            ⚠️ Viens récupérer ta commande. Si tu commandes sans venir la chercher et sans prévenir,
-            tu peux perdre l'accès à la commande en ligne.
-          </Text>
-        </View>
-
         {/* Magasin du client (celui de sa 1ère commande) — les autres ne sont pas proposés */}
         {magasinInscription && (
           <View style={styles.magasinChip}>
