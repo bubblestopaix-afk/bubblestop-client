@@ -65,8 +65,16 @@ export default function PersonnalisationScreen() {
   });
 
   const tapTopping = (id: string) => {
-    setSelToppings((cur) =>
-      cur[id] ? incrementerTopping(cur, id, doublePortion) : ajouterTopping(cur, id, doublePortion));
+    const t = tousToppings.find((x: any) => x.id === id);
+    setSelToppings((cur) => {
+      let next = cur[id] ? incrementerTopping(cur, id, doublePortion) : ajouterTopping(cur, id, doublePortion);
+      // ×2 d'un topping coupé en caisse (doublePortionBloquee) → plafonné à 1 portion (cycle ½ → 1 → vide)
+      if (t?.doublePortionBloquee && (next[id] ?? 0) > 1) {
+        next = { ...next };
+        delete next[id];
+      }
+      return next;
+    });
   };
 
   const valider = () => {
@@ -219,7 +227,7 @@ export default function PersonnalisationScreen() {
                   return (
                     <Chip
                       key={t.id}
-                      label={`${t.nom}${portion ? ` ×${libPortion(portion)}` : ''}${t.horsStock ? ' — épuisé' : ''}`}
+                      label={`${t.nom}${portion ? ` ×${libPortion(portion)}` : ''}${t.horsStock ? ' — épuisé' : t.doublePortionBloquee ? ' (×2 indispo)' : ''}`}
                       pastille={t.couleur}
                       actif={!!portion}
                       disabled={!!t.horsStock}

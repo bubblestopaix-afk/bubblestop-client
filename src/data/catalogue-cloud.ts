@@ -12,13 +12,17 @@ import { categories as categoriesLocales, toppings as toppingsLocaux } from '@/d
 
 type Catalogue = { categories: any[]; toppings: any[] };
 
-let catalogue: Catalogue = { categories: categoriesLocales, toppings: toppingsLocaux };
+// Catégories retirées de l'app client (vendues en boutique uniquement)
+const CATEGORIES_MASQUEES = new Set(['mochi-glace']);
+const filtrerCats = (cats: any[]) => (cats || []).filter((c: any) => !CATEGORIES_MASQUEES.has(c?.id));
+
+let catalogue: Catalogue = { categories: filtrerCats(categoriesLocales), toppings: toppingsLocaux };
 let magasinCharge: string | null = null; // magasin du catalogue en mémoire
 const listeners = new Set<() => void>();
 
 function publier(nouveau: Catalogue) {
   if (!Array.isArray(nouveau?.categories) || !nouveau.categories.length) return;
-  catalogue = { categories: nouveau.categories, toppings: nouveau.toppings || [] };
+  catalogue = { categories: filtrerCats(nouveau.categories), toppings: nouveau.toppings || [] };
   listeners.forEach((l) => l());
 }
 
