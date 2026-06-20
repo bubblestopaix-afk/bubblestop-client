@@ -9,6 +9,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import { createURL } from 'expo-linking';
 import type { Session } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
@@ -470,10 +472,42 @@ export default function CompteScreen() {
   const loginGoogle = async () => {
     setMessage(null);
     try {
-      const redirectTo = (Platform.OS === 'web' && typeof window !== 'undefined') ? window.location.origin : undefined;
-      const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+      // Web/PWA : redirection de page classique, session relue dans l'URL au retour.
+      if (Platform.OS === 'web') {
+        const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
+        const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+        if (error) throw error;
+        return;
+      }
+      // Natif : on ouvre Google dans une session navigateur et on CAPTE le retour deep-link
+      // (sinon le navigateur retombe sur le site web et l'app ne reçoit jamais la session).
+      const redirectTo = createURL('/'); // ex. bubblestop://
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo, skipBrowserRedirect: true },
+      });
       if (error) throw error;
-      if (Platform.OS !== 'web' && data?.url) Linking.openURL(data.url);
+      if (!data?.url) throw new Error('URL OAuth introuvable');
+      const res = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (res.type !== 'success' || !res.url) return; // annulé par l'utilisateur
+      // Récupère la session depuis l'URL de retour : ?code= (PKCE) ou #access_token= (implicite).
+      const retour = res.url;
+      const lire = (s: string): Record<string, string> => {
+        const out: Record<string, string> = {};
+        s.split('&').forEach((kv) => { const [k, v] = kv.split('='); if (k) out[decodeURIComponent(k)] = decodeURIComponent(v || ''); });
+        return out;
+      };
+      const q = lire(retour.includes('?') ? retour.split('?')[1].split('#')[0] : '');
+      if (q.code) {
+        const { error: e2 } = await supabase.auth.exchangeCodeForSession(q.code);
+        if (e2) throw e2;
+      } else {
+        const h = lire(retour.includes('#') ? retour.split('#')[1] : '');
+        if (h.access_token && h.refresh_token) {
+          const { error: e3 } = await supabase.auth.setSession({ access_token: h.access_token, refresh_token: h.refresh_token });
+          if (e3) throw e3;
+        }
+      }
     } catch (e: any) {
       setMessage(String(e?.message ?? e));
     }
