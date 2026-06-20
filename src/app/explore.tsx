@@ -2,7 +2,7 @@
 // Le QR encode le numéro de carte, exactement ce que lit le lecteur 2D du POS.
 // Tampons en temps réel (Supabase realtime + rafraîchissement 30 s).
 import { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Text, TextInput, Pressable, ScrollView } from 'react-native';
+import { StyleSheet, View, Text, TextInput, Pressable, ScrollView, Platform, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import QRCode from 'qrcode';
@@ -78,6 +78,46 @@ function CarteTampons({ tampons, parCarte, cadeaux }: { tampons: number; parCart
             pour Signature) à réclamer en caisse !
           </Text>
         </View>
+      )}
+    </View>
+  );
+}
+
+// Boutons « Ajouter au Wallet » — ouvrent l'Edge Function wallet-pass avec le jeton
+// de session en query (le navigateur système ne peut pas poser d'en-tête Authorization).
+// iOS → renvoie le .pkpass (Safari propose « Ajouter à Apple Wallet »).
+// Android → redirige vers la page « Enregistrer dans Google Wallet ».
+function BoutonsWallet() {
+  const [busy, setBusy] = useState<null | 'apple' | 'google'>(null);
+  const ouvrir = useCallback(async (plateforme: 'apple' | 'google') => {
+    try {
+      setBusy(plateforme);
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      const base = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      if (!token || !base) return;
+      const url = `${base}/functions/v1/wallet-pass?platform=${plateforme}&token=${encodeURIComponent(token)}`;
+      await Linking.openURL(url);
+    } catch {
+      /* silencieux */
+    } finally {
+      setBusy(null);
+    }
+  }, []);
+
+  const montrerApple = Platform.OS === 'ios' || Platform.OS === 'web';
+  const montrerGoogle = Platform.OS === 'android' || Platform.OS === 'web';
+  return (
+    <View style={styles.walletWrap}>
+      {montrerApple && (
+        <Pressable style={[styles.walletBtn, styles.walletApple]} onPress={() => ouvrir('apple')} disabled={!!busy}>
+          <Text style={styles.walletAppleTxt}>{busy === 'apple' ? 'Ouverture…' : 'Ajouter à Apple Wallet'}</Text>
+        </Pressable>
+      )}
+      {montrerGoogle && (
+        <Pressable style={[styles.walletBtn, styles.walletGoogle]} onPress={() => ouvrir('google')} disabled={!!busy}>
+          <Text style={styles.walletGoogleTxt}>{busy === 'google' ? 'Ouverture…' : 'Ajouter à Google Wallet'}</Text>
+        </Pressable>
       )}
     </View>
   );
@@ -205,6 +245,8 @@ export default function FideliteScreen() {
               <Text style={styles.carteMembreAide}>Présente ce code en caisse pour cumuler tes tampons</Text>
             </View>
 
+            <BoutonsWallet />
+
             <CarteTampons
               tampons={carte?.tampons || 0}
               parCarte={carte?.tampons_par_carte || 9}
@@ -261,6 +303,14 @@ const styles = StyleSheet.create({
   carteMembreLogo: { fontFamily: F.titre, fontSize: 15, color: '#fff', letterSpacing: 1, textAlign: 'center' },
   carteMembreNumero: { fontFamily: F.t800, fontSize: 19, color: '#fff', letterSpacing: 1.5, textAlign: 'center' },
   carteMembreAide: { fontFamily: F.t600, fontSize: 12.5, color: C.lavande, textAlign: 'center', opacity: 0.85 },
+
+  // Boutons « Ajouter au Wallet »
+  walletWrap: { gap: 10 },
+  walletBtn: { borderRadius: R.btn, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', ...OMBRE },
+  walletApple: { backgroundColor: '#000' },
+  walletAppleTxt: { fontFamily: F.t700, fontSize: 15, color: '#fff' },
+  walletGoogle: { backgroundColor: '#fff', borderWidth: 1, borderColor: C.bord },
+  walletGoogleTxt: { fontFamily: F.t700, fontSize: 15, color: '#3C4043' },
 
   // Tampons
   carteFid: { backgroundColor: C.carte, borderRadius: R.carte, padding: 18, gap: 12, ...OMBRE },
