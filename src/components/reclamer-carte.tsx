@@ -152,17 +152,23 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
                 {tampons} tampon{tampons > 1 ? 's' : ''} prêt{tampons > 1 ? 's' : ''} à rejoindre ta carte.
               </Text>
               {!numeroVerrou ? (
-                <ChampTexte
-                  label="Ton numéro de téléphone (carte fidélité)"
-                  value={numero}
-                  onChangeText={setNumero}
-                  placeholder="06 12 34 56 78"
-                  keyboardType="number-pad"
-                  maxLength={14}
-                />
+                <>
+                  <ChampTexte
+                    label="Ton numéro de téléphone (carte fidélité)"
+                    value={numero}
+                    onChangeText={setNumero}
+                    placeholder="06 12 34 56 78"
+                    keyboardType="number-pad"
+                    maxLength={14}
+                  />
+                  <Text style={styles.aideTel}>
+                    📵 Aucun SMS, jamais de démarchage. Ton numéro sert seulement de secours pour retrouver ta carte en caisse.
+                  </Text>
+                </>
               ) : (
                 <Text style={styles.sousPetit}>Carte associée à ton compte ✓</Text>
               )}
+              <Message texte={`En validant, ${tampons > 0 ? `tes ${tampons} tampon${tampons > 1 ? 's' : ''} seront transférés` : 'ta carte sera transférée'} sur ta carte fidélité (ton QR dans l'appli). Ce QR express ne sera alors plus utilisable.`} />
               {!!msg && <Message texte={msg} />}
               <BoutonPrimaire
                 titre={`Récupérer ${tampons > 0 ? `mes ${tampons} tampon${tampons > 1 ? 's' : ''}` : 'ma carte'}`}
@@ -197,6 +203,7 @@ const styles = StyleSheet.create({
   titre: { fontFamily: F.t800, fontSize: 20, color: C.texte, textAlign: 'center' },
   sous: { fontFamily: F.t400, fontSize: 14.5, color: C.texte2, textAlign: 'center', lineHeight: 21 },
   sousPetit: { fontFamily: F.t600, fontSize: 13, color: C.texte2, textAlign: 'center' },
+  aideTel: { fontFamily: F.t400, fontSize: 12, color: C.texte3, textAlign: 'center', lineHeight: 17 },
   appBloc: { gap: 8, alignItems: 'center' },
   appTitre: { fontFamily: F.t800, fontSize: 15.5, color: C.texte, textAlign: 'center' },
   appSous: { fontFamily: F.t400, fontSize: 13, color: C.texte2, textAlign: 'center', lineHeight: 18 },

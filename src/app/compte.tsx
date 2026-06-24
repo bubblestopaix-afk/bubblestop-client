@@ -23,7 +23,7 @@ import {
   Carte, LigneMenu, ChampTexte, Message, BoutonPrimaire, BoutonGhost, TitreSection,
 } from '@/components/ui-kit';
 
-const URL_CONFIDENTIALITE = 'https://zpnoopitysojsvuqnbuo.supabase.co/functions/v1/confidentialite';
+const URL_CONFIDENTIALITE = 'https://commande.bubblestop.fr/confidentialite';
 const EMAIL_CONTACT = 'bubblestopaix@gmail.com';
 
 // === Presets d'offres (admin) : modèles prêts à publier ===
@@ -794,7 +794,7 @@ export default function CompteScreen() {
                   maxLength={14}
                 />
                 <Text style={styles.aideChamp}>
-                  Jamais utilisé pour du démarchage — uniquement pour identifier ta carte en caisse si tu n'as pas ton QR.
+                  📵 Aucun SMS, jamais de démarchage — uniquement pour identifier ta carte en caisse si tu n'as pas ton QR.
                 </Text>
                 <ChampTexte
                   label="Date de naissance 🎂 (boisson offerte le jour J)"
@@ -1198,6 +1198,9 @@ export default function CompteScreen() {
                   keyboardType="number-pad"
                   maxLength={14}
                 />
+                <Text style={styles.aideChamp}>
+                  📵 Aucun SMS, jamais de démarchage. Ton numéro sert seulement à retrouver ta carte en caisse si tu n'as pas ton QR.
+                </Text>
                 <ChampTexte
                   value={dateNaissance}
                   onChangeText={(v) => {

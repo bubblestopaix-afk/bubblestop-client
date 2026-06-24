@@ -35,3 +35,25 @@ function parcourir(dossier) {
 }
 parcourir(dist);
 console.log(`✓ ${modifies} fichier(s) réécrit(s) (assets/node_modules → assets/vendor)`);
+
+// === Copie du dossier public/ (sécurité) ===
+// Expo copie normalement public/ → dist/ à l'export. On le refait ici par
+// sécurité (idempotent) pour garantir que les pages statiques (ex. la
+// politique de confidentialité servie à /confidentialite) sont bien dans le
+// build Cloudflare, avec leur vrai type MIME (text/html) côté Pages.
+const pub = path.join(__dirname, 'public');
+if (fs.existsSync(pub)) {
+  const copierRec = (src, dst) => {
+    fs.mkdirSync(dst, { recursive: true });
+    for (const f of fs.readdirSync(src)) {
+      const s = path.join(src, f);
+      const d = path.join(dst, f);
+      if (fs.statSync(s).isDirectory()) copierRec(s, d);
+      else fs.copyFileSync(s, d);
+    }
+  };
+  copierRec(pub, dist);
+  console.log('✓ public/ copié vers dist/ (pages statiques)');
+} else {
+  console.log('(pas de dossier public/ — rien à copier)');
+}

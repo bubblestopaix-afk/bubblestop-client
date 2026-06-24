@@ -265,8 +265,8 @@ export default function FideliteScreen() {
             <Text style={styles.liaisonTitre}>Active ta carte</Text>
             <Text style={styles.aide}>
               Relie ton numéro de téléphone à ton compte pour activer ta carte de fidélité.
-              {'\n\n'}Ton numéro ne sert jamais au démarchage : il identifie simplement ta
-              carte, en secours si tu n'as pas ton QR sous la main.
+              {'\n\n'}📵 Aucun SMS, jamais de démarchage. Ton numéro sert seulement à retrouver
+              ta carte, en secours si tu n'as pas ton QR sous la main.
             </Text>
             <TextInput
               style={styles.input}
