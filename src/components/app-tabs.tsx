@@ -56,6 +56,8 @@ export default function AppTabs() {
           tabBarIcon: ({ color, size, focused }) => <IconeCompte color={color} size={size} focused={focused} />,
         }}
       />
+      {/* Réclamation d'une carte fidélité temporaire (lien /c/<jeton>) — accessible mais pas un onglet */}
+      <Tabs.Screen name="c" options={{ href: null }} />
     </Tabs>
   );
 }

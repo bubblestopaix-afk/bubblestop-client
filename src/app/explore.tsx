@@ -6,6 +6,7 @@ import { StyleSheet, View, Text, TextInput, Pressable, ScrollView, Platform, Lin
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import QRCode from 'qrcode';
+import { router } from 'expo-router';
 
 import { supabase } from '@/lib/supabase';
 import GobeletBubble from '@/components/gobelet-bubble';
@@ -284,6 +285,9 @@ export default function FideliteScreen() {
             />
           </View>
         )}
+
+        {/* Carte express (QR pris à la borne) : saisir le jeton pour récupérer les tampons */}
+        <BoutonGhost titre="🎟️ J'ai une carte express — saisir mon jeton" onPress={() => router.push('/c' as any)} />
       </ScrollView>
     </View>
   );

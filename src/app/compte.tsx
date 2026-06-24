@@ -15,6 +15,7 @@ import type { Session } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
 import { enregistrerPush } from '@/lib/push';
+import { reclamerJetonEnAttente } from '@/lib/carte-temp';
 import { GoogleLogo } from '@/components/google-logo';
 import { MAGASINS, MagasinId } from '@/store/magasin';
 import { C, F, R, OMBRE } from '@/constants/charte';
@@ -179,6 +180,8 @@ export default function CompteScreen() {
       .then(({ data }) => {
         setPrenom(data?.nom ?? '');
         setTelFidelite(data?.numero_fidelite ?? '');
+        // Carte fidélité express : récupère auto les tampons d'un QR en attente dès qu'on a un numéro.
+        if (data?.numero_fidelite) reclamerJetonEnAttente(String(data.numero_fidelite)).catch(() => {});
         setPrenomSurTicket(!!data?.prenom_sur_ticket);
         setEstAdmin(!!data?.est_admin);
         setMagasinClient(data?.magasin ?? null);
@@ -310,6 +313,8 @@ export default function CompteScreen() {
       }
       if (!naissanceVerrou && naissanceIso) setNaissanceVerrou(true); // verrouille après 1er enregistrement
       if (t) AsyncStorage.setItem('fidelite.tel', t).catch(() => {});
+      // Carte fidélité express : si un QR était en attente, on récupère ses tampons maintenant.
+      if (t) reclamerJetonEnAttente(t).catch(() => {});
       setInfosOk(true);
       setTimeout(() => setInfosOk(false), 2000);
     };

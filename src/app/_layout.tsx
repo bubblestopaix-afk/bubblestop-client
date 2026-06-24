@@ -10,6 +10,7 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
 import { GateNaissance } from '@/components/gate-naissance';
 import { supabase } from '@/lib/supabase';
+import { reclamerJetonEnAttente } from '@/lib/carte-temp';
 
 export default function TabLayout() {
   // Polices DA : Paytone One (titres) + Outfit (textes)
@@ -30,7 +31,11 @@ export default function TabLayout() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) { setNaissanceUserId(null); return; }
         const { data: prof } = await supabase.from('profils')
-          .select('id, date_naissance').eq('id', session.user.id).maybeSingle();
+          .select('id, date_naissance, numero_fidelite').eq('id', session.user.id).maybeSingle();
+        // Carte fidélité express : un jeton en attente + un numéro → on récupère les tampons auto.
+        if ((prof as any)?.numero_fidelite) {
+          reclamerJetonEnAttente(String((prof as any).numero_fidelite)).catch(() => {});
+        }
         if (!prof) {
           // Nouveau compte (souvent Google/Apple) : on crée la ligne, sans date → gate.
           await supabase.from('profils').insert({
