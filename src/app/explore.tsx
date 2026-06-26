@@ -95,7 +95,7 @@ function BoutonsWallet() {
       setBusy(plateforme);
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      const base = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const base = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://zpnoopitysojsvuqnbuo.supabase.co';
       if (!token || !base) return;
       const url = `${base}/functions/v1/wallet-pass?platform=${plateforme}&token=${encodeURIComponent(token)}`;
       await Linking.openURL(url);
