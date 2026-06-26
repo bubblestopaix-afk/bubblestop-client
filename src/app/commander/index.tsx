@@ -39,10 +39,10 @@ export default function CommanderScreen() {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { if (actif) setCarteLiee(false); return; }
-      const { data } = await supabase.from('profils').select('magasin,numero_fidelite,est_admin').eq('id', session.user.id).maybeSingle();
+      const { data } = await supabase.from('profils').select('magasin,numero_fidelite,est_admin,commande_debloquee').eq('id', session.user.id).maybeSingle();
       if (!actif) return;
-      // ADMIN : accès libre (tests / gestion), magasin non verrouillé.
-      let eligible = !!data?.est_admin;
+      // ADMIN ou client débloqué manuellement (testeur / clients de confiance) : accès libre.
+      let eligible = !!data?.est_admin || !!data?.commande_debloquee;
       if (!eligible && data?.numero_fidelite) {
         const { data: f } = await supabase.from('fidelite_cloud')
           .select('cartes_completees,cadeaux').eq('telephone', data.numero_fidelite).maybeSingle();
