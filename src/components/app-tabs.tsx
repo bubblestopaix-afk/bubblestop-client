@@ -62,6 +62,5 @@ export default function AppTabs() {
         name="c"
         options={{ href: null, tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
-    </Tabs>
   );
 }
