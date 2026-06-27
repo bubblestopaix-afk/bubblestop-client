@@ -99,7 +99,7 @@ export default function PanierScreen() {
           .from('profils').select('numero_fidelite').eq('id', session.user.id).maybeSingle();
         if (!profil?.numero_fidelite) return;
         const { data: carte } = await supabase
-          .from('fidelite_cloud').select('cadeaux').eq('telephone', profil.numero_fidelite).maybeSingle();
+          .from('fidelite_cloud').select('cadeaux').eq('numero_fidelite', profil.numero_fidelite).maybeSingle();
         setCadeauxDispo(carte?.cadeaux || 0);
       } catch (_) { /* pas de cadeau affiché */ }
     })();

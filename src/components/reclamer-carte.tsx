@@ -70,20 +70,17 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
   }, [session]);
 
   const recuperer = async () => {
-    const tel = numero.replace(/\D/g, '');
-    if (tel.length !== 10) { setMsg('Entre un numéro de téléphone à 10 chiffres.'); return; }
+    if (!session) { setMsg('Connecte-toi pour récupérer ta carte.'); return; }
     setMsg(null); setEnCours(true);
     try {
-      // Rattache le numéro au profil s'il n'y est pas encore (comme « Mes informations »)
-      if (session && !numeroVerrou) {
-        const { error: eProf } = await supabase.from('profils').upsert({ id: session.user.id, numero_fidelite: tel, telephone: tel });
-        if (eProf) {
-          setMsg(eProf.code === '23505' ? 'Ce numéro est déjà rattaché à un autre compte.' : eProf.message);
-          setEnCours(false); return;
-        }
-        setNumeroVerrou(true);
+      // Le compte doit avoir un NUMÉRO DE FIDÉLITÉ (code). On en génère un si besoin — sans téléphone.
+      let code = numero.replace(/\D/g, '');
+      if (!code) {
+        const { data, error } = await supabase.rpc('activer_ma_carte');
+        if (error || !data) { setMsg('Activation de la carte impossible, réessaie.'); setEnCours(false); return; }
+        code = String(data); setNumero(code); setNumeroVerrou(true);
       }
-      const d = await appelCarteTemp({ action: 'reclamer', token, telephone: tel });
+      const d = await appelCarteTemp({ action: 'reclamer', token, telephone: code });
       if (d?.ok) {
         await oublierJeton();
         const n = Number(d.tamponsCredites) || tampons;
@@ -151,22 +148,10 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
               <Text style={styles.sous}>
                 {tampons} tampon{tampons > 1 ? 's' : ''} prêt{tampons > 1 ? 's' : ''} à rejoindre ta carte.
               </Text>
-              {!numeroVerrou ? (
-                <>
-                  <ChampTexte
-                    label="Ton numéro de téléphone (carte fidélité)"
-                    value={numero}
-                    onChangeText={setNumero}
-                    placeholder="06 12 34 56 78"
-                    keyboardType="number-pad"
-                    maxLength={14}
-                  />
-                  <Text style={styles.aideTel}>
-                    📵 Aucun SMS, jamais de démarchage. Ton numéro sert seulement de secours pour retrouver ta carte en caisse.
-                  </Text>
-                </>
-              ) : (
+              {numeroVerrou ? (
                 <Text style={styles.sousPetit}>Carte associée à ton compte ✓</Text>
+              ) : (
+                <Text style={styles.sousPetit}>Une carte fidélité sera créée pour ton compte automatiquement — aucun téléphone requis.</Text>
               )}
               <Message texte={`En validant, ${tampons > 0 ? `tes ${tampons} tampon${tampons > 1 ? 's' : ''} seront transférés` : 'ta carte sera transférée'} sur ta carte fidélité (ton QR dans l'appli). Ce QR express ne sera alors plus utilisable.`} />
               {!!msg && <Message texte={msg} />}

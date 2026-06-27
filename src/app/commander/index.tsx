@@ -45,7 +45,7 @@ export default function CommanderScreen() {
       let eligible = !!data?.est_admin || !!data?.commande_debloquee;
       if (!eligible && data?.numero_fidelite) {
         const { data: f } = await supabase.from('fidelite_cloud')
-          .select('cartes_completees,cadeaux').eq('telephone', data.numero_fidelite).maybeSingle();
+          .select('cartes_completees,cadeaux').eq('numero_fidelite', data.numero_fidelite).maybeSingle();
         // Éligible si au moins 1 carte complétée à vie (ou un cadeau dispo, qui en est la preuve)
         eligible = (Number(f?.cartes_completees) || 0) >= 1 || (Number(f?.cadeaux) || 0) >= 1;
       }

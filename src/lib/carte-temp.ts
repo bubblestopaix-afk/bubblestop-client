@@ -30,9 +30,9 @@ export async function oublierJeton(): Promise<void> {
 
 // Réclame le jeton en attente pour ce numéro. Renvoie le nb de tampons crédités (>=0), ou null si rien.
 // Consomme le jeton mémorisé en cas de succès — ou s'il est déjà réclamé/expiré (inutile de retenter).
-export async function reclamerJetonEnAttente(telephone: string): Promise<number | null> {
-  const tel = String(telephone || '').replace(/\D/g, '');
-  if (tel.length !== 10) return null;
+export async function reclamerJetonEnAttente(numeroFidelite: string): Promise<number | null> {
+  const tel = String(numeroFidelite || '').replace(/\D/g, '');
+  if (tel.length < 6) return null;
   const token = await lireJetonEnAttente();
   if (!token) return null;
   const d = await appelCarteTemp({ action: 'reclamer', token, telephone: tel });

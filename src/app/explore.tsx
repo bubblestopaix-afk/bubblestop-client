@@ -2,7 +2,7 @@
 // Le QR encode le numéro de carte, exactement ce que lit le lecteur 2D du POS.
 // Tampons en temps réel (Supabase realtime + rafraîchissement 30 s).
 import { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Text, TextInput, Pressable, ScrollView, Platform, Linking } from 'react-native';
+import { StyleSheet, View, Text, Pressable, ScrollView, Platform, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import QRCode from 'qrcode';
@@ -126,7 +126,6 @@ function BoutonsWallet() {
 
 export default function FideliteScreen() {
   const insets = useSafeAreaInsets();
-  const [tel, setTel] = useState('');
   // Numéro de fidélité du COMPTE (le QR et la carte en découlent)
   const [numero, setNumero] = useState<string | null>(null);
   const [carte, setCarte] = useState<any>(undefined);
@@ -139,7 +138,7 @@ export default function FideliteScreen() {
     const { data } = await supabase
       .from('fidelite_cloud')
       .select('tampons, cadeaux, tampons_par_carte')
-      .eq('telephone', t)
+      .eq('numero_fidelite', t)
       .maybeSingle();
     setCarte(data ?? null);
   }, []);
@@ -150,7 +149,7 @@ export default function FideliteScreen() {
     const canal = supabase
       .channel(`fidelite-${numero}`)
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'fidelite_cloud', filter: `telephone=eq.${numero}` },
+        { event: '*', schema: 'public', table: 'fidelite_cloud', filter: `numero_fidelite=eq.${numero}` },
         (payload: any) => { if (payload.new) setCarte(payload.new); })
       .subscribe();
     const it = setInterval(() => chargerCarte(numero), 30000);
@@ -164,7 +163,7 @@ export default function FideliteScreen() {
     if (!session) { setNumero(null); return; }
     const { data } = await supabase
       .from('profils').select('numero_fidelite').eq('id', session.user.id).maybeSingle();
-    if (data?.numero_fidelite) { setNumero(data.numero_fidelite); setTel(data.numero_fidelite); }
+    if (data?.numero_fidelite) setNumero(data.numero_fidelite);
     else setNumero(null);
   }, []);
 
@@ -176,38 +175,29 @@ export default function FideliteScreen() {
     return () => sub.subscription.unsubscribe();
   }, [charger]);
 
-  // Relie le numéro au compte (modifiable ici, et corrigeable côté caisse)
+  // Active la carte du compte : un NUMÉRO DE FIDÉLITÉ unique est généré côté serveur (RPC),
+  // sans téléphone. Le trigger crédite +1 tampon de bienvenue à la 1ère activation.
   const [bienvenue, setBienvenue] = useState<string | null>(null);
-  const enregistrerNumero = async () => {
-    const t = tel.replace(/\D/g, '');
-    if (t.length !== 10) { setMsg('Entre un numéro à 10 chiffres.'); return; }
+  const activerCarte = async () => {
     setEnreg(true);
     setMsg(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { setMsg('Connecte-toi dans l\'onglet Compte.'); return; }
-      // 1ère liaison ? (le trigger Supabase crédite alors +1 tampon de bienvenue)
       const { data: avant } = await supabase.from('profils')
         .select('bonus_app').eq('id', session.user.id).maybeSingle();
-      const { error } = await supabase.from('profils')
-        .update({ numero_fidelite: t, telephone: t }).eq('id', session.user.id);
-      if (error) {
-        setMsg(error.code === '23505'
-          ? 'Ce numéro est déjà relié à un autre compte.'
-          : String(error.message));
-        return;
-      }
-      AsyncStorage.setItem('fidelite.tel', t).catch(() => {});
+      const { data, error } = await supabase.rpc('activer_ma_carte');
+      if (error || !data) { setMsg(error?.message || 'Activation impossible, réessaie.'); return; }
+      const code = String(data);
+      AsyncStorage.setItem('fidelite.numero', code).catch(() => {});
       if (avant && avant.bonus_app === false) {
         setBienvenue('🎁 Carte activée ! Ton tampon de bienvenue arrive d\'ici quelques minutes.');
       }
-      setNumero(t);
+      setNumero(code);
     } finally {
       setEnreg(false);
     }
   };
-
-  const changerNumero = () => { setNumero(null); setCarte(undefined); setMsg(null); };
 
   // Pas connecté : la fidélité est liée au compte
   if (!connecte) {
@@ -255,33 +245,22 @@ export default function FideliteScreen() {
             />
 
             <Text style={styles.secours}>
-              Pas ton téléphone ? Donne ton numéro + code PIN au comptoir.
+              Pas ton QR sous la main ? Donne ton numéro de fidélité au comptoir.
             </Text>
-
-            <BoutonGhost titre="Changer de numéro" onPress={changerNumero} />
           </>
         ) : (
           <View style={styles.liaison}>
             <Text style={styles.liaisonTitre}>Active ta carte</Text>
             <Text style={styles.aide}>
-              Relie ton numéro de téléphone à ton compte pour activer ta carte de fidélité.
-              {'\n\n'}📵 Aucun SMS, jamais de démarchage. Ton numéro sert seulement à retrouver
-              ta carte, en secours si tu n'as pas ton QR sous la main.
+              Active ta carte de fidélité en un geste. Tu reçois un numéro de fidélité
+              et un QR à présenter en caisse.
+              {'\n\n'}📵 Aucun téléphone requis, aucun SMS, jamais de démarchage.
             </Text>
-            <TextInput
-              style={styles.input}
-              value={tel}
-              onChangeText={setTel}
-              placeholder="06 12 34 56 78"
-              placeholderTextColor={C.texte3}
-              keyboardType="number-pad"
-              maxLength={14}
-            />
             {msg && <Message type="erreur" texte={msg} />}
             <BoutonPrimaire
               titre={enreg ? '…' : 'Activer ma carte'}
-              onPress={enregistrerNumero}
-              disabled={tel.replace(/\D/g, '').length !== 10 || enreg}
+              onPress={activerCarte}
+              disabled={enreg}
             />
           </View>
         )}

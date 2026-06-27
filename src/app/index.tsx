@@ -60,7 +60,7 @@ export default function AccueilScreen() {
       // Carte de fidélité : tampons / cadeaux en direct
       if (p?.numero_fidelite) {
         const { data: f } = await supabase.from('fidelite_cloud')
-          .select('tampons, cadeaux').eq('telephone', p.numero_fidelite).maybeSingle();
+          .select('tampons, cadeaux').eq('numero_fidelite', p.numero_fidelite).maybeSingle();
         setCarte(f ? { tampons: Number(f.tampons) || 0, cadeaux: Number(f.cadeaux) || 0 } : null);
       }
 

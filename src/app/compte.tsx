@@ -7,7 +7,6 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert, Switch, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { createURL } from 'expo-linking';
@@ -274,11 +273,6 @@ export default function CompteScreen() {
   // === Mes informations : prénom + numéro fidélité + date de naissance ===
   const enregistrerInfos = async () => {
     if (!session) return;
-    const t = telFidelite.replace(/\D/g, '');
-    if (telFidelite.trim() && t.length !== 10) {
-      setInfoMsg('Le numéro de téléphone doit faire 10 chiffres.');
-      return;
-    }
     // Date de naissance JJ/MM/AAAA → YYYY-MM-DD (vide = effacée)
     let naissanceIso: string | null = null;
     if (dateNaissance.trim()) {
@@ -295,8 +289,6 @@ export default function CompteScreen() {
     const maj: Record<string, any> = {
       id: session.user.id,
       nom: prenom.trim() || null,
-      numero_fidelite: t || null,
-      telephone: t || null,
       prenom_sur_ticket: prenomSurTicket,
     };
     // Date de naissance : enregistrée UNE seule fois, ensuite non modifiable
@@ -305,16 +297,10 @@ export default function CompteScreen() {
     const appliquer = async () => {
       const { error: errMaj } = await supabase.from('profils').upsert(maj);
       if (errMaj) {
-        // 23505 = violation d'unicité → ce numéro est déjà rattaché à un autre compte
-        setInfoMsg(errMaj.code === '23505'
-          ? 'Ce numéro de téléphone est déjà rattaché à un autre compte.'
-          : `Erreur : ${errMaj.message}`);
+        setInfoMsg(`Erreur : ${errMaj.message}`);
         return;
       }
       if (!naissanceVerrou && naissanceIso) setNaissanceVerrou(true); // verrouille après 1er enregistrement
-      if (t) AsyncStorage.setItem('fidelite.tel', t).catch(() => {});
-      // Carte fidélité express : si un QR était en attente, on récupère ses tampons maintenant.
-      if (t) reclamerJetonEnAttente(t).catch(() => {});
       setInfosOk(true);
       setTimeout(() => setInfosOk(false), 2000);
     };
@@ -360,7 +346,7 @@ export default function CompteScreen() {
 
   const envoyerDemandePin = async () => {
     const t = telFidelite.replace(/\D/g, '');
-    if (t.length !== 10) { setPinMsg('Enregistre d\'abord ton numéro de fidélité dans Mon profil.'); return; }
+    if (t.length < 6) { setPinMsg('Active d\'abord ta carte (onglet Fidélité).'); return; }
     if (!/^\d{4}$/.test(nouveauPin)) { setPinMsg('Le nouveau PIN doit faire 4 chiffres.'); return; }
     setPinMsg(null);
     const { error } = await supabase.from('fidelite_pin_demandes').insert({
@@ -570,32 +556,21 @@ export default function CompteScreen() {
           return;
         }
 
-        // 2. Création du profil — numéro saisi à l'inscription, sinon celui mémorisé localement
+        // 2. Création du profil — le téléphone est un CONTACT optionnel ; le numéro de
+        //    fidélité (code) est attribué plus tard via « Activer ma carte » (onglet Fidélité).
         const telSaisi = telephone.replace(/\D/g, '');
-        const numeroFidelite = telSaisi.length === 10
-          ? telSaisi
-          : await AsyncStorage.getItem('fidelite.tel').catch(() => null);
-        if (numeroFidelite) {
-          AsyncStorage.setItem('fidelite.tel', numeroFidelite).catch(() => {});
-        }
+        const telContact = telSaisi.length >= 6 ? telSaisi : null;
         if (data.user && data.session) {
           const { error: errProfil } = await supabase.from('profils').insert({
             id: data.user.id,
             nom: nom.trim() || null,
-            numero_fidelite: numeroFidelite,
-            telephone: numeroFidelite,
+            telephone: telContact,
             email: mail,
             date_naissance: naissanceIso,
           });
           if (errProfil && errProfil.code === '23505') {
-            // Unicité violée : si c'est sur le NUMÉRO, il est déjà pris par un autre compte.
-            const surNumero = /numero_fidelite/i.test(`${errProfil.message || ''} ${errProfil.details || ''}`);
-            if (surNumero) {
-              // On crée quand même le profil, mais SANS le numéro déjà utilisé, et on prévient
-              await supabase.from('profils').insert({ id: data.user.id, nom: nom.trim() || null, email: mail, date_naissance: naissanceIso }).catch(() => {});
-              setMessage('Compte créé, mais ce numéro de téléphone est déjà rattaché à un autre compte : il n\'a pas été lié.');
-            }
-            // sinon (profil déjà créé) : on ignore
+            // Conflit (ex. téléphone déjà utilisé) : on crée le profil minimal sans le tél.
+            await supabase.from('profils').insert({ id: data.user.id, nom: nom.trim() || null, email: mail, date_naissance: naissanceIso }).catch(() => {});
           } else if (errProfil) {
             throw errProfil;
           }
@@ -641,14 +616,10 @@ export default function CompteScreen() {
       // Session active → création du profil (gardé en attente pendant la confirmation)
       if (data.user) {
         const telSaisi = telephone.replace(/\D/g, '');
-        const numeroFidelite = telSaisi.length === 10
-          ? telSaisi
-          : await AsyncStorage.getItem('fidelite.tel').catch(() => null);
         await supabase.from('profils').upsert({
           id: data.user.id,
           nom: nom.trim() || null,
-          numero_fidelite: numeroFidelite,
-          telephone: numeroFidelite,
+          telephone: telSaisi.length >= 6 ? telSaisi : null,
           email: mail,
           date_naissance: naissanceVersIso(dateNaissance),
         });
@@ -786,15 +757,13 @@ export default function CompteScreen() {
               <View style={styles.depli}>
                 <ChampTexte label="Prénom" value={prenom} onChangeText={setPrenom} placeholder="Prénom" autoCapitalize="words" />
                 <ChampTexte
-                  label="N° de téléphone (carte fidélité)"
-                  value={telFidelite}
-                  onChangeText={setTelFidelite}
-                  placeholder="06 12 34 56 78"
-                  keyboardType="number-pad"
-                  maxLength={14}
+                  label="Ton numéro de fidélité"
+                  value={telFidelite || '—'}
+                  onChangeText={() => {}}
+                  editable={false}
                 />
                 <Text style={styles.aideChamp}>
-                  📵 Aucun SMS, jamais de démarchage — uniquement pour identifier ta carte en caisse si tu n'as pas ton QR.
+                  🎟️ Ton numéro de fidélité est attribué automatiquement. Active ta carte dans l'onglet Fidélité pour l'obtenir et afficher ton QR.
                 </Text>
                 <ChampTexte
                   label="Date de naissance 🎂 (boisson offerte le jour J)"
