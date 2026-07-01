@@ -1,6 +1,6 @@
 // === Accueil Bubble Stop (style app food pro) ===
 // Header de marque violet, suivi LIVE de la commande, CTA Commander,
-// raccourcis catalogue en photos, carte de fidélité, offres, favoris.
+// raccourcis catalogue en photos, carte de fidélité, offres.
 import { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, View, Text, ScrollView, Pressable, Image, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +10,6 @@ import { supabase } from '@/lib/supabase';
 import { MAGASINS } from '@/store/magasin';
 import { useCatalogueCloud, trouverCategorieCloud, trouverSaveurCloud } from '@/data/catalogue-cloud';
 import { photoCategorie } from '@/data/photos-categories';
-import { useFavoris, Favori } from '@/store/favoris';
 import { usePanier, ajouterLigne, totalPanier } from '@/store/panier';
 // @ts-ignore — règles de prix partagées avec le POS
 import { calculerPrix } from '@/data/catalogue';
@@ -26,7 +25,6 @@ const STATUT_LIB: Record<string, { txt: string; etape: number }> = {
 export default function AccueilScreen() {
   const insets = useSafeAreaInsets();
   const { categories } = useCatalogueCloud();
-  const favoris = useFavoris();
   const lignes = usePanier();
   const [prenom, setPrenom] = useState('');
   const [magasinId, setMagasinId] = useState<string | null>(null);
@@ -89,23 +87,6 @@ export default function AccueilScreen() {
   }, [charger]);
 
   const onRefresh = async () => { setRefresh(true); await charger(); setRefresh(false); };
-
-  // Ajoute un favori au panier, au prix actuel de la carte
-  const ajouterFavoriAuPanier = (f: Favori) => {
-    const categorie = trouverCategorieCloud(f.categorieId);
-    const saveur = trouverSaveurCloud(f.categorieId, f.saveurId);
-    if (!categorie || !saveur || categorie.horsStock || saveur.horsStock) return;
-    const prix = calculerPrix({
-      categorie, saveur, format: f.format,
-      toppings: f.toppings || {}, chantilly: f.chantilly, laitAvoine: f.laitAvoine,
-    });
-    ajouterLigne({
-      categorieId: f.categorieId, saveurId: f.saveurId, format: f.format,
-      sucre: f.sucre, temperature: f.temperature, glacons: f.glacons,
-      toppings: f.toppings || {}, chantilly: f.chantilly, laitAvoine: f.laitAvoine,
-      doublePortion: f.doublePortion, quantite: 1, prixUnitaire: prix,
-    });
-  };
 
   const nomMagasin = magasinId ? (MAGASINS.find((m) => m.id === magasinId)?.nom || magasinId) : null;
   const tampons = carte?.tampons ?? 0;
@@ -212,30 +193,6 @@ export default function AccueilScreen() {
             </Pressable>
           ) : null}
 
-          {/* === Mes favoris : re-commander en 1 tap === */}
-          {favoris.length > 0 && (
-            <>
-              <Text style={styles.sectionTitre}>Mes favoris</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.favRail}>
-                {favoris.map((f) => {
-                  const indispo = !trouverSaveurCloud(f.categorieId, f.saveurId)
-                    || trouverCategorieCloud(f.categorieId)?.horsStock
-                    || trouverSaveurCloud(f.categorieId, f.saveurId)?.horsStock;
-                  return (
-                    <Pressable
-                      key={f.id}
-                      style={[styles.favCarte, indispo && { opacity: 0.45 }]}
-                      disabled={!!indispo}
-                      onPress={() => ajouterFavoriAuPanier(f)}>
-                      <Text style={styles.favPlus}>+</Text>
-                      <Text style={styles.favNom} numberOfLines={2}>{f.nom}</Text>
-                      {!!indispo && <Text style={styles.favIndispo}>Indispo</Text>}
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </>
-          )}
 
           {/* === Offres en cours === */}
           {offres.length > 0 && (
@@ -328,15 +285,6 @@ const styles = StyleSheet.create({
   tamponPlein: { backgroundColor: C.vert },
   fideliteTexte: { fontFamily: F.t600, fontSize: 13.5, color: C.lavande },
 
-  // Favoris
-  favRail: { gap: 10, paddingVertical: 4, paddingRight: 6 },
-  favCarte: {
-    backgroundColor: C.carte, borderRadius: 16, padding: 14,
-    width: 150, gap: 4, ...OMBRE,
-  },
-  favPlus: { fontFamily: F.t800, fontSize: 18, color: C.vertFonce },
-  favNom: { fontFamily: F.t700, fontSize: 13, color: C.texte, lineHeight: 18 },
-  favIndispo: { fontFamily: F.t700, fontSize: 11.5, color: C.danger },
 
   // Offres
   offre: { backgroundColor: C.jaune, borderRadius: 18, padding: 16, gap: 4, ...OMBRE },

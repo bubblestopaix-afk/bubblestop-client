@@ -12,6 +12,7 @@
       "icon": "./assets/images/icon.png",
       "supportsTablet": false,
       "bundleIdentifier": "com.bubblestop.client",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -33,6 +34,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-apple-authentication",
       [
         "expo-splash-screen",
         {
@@ -65,7 +67,8 @@
       "policy": "appVersion"
     },
     "updates": {
-      "enabled": false
+      "enabled": false,
+      "url": "https://u.expo.dev/10b00fe2-73e1-408c-a36a-23d1a079bb05"
     }
   }
 }

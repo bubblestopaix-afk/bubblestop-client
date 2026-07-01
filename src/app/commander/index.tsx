@@ -8,10 +8,10 @@ import { useCatalogueCloud, trouverCategorieCloud, trouverSaveurCloud } from '@/
 import { photoCategorie } from '@/data/photos-categories';
 import { usePanier, totalPanier, ajouterLigne, viderPanier } from '@/store/panier';
 import { MAGASINS, setMagasin, getMagasin, MagasinId } from '@/store/magasin';
-import { useFavoris, retirerFavori, Favori } from '@/store/favoris';
 // @ts-ignore — règles de prix partagées avec le POS
 import { calculerPrix } from '@/data/catalogue';
 import { supabase } from '@/lib/supabase';
+import { lireCommandeMagasins } from '@/lib/app-config';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { BoutonPrimaire } from '@/components/ui-kit';
 
@@ -33,16 +33,31 @@ export default function CommanderScreen() {
   // Le magasin du client = celui de sa 1ère commande : il ne voit pas les autres.
   const [magasinInscription, setMagasinInscription] = useState<string | null>(null);
   const [carteLiee, setCarteLiee] = useState<boolean | null>(null); // null = chargement ; ici = ÉLIGIBLE à commander
+  const [commandeOff, setCommandeOff] = useState(false); // commande désactivée globalement (flag serveur) ET pas admin
 
   useEffect(() => {
     let actif = true;
     (async () => {
+      // Interrupteur SERVEUR PAR MAGASIN : la commande est-elle ouverte pour le magasin du
+      // client ? (l'appli sert d'abord à la fidélité ; l'admin bascule ça sans rebuild). L'admin
+      // n'est pas soumis au flag.
+      const mapCmd = await lireCommandeMagasins();
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { if (actif) setCarteLiee(false); return; }
+      if (!session) {
+        const magAnon = getMagasin();
+        if (actif) { setCommandeOff(!(magAnon && mapCmd[magAnon])); setCarteLiee(false); }
+        return;
+      }
       const { data } = await supabase.from('profils').select('magasin,numero_fidelite,est_admin,commande_debloquee').eq('id', session.user.id).maybeSingle();
       if (!actif) return;
+      const admin = !!data?.est_admin;
+      const magasinClient = data?.magasin ?? getMagasin();
+      const flagActif = !!(magasinClient && mapCmd[magasinClient]);
+      // Commande désactivée pour CE magasin (et pas admin) → écran « bientôt », point.
+      if (!flagActif && !admin) { setCommandeOff(true); setCarteLiee(false); return; }
+      setCommandeOff(false);
       // ADMIN ou client débloqué manuellement (testeur / clients de confiance) : accès libre.
-      let eligible = !!data?.est_admin || !!data?.commande_debloquee;
+      let eligible = admin || !!data?.commande_debloquee;
       if (!eligible && data?.numero_fidelite) {
         const { data: f } = await supabase.from('fidelite_cloud')
           .select('cartes_completees,cadeaux').eq('numero_fidelite', data.numero_fidelite).maybeSingle();
@@ -50,32 +65,16 @@ export default function CommanderScreen() {
         eligible = (Number(f?.cartes_completees) || 0) >= 1 || (Number(f?.cadeaux) || 0) >= 1;
       }
       setCarteLiee(eligible);
-      if (!data?.magasin || data?.est_admin) return;
+      // Cale le magasin de l'app sur celui du PROFIL (client ET admin) : sinon la commande
+      // d'un admin part sur le magasin par défaut (aix) au lieu de SA boutique → le POS du
+      // bon magasin ne la reçoit pas. (Les vues admin « Toutes les commandes » restent multi-magasins.)
+      if (!data?.magasin) return;
       setMagasinInscription(data.magasin);
-      // Force le magasin de l'app sur celui du client (verrouillé)
       if (getMagasin() !== data.magasin) { setMagasin(data.magasin as MagasinId); viderPanier(); }
     })();
     return () => { actif = false; };
   }, []);
-  const favoris = useFavoris();
   const nbArticles = lignes.reduce((s, l) => s + l.quantite, 0);
-
-  // Ajoute un favori au panier, au prix actuel de la carte
-  const ajouterFavoriAuPanier = (f: Favori) => {
-    const categorie = trouverCategorieCloud(f.categorieId);
-    const saveur = trouverSaveurCloud(f.categorieId, f.saveurId);
-    if (!categorie || !saveur || categorie.horsStock || saveur.horsStock) return;
-    const prix = calculerPrix({
-      categorie, saveur, format: f.format,
-      toppings: f.toppings || {}, chantilly: f.chantilly, laitAvoine: f.laitAvoine,
-    });
-    ajouterLigne({
-      categorieId: f.categorieId, saveurId: f.saveurId, format: f.format,
-      sucre: f.sucre, temperature: f.temperature, glacons: f.glacons,
-      toppings: f.toppings || {}, chantilly: f.chantilly, laitAvoine: f.laitAvoine,
-      doublePortion: f.doublePortion, quantite: 1, prixUnitaire: prix,
-    });
-  };
 
   // Commande active du client (bannière de suivi), rafraîchie toutes les 15 s
   const [commandeActive, setCommandeActive] = useState<any>(null);
@@ -99,6 +98,24 @@ export default function CommanderScreen() {
     const t = setInterval(verifier, 15000);
     return () => { actif = false; clearInterval(t); };
   }, []);
+
+  // === Commande en ligne désactivée globalement (l'appli sert d'abord à la fidélité) ===
+  if (commandeOff) {
+    return (
+      <View style={styles.fond}>
+        <ScrollView contentContainerStyle={[styles.contenu, { paddingTop: insets.top + 18, flexGrow: 1, justifyContent: 'center' }]}>
+          <View style={styles.gateCarte}>
+            <Text style={styles.gateEmoji}>🧋</Text>
+            <Text style={styles.gateTitre}>La commande en ligne arrive bientôt</Text>
+            <Text style={styles.gateTexte}>
+              Pour l'instant, l'appli te sert à suivre ta fidélité et tes offres. La commande en ligne ouvrira prochainement — reste connecté !
+            </Text>
+            <BoutonPrimaire titre="Voir ma fidélité" onPress={() => router.push('/explore' as any)} />
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
 
   // === Pas encore client en boutique → la commande en ligne est bloquée ===
   if (carteLiee === false) {
@@ -155,31 +172,6 @@ export default function CommanderScreen() {
           </Pressable>
         )}
 
-        {/* === Mes favoris : ajout en 1 tap === */}
-        {favoris.length > 0 && (
-          <>
-            <Text style={styles.section}>Mes favoris</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.favRail}>
-              {favoris.map((f) => {
-                const indispo = !trouverSaveurCloud(f.categorieId, f.saveurId)
-                  || trouverCategorieCloud(f.categorieId)?.horsStock
-                  || trouverSaveurCloud(f.categorieId, f.saveurId)?.horsStock;
-                return (
-                  <Pressable
-                    key={f.id}
-                    style={[styles.favCarte, indispo && { opacity: 0.45 }]}
-                    disabled={!!indispo}
-                    onPress={() => ajouterFavoriAuPanier(f)}
-                    onLongPress={() => retirerFavori(f.id)}>
-                    <Text style={styles.favPlus}>+</Text>
-                    <Text style={styles.favNom} numberOfLines={2}>{f.nom}{indispo ? ' (indispo)' : ''}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            <Text style={styles.favAide}>Tap = ajouter au panier · appui long = retirer le favori</Text>
-          </>
-        )}
 
         {/* === Grille des catégories (2 colonnes, vignettes photos) === */}
         <Text style={styles.section}>Nos boissons</Text>
@@ -262,11 +254,6 @@ const styles = StyleSheet.create({
 
   section: { fontFamily: F.titre, fontSize: 17, color: C.violet, marginTop: 8 },
 
-  favRail: { gap: 10, paddingVertical: 4, paddingRight: 6 },
-  favCarte: { backgroundColor: C.carte, borderRadius: 16, padding: 14, width: 150, gap: 4, ...OMBRE },
-  favPlus: { fontFamily: F.t800, fontSize: 18, color: C.vertFonce },
-  favNom: { fontFamily: F.t700, fontSize: 13, color: C.texte, lineHeight: 18 },
-  favAide: { fontFamily: F.t400, fontSize: 11.5, color: C.texte3, marginTop: -4 },
 
   // Grille 2 colonnes
   grille: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },

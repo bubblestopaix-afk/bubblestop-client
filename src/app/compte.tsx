@@ -10,11 +10,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { createURL } from 'expo-linking';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import type { Session } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
 import { enregistrerPush } from '@/lib/push';
 import { reclamerJetonEnAttente } from '@/lib/carte-temp';
+import { lireCommandeMagasins, ecrireCommandeMagasin } from '@/lib/app-config';
 import { GoogleLogo } from '@/components/google-logo';
 import { MAGASINS, MagasinId } from '@/store/magasin';
 import { C, F, R, OMBRE } from '@/constants/charte';
@@ -23,7 +25,7 @@ import {
 } from '@/components/ui-kit';
 
 const URL_CONFIDENTIALITE = 'https://commande.bubblestop.fr/confidentialite';
-const EMAIL_CONTACT = 'bubblestopaix@gmail.com';
+const EMAIL_CONTACT = 'contact@bubblestop.fr';
 
 // === Presets d'offres (admin) : modèles prêts à publier ===
 // Tap = pré-remplit titre + message (modifiables avant publication).
@@ -137,7 +139,6 @@ export default function CompteScreen() {
   // confirmation = code de confirmation d'inscription)
   const [mode, setMode] = useState<'connexion' | 'inscription' | 'reset-email' | 'reset-code' | 'confirmation'>('connexion');
   const [nom, setNom] = useState('');
-  const [telephone, setTelephone] = useState('');
   const [email, setEmail] = useState('');
   const [mdp, setMdp] = useState('');
   const [codeReset, setCodeReset] = useState('');
@@ -194,6 +195,8 @@ export default function CompteScreen() {
   const [offreTitre, setOffreTitre] = useState('');
   const [offreMessage, setOffreMessage] = useState('');
   const [offres, setOffres] = useState<any[]>([]);
+  const [cmdMap, setCmdMap] = useState<Record<string, boolean> | null>(null); // commande en ligne par magasin
+  const [cmdBusy, setCmdBusy] = useState<string | null>(null); // magasin en cours de bascule
   const [offreEtat, setOffreEtat] = useState<string | null>(null);
   // Preset sélectionné (pré-remplit les champs, modifiables ensuite)
   const [presetId, setPresetId] = useState<string | null>(null);
@@ -209,7 +212,18 @@ export default function CompteScreen() {
     const { data } = await supabase.from('offres').select('*').order('created_at', { ascending: false }).limit(10);
     setOffres(data ?? []);
   };
-  useEffect(() => { if (estAdmin) chargerOffres(); }, [estAdmin]);
+  useEffect(() => { if (estAdmin) { chargerOffres(); lireCommandeMagasins().then(setCmdMap); } }, [estAdmin]);
+
+  // Active / désactive la commande en ligne pour UN magasin (flag serveur app_config, par magasin).
+  const toggleCommande = async (magasin: string) => {
+    if (cmdMap === null || cmdBusy) return;
+    const nouveau = !cmdMap[magasin];
+    setCmdBusy(magasin);
+    setCmdMap({ ...cmdMap, [magasin]: nouveau }); // optimiste
+    const ok = await ecrireCommandeMagasin(magasin, nouveau);
+    if (!ok) setCmdMap((m) => ({ ...(m || {}), [magasin]: !nouveau })); // rollback si échec
+    setCmdBusy(null);
+  };
 
   const publierOffre = async (avecPush: boolean) => {
     if (!offreTitre.trim() || !offreMessage.trim()) {
@@ -504,6 +518,27 @@ export default function CompteScreen() {
     }
   };
 
+  // === Connexion via Apple (iOS — exigé par l'App Store 4.8 dès qu'on propose Google) ===
+  // Token d'identité Apple → Supabase (provider apple). Le provider Apple doit être activé
+  // côté Supabase avec le bundle `com.bubblestop.client` dans les Client IDs autorisés.
+  const loginApple = async () => {
+    setMessage(null);
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!credential.identityToken) throw new Error('Connexion Apple incomplète (jeton manquant).');
+      const { error } = await supabase.auth.signInWithIdToken({ provider: 'apple', token: credential.identityToken });
+      if (error) throw error;
+    } catch (e: any) {
+      if (e?.code === 'ERR_REQUEST_CANCELED') return; // annulé par l'utilisateur
+      setMessage(String(e?.message ?? e));
+    }
+  };
+
   // JJ/MM/AAAA → YYYY-MM-DD (null si invalide, dans le futur, ou improbable)
   const naissanceVersIso = (saisie: string): string | null => {
     const m = saisie.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -556,24 +591,16 @@ export default function CompteScreen() {
           return;
         }
 
-        // 2. Création du profil — le téléphone est un CONTACT optionnel ; le numéro de
-        //    fidélité (code) est attribué plus tard via « Activer ma carte » (onglet Fidélité).
-        const telSaisi = telephone.replace(/\D/g, '');
-        const telContact = telSaisi.length >= 6 ? telSaisi : null;
+        // 2. Création du profil — le numéro de fidélité (code) est attribué plus tard via
+        //    « Activer ma carte » (onglet Fidélité). Plus aucun téléphone.
         if (data.user && data.session) {
           const { error: errProfil } = await supabase.from('profils').insert({
             id: data.user.id,
             nom: nom.trim() || null,
-            telephone: telContact,
             email: mail,
             date_naissance: naissanceIso,
           });
-          if (errProfil && errProfil.code === '23505') {
-            // Conflit (ex. téléphone déjà utilisé) : on crée le profil minimal sans le tél.
-            await supabase.from('profils').insert({ id: data.user.id, nom: nom.trim() || null, email: mail, date_naissance: naissanceIso }).catch(() => {});
-          } else if (errProfil) {
-            throw errProfil;
-          }
+          if (errProfil) throw errProfil;
         } else {
           // Confirmation email activée : un code a été envoyé, on le demande ici
           setMode('confirmation');
@@ -615,11 +642,9 @@ export default function CompteScreen() {
       if (error) throw error;
       // Session active → création du profil (gardé en attente pendant la confirmation)
       if (data.user) {
-        const telSaisi = telephone.replace(/\D/g, '');
         await supabase.from('profils').upsert({
           id: data.user.id,
           nom: nom.trim() || null,
-          telephone: telSaisi.length >= 6 ? telSaisi : null,
           email: mail,
           date_naissance: naissanceVersIso(dateNaissance),
         });
@@ -944,6 +969,26 @@ export default function CompteScreen() {
                 />
               </Carte>
 
+              {/* Commande en ligne : activable PAR MAGASIN (l'appli sert d'abord à la fidélité) */}
+              <Carte style={{ gap: 10 }}>
+                <Text style={styles.adminTitre}>Commande en ligne (par magasin)</Text>
+                <Text style={styles.cmdToggleSous}>
+                  Active la commande dans l'appli pour les clients d'un magasin. Désactivée = fidélité uniquement.
+                </Text>
+                {MAGASINS.map((m) => (
+                  <View key={m.id} style={styles.cmdMagLigne}>
+                    <Text style={styles.cmdMagNom}>{m.nom}</Text>
+                    <Switch
+                      value={!!cmdMap?.[m.id]}
+                      onValueChange={() => toggleCommande(m.id)}
+                      disabled={cmdMap === null || cmdBusy === m.id}
+                      trackColor={{ true: C.vert, false: '#C9C2D6' }}
+                      thumbColor="#fff"
+                    />
+                  </View>
+                ))}
+              </Carte>
+
               {/* Offres / annonces */}
               <Carte style={{ gap: 10 }}>
                 <Text style={styles.adminTitre}>Offres</Text>
@@ -1160,15 +1205,8 @@ export default function CompteScreen() {
             {mode === 'inscription' && (
               <>
                 <ChampTexte value={nom} onChangeText={setNom} placeholder="Prénom" autoCapitalize="words" />
-                <ChampTexte
-                  value={telephone}
-                  onChangeText={setTelephone}
-                  placeholder="N° de téléphone (carte fidélité)"
-                  keyboardType="number-pad"
-                  maxLength={14}
-                />
                 <Text style={styles.aideChamp}>
-                  📵 Aucun SMS, jamais de démarchage. Ton numéro sert seulement à retrouver ta carte en caisse si tu n'as pas ton QR.
+                  📵 Aucun téléphone requis. Ta carte de fidélité est un QR — active-la dans l'onglet Fidélité.
                 </Text>
                 <ChampTexte
                   value={dateNaissance}
@@ -1209,6 +1247,17 @@ export default function CompteScreen() {
               onPress={valider}
               loading={enCours}
             />
+
+            {/* Connexion via Apple — affichée en PREMIER sur iOS (HIG Apple + règle 4.8) */}
+            {Platform.OS === 'ios' && (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={12}
+                style={{ height: 48, marginBottom: 4 }}
+                onPress={loginApple}
+              />
+            )}
 
             {/* Connexion / inscription via Google (OAuth Supabase) */}
             <Pressable style={styles.btnGoogle} onPress={loginGoogle} disabled={enCours}>
@@ -1251,6 +1300,9 @@ const styles = StyleSheet.create({
 
   // Admin
   adminTitre: { fontFamily: F.titre, fontSize: 15.5, color: C.violet },
+  cmdToggleSous: { fontFamily: F.t600, fontSize: 12.5, color: C.texte2, lineHeight: 17 },
+  cmdMagLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+  cmdMagNom: { fontFamily: F.t700, fontSize: 15, color: C.texte },
   // Presets d'offres
   presetsAide: { fontFamily: F.t600, fontSize: 12.5, color: C.texte3, marginBottom: -2 },
   presetsRail: { gap: 9, paddingVertical: 2, paddingRight: 6 },

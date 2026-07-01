@@ -15,7 +15,6 @@ import {
 import { useCatalogueCloud } from '@/data/catalogue-cloud';
 import { photoCategorie } from '@/data/photos-categories';
 import { ajouterLigne, getLigne, remplacerLigne } from '@/store/panier';
-import { ajouterFavori, retirerFavori, favoriExistant, useFavoris } from '@/store/favoris';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { BoutonRetour, Chip, Stepper } from '@/components/ui-kit';
 
@@ -47,8 +46,6 @@ export default function PersonnalisationScreen() {
   const [quantite, setQuantite] = useState(ligneEdit?.quantite ?? 1);
   const [glacons, setGlacons] = useState<'avec' | 'peu' | 'sans'>(ligneEdit?.glacons ?? 'avec');
   const [note, setNote] = useState(ligneEdit?.note ?? '');
-
-  useFavoris(); // re-render quand les favoris changent (état du cœur)
 
   if (!cat) return null;
 
@@ -97,25 +94,6 @@ export default function PersonnalisationScreen() {
     router.back();
   };
 
-  // Config courante au format favori (sans quantité/prix)
-  const configFavori = saveur ? {
-    categorieId: cat.id,
-    saveurId: saveur.id,
-    format,
-    sucre: cat.sansChoixSucre ? null : sucre,
-    temperature: (froidForce ? 'glace' : temperature) as 'glace' | 'chaud',
-    glacons: ((froidForce || temperature === 'glace') && !sansGlacons) ? glacons : undefined,
-    toppings: selToppings,
-    chantilly, laitAvoine, doublePortion,
-  } : null;
-  const dejaFavori = configFavori ? favoriExistant(configFavori) : undefined;
-
-  const basculerFavori = () => {
-    if (!configFavori || !saveur) return;
-    if (dejaFavori) retirerFavori(dejaFavori.id);
-    else ajouterFavori({ ...configFavori, nom: `${cat.nom} ${saveur.nom} ${format}` });
-  };
-
   return (
     <View style={styles.fond}>
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }}>
@@ -126,12 +104,6 @@ export default function PersonnalisationScreen() {
             : <View style={[styles.heroPhoto, styles.heroEmoji]}><Text style={{ fontSize: 72 }}>{cat.emoji}</Text></View>}
           <View style={[styles.heroBarre, { top: insets.top + 10 }]}>
             <BoutonRetour onPress={() => router.back()} surPhoto />
-            {/* Cœur favori (actif quand la config courante est enregistrée) */}
-            {saveur && (
-              <Pressable style={styles.coeur} onPress={basculerFavori} hitSlop={8}>
-                <Text style={{ fontSize: 20 }}>{dejaFavori ? '❤️' : '🤍'}</Text>
-              </Pressable>
-            )}
           </View>
         </View>
 
@@ -145,7 +117,7 @@ export default function PersonnalisationScreen() {
             {cat.saveurs.map((s: any) => (
               <Chip
                 key={s.id}
-                label={`${s.nom}${s.reco ? ' ⭐' : ''}${s.supplement ? ` +${s.supplement.toFixed(2).replace('.', ',')} €` : ''}${s.horsStock ? ' — épuisé' : ''}`}
+                label={`${s.nom}${s.supplement ? ` +${s.supplement.toFixed(2).replace('.', ',')} €` : ''}${s.horsStock ? ' — épuisé' : ''}`}
                 pastille={s.couleur}
                 actif={saveurId === s.id}
                 disabled={!!s.horsStock}
@@ -319,10 +291,6 @@ const styles = StyleSheet.create({
   heroBarre: {
     position: 'absolute', left: 14, right: 14,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-  },
-  coeur: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(42,29,70,0.45)',
-    alignItems: 'center', justifyContent: 'center',
   },
 
   contenu: {

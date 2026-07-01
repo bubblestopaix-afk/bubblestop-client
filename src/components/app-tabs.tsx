@@ -3,12 +3,17 @@ import { Tabs } from 'expo-router';
 import { C, F } from '@/constants/charte';
 import { IconeAccueil, IconeCommander, IconeCompte, IconeFidelite, IconeOffres, TEINTE_ACTIVE } from '@/components/tab-icons';
 import { usePanier } from '@/store/panier';
+import { useCommandeEnLigne } from '@/lib/app-config';
 
 // Barre d'onglets (5, style app food) : Accueil · Commander · Fidélité · Offres · Compte.
 // Design clair fixe — icônes dans tab-icons.tsx.
 export default function AppTabs() {
   // Badge panier sur l'onglet Commander (compteur visible partout)
   const nbArticles = usePanier().reduce((s, l) => s + (l.quantite || 1), 0);
+  // Commande en ligne activée (flag serveur) OU admin → onglet visible. Sinon masqué
+  // (l'appli sert d'abord à la fidélité). OFF par défaut tant que le flag n'est pas chargé.
+  const { actif, admin } = useCommandeEnLigne();
+  const montrerCommander = actif || admin;
 
   return (
     <Tabs
@@ -28,11 +33,17 @@ export default function AppTabs() {
       />
       <Tabs.Screen
         name="commander"
-        options={{
+        options={montrerCommander ? {
           title: 'Commander',
           tabBarBadge: nbArticles > 0 ? nbArticles : undefined,
           tabBarBadgeStyle: { backgroundColor: C.vert, color: C.violetProfond, fontFamily: F.t800 },
           tabBarIcon: ({ color, size, focused }) => <IconeCommander color={color} size={size} focused={focused} />,
+        } : {
+          // Commande désactivée (flag serveur OFF) → onglet masqué. ⚠️ PAS de `href` ici
+          // (expo-router crash si href + tabBarButton ensemble) : on masque via tabBarButton.
+          title: 'Commander',
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen
