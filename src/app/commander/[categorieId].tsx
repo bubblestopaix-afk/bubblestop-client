@@ -1,7 +1,7 @@
 // === Fiche produit immersive : photo, saveurs, options, ajout au panier ===
 // Saveur → format → sucre → température → toppings → suppléments → panier.
 // Réutilise les règles de prix/portions du POS (catalogue.js).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, View, Text, ScrollView, Pressable, Switch, TextInput, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import {
 import { useCatalogueCloud } from '@/data/catalogue-cloud';
 import { photoCategorie } from '@/data/photos-categories';
 import { ajouterLigne, getLigne, remplacerLigne } from '@/store/panier';
+import { peutCommander } from '@/lib/eligibilite';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { BoutonRetour, Chip, Stepper } from '@/components/ui-kit';
 
@@ -46,6 +47,12 @@ export default function PersonnalisationScreen() {
   const [quantite, setQuantite] = useState(ligneEdit?.quantite ?? 1);
   const [glacons, setGlacons] = useState<'avec' | 'peu' | 'sans'>(ligneEdit?.glacons ?? 'avec');
   const [note, setNote] = useState(ligneEdit?.note ?? '');
+
+  // Verrou commande : l'accueil pousse directement ici (raccourcis photos) sans passer
+  // par l'écran Commander → on re-vérifie l'éligibilité et on renvoie vers le gate sinon.
+  useEffect(() => {
+    peutCommander().then((ok) => { if (!ok) router.replace('/commander' as any); });
+  }, []);
 
   if (!cat) return null;
 

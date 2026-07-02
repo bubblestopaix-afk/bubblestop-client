@@ -7,10 +7,14 @@ import { Tabs } from 'expo-router';
 import { C, F } from '@/constants/charte';
 import { IconeAccueil, IconeCommander, IconeCompte, IconeFidelite, IconeOffres, TEINTE_ACTIVE } from '@/components/tab-icons';
 import { usePanier } from '@/store/panier';
+import { useCommandeEnLigne } from '@/lib/app-config';
 
 export default function AppTabs() {
   // Badge panier sur l'onglet Commander (compteur visible partout)
   const nbArticles = usePanier().reduce((s, l) => s + (l.quantite || 1), 0);
+  // Même règle que le natif : onglet Commander visible si flag serveur OU admin
+  const { actif, admin } = useCommandeEnLigne();
+  const montrerCommander = actif || admin;
 
   return (
     <Tabs
@@ -30,11 +34,16 @@ export default function AppTabs() {
       />
       <Tabs.Screen
         name="commander"
-        options={{
+        options={montrerCommander ? {
           title: 'Commander',
           tabBarBadge: nbArticles > 0 ? nbArticles : undefined,
           tabBarBadgeStyle: { backgroundColor: C.vert, color: C.violetProfond, fontFamily: F.t800 },
           tabBarIcon: ({ color, size, focused }) => <IconeCommander color={color} size={size} focused={focused} />,
+        } : {
+          // Flag serveur OFF → onglet masqué (⚠️ pas de `href` + tabBarButton ensemble, cf. natif)
+          title: 'Commander',
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen
@@ -57,6 +66,11 @@ export default function AppTabs() {
           title: 'Compte',
           tabBarIcon: ({ color, size, focused }) => <IconeCompte color={color} size={size} focused={focused} />,
         }}
+      />
+      {/* Route /c (carte express) accessible mais jamais affichée comme onglet — comme en natif */}
+      <Tabs.Screen
+        name="c"
+        options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
     </Tabs>
   );

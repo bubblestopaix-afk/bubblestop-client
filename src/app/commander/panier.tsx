@@ -16,6 +16,7 @@ import {
 import { usePanier, totalPanier, remiseMochi, retirerLigne, changerQuantite, viderPanier, LignePanier } from '@/store/panier';
 import { useMagasin, MAGASINS } from '@/store/magasin';
 import { supabase } from '@/lib/supabase';
+import { peutCommander } from '@/lib/eligibilite';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { BoutonRetour, Chip, Stepper, Message, BoutonPrimaire, BoutonGhost } from '@/components/ui-kit';
 
@@ -122,11 +123,16 @@ export default function PanierScreen() {
         setMessage('Connecte-toi dans l’onglet Compte pour envoyer ta commande.');
         return;
       }
-      // 1bis. Boutique ouverte ? (le serveur re-vérifie de toute façon)
+      // 1ter. Toujours éligible ? (carte complétée / débloqué / admin — le serveur re-vérifie)
+      if (!(await peutCommander())) {
+        setMessage('La commande en ligne se débloque après ta première carte de fidélité complétée (9 tampons) en boutique.');
+        return;
+      }
+      // 1bis. Boutique ouverte ? — config DU MAGASIN choisi (le serveur re-vérifie de toute façon)
       const { data: cfg } = await supabase
         .from('boutique_config')
         .select('commandes_ouvertes, message_fermeture')
-        .eq('id', 'principal')
+        .eq('id', magasin)
         .maybeSingle();
       if (cfg && cfg.commandes_ouvertes === false) {
         setMessage(cfg.message_fermeture || 'Les commandes en ligne sont fermées pour le moment. Reviens plus tard !');

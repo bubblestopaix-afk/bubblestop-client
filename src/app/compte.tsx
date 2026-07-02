@@ -346,6 +346,7 @@ export default function CompteScreen() {
     if (!session || !telFidelite) return;
     supabase.from('fidelite_pin_demandes')
       .select('statut, raison, created_at')
+      .eq('telephone', telFidelite) // SA carte uniquement (la colonne DB garde son nom historique)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -360,7 +361,8 @@ export default function CompteScreen() {
 
   const envoyerDemandePin = async () => {
     const t = telFidelite.replace(/\D/g, '');
-    if (t.length < 6) { setPinMsg('Active d\'abord ta carte (onglet Fidélité).'); return; }
+    // Un numéro de carte = TOUJOURS 8 chiffres (l'ancien seuil `< 6` datait de l'ère téléphone)
+    if (t.length !== 8) { setPinMsg('Active d\'abord ta carte (onglet Fidélité).'); return; }
     if (!/^\d{4}$/.test(nouveauPin)) { setPinMsg('Le nouveau PIN doit faire 4 chiffres.'); return; }
     setPinMsg(null);
     const { error } = await supabase.from('fidelite_pin_demandes').insert({

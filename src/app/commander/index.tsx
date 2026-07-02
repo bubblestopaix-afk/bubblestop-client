@@ -87,6 +87,7 @@ export default function CommanderScreen() {
         const { data } = await supabase
           .from('commandes')
           .select('numero, statut')
+          .eq('client_id', session.user.id) // bannière = SA commande (pas celle d'un autre pour un admin)
           .in('statut', ['en_attente', 'en_preparation', 'prete'])
           .order('created_at', { ascending: false })
           .limit(1)

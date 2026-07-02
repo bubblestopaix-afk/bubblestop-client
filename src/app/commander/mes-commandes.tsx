@@ -46,6 +46,7 @@ export default function MesCommandesScreen() {
     const { data } = await supabase
       .from('commandes')
       .select('id, numero, statut, creneau_retrait, total_cents, created_at, commande_items(id, quantite, produit)')
+      .eq('client_id', session.user.id) // un admin (RLS globale) ne doit voir ici que LES SIENNES
       .order('created_at', { ascending: false })
       .limit(10);
     setCommandes((data as Commande[]) ?? []);

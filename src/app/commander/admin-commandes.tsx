@@ -9,11 +9,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { supabase } from '@/lib/supabase';
 import { MAGASINS } from '@/store/magasin';
+import { C, F } from '@/constants/charte';
 
-const VIOLET = '#3A2A5E';
-const VIOLET_PROFOND = '#2A1D46';
-const VERT = '#A3C724';
-const LAVANDE = '#EFE9F6';
+// Couleurs = charte partagée (plus de valeurs locales en dur)
+const VIOLET = C.violet;
+const VIOLET_PROFOND = C.violetProfond;
+const VERT = C.vert;
+const LAVANDE = C.lavande;
 
 // Statuts pilotables par l'admin (dans l'ordre du flux)
 const FLUX = ['en_attente', 'en_preparation', 'prete', 'recuperee'] as const;
@@ -35,7 +37,7 @@ type Commande = {
   creneau_retrait: string | null;
   total_cents: number;
   created_at: string;
-  profils: { nom: string | null; telephone: string | null } | null;
+  profils: { nom: string | null } | null;
   commande_items: { id: string; quantite: number; produit: any }[];
 };
 
@@ -60,7 +62,7 @@ export default function AdminCommandesScreen() {
   const charger = useCallback(async () => {
     let q = supabase
       .from('commandes')
-      .select('id, numero, statut, magasin, mode_paiement, creneau_retrait, total_cents, created_at, profils(nom, telephone), commande_items(id, quantite, produit)')
+      .select('id, numero, statut, magasin, mode_paiement, creneau_retrait, total_cents, created_at, profils(nom), commande_items(id, quantite, produit)')
       .order('created_at', { ascending: false })
       .limit(80);
     if (magFiltre !== 'tous') q = q.eq('magasin', magFiltre);
@@ -145,7 +147,7 @@ export default function AdminCommandesScreen() {
 
                 {/* Client */}
                 <Text style={styles.client}>
-                  👤 {cmd.profils?.nom || '(sans nom)'}{cmd.profils?.telephone ? '  ·  ' + cmd.profils.telephone : ''}
+                  👤 {cmd.profils?.nom || '(sans nom)'}
                 </Text>
 
                 <View style={[styles.statut, { backgroundColor: st.couleur }]}>
@@ -193,25 +195,25 @@ const styles = StyleSheet.create({
   fond: { flex: 1, backgroundColor: VIOLET },
   safe: { flex: 1 },
   contenu: { padding: 20, gap: 12, paddingBottom: 40 },
-  retour: { color: LAVANDE, fontSize: 16, fontWeight: '700', marginBottom: 8 },
-  titre: { fontSize: 26, fontWeight: '900', color: '#fff' },
+  retour: { color: LAVANDE, fontSize: 16, fontFamily: F.t700, marginBottom: 8 },
+  titre: { fontSize: 26, fontFamily: F.titre, color: '#fff' },
   aide: { fontSize: 15, color: LAVANDE, textAlign: 'center', marginTop: 24, lineHeight: 22 },
   filtres: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingHorizontal: 13, paddingVertical: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)' },
   chipOn: { backgroundColor: VERT },
-  chipTexte: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  chipTexte: { color: '#fff', fontFamily: F.t800, fontSize: 13 },
   carte: { backgroundColor: '#fff', borderRadius: 16, padding: 16, gap: 8 },
   carteHaut: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  numero: { fontSize: 18, fontWeight: '900', color: VIOLET_PROFOND },
-  mag: { fontSize: 12, fontWeight: '900', color: VIOLET, backgroundColor: LAVANDE, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: 'hidden' },
-  date: { fontSize: 13, color: '#60646C', marginLeft: 'auto' },
-  client: { fontSize: 14, fontWeight: '700', color: VIOLET_PROFOND },
+  numero: { fontSize: 18, fontFamily: F.t800, color: VIOLET_PROFOND },
+  mag: { fontSize: 12, fontFamily: F.t800, color: VIOLET, backgroundColor: LAVANDE, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: 'hidden' },
+  date: { fontSize: 13, fontFamily: F.t400, color: '#60646C', marginLeft: 'auto' },
+  client: { fontSize: 14, fontFamily: F.t700, color: VIOLET_PROFOND },
   statut: { borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, alignSelf: 'flex-start' },
-  statutTexte: { fontWeight: '800', fontSize: 14, color: VIOLET_PROFOND },
-  creneau: { fontSize: 13.5, fontWeight: '700', color: '#a06a00' },
-  item: { fontSize: 13.5, color: '#60646C' },
-  total: { fontSize: 16, fontWeight: '900', color: VIOLET, marginTop: 2 },
+  statutTexte: { fontFamily: F.t800, fontSize: 14, color: VIOLET_PROFOND },
+  creneau: { fontSize: 13.5, fontFamily: F.t700, color: '#a06a00' },
+  item: { fontSize: 13.5, fontFamily: F.t400, color: '#60646C' },
+  total: { fontSize: 16, fontFamily: F.t800, color: VIOLET, marginTop: 2 },
   fluxLigne: { flexDirection: 'row', gap: 6, marginTop: 4 },
   fluxBtn: { flex: 1, paddingVertical: 9, borderRadius: 9, backgroundColor: LAVANDE, alignItems: 'center' },
-  fluxTexte: { fontSize: 12, fontWeight: '800', color: VIOLET },
+  fluxTexte: { fontSize: 12, fontFamily: F.t800, color: VIOLET },
 });

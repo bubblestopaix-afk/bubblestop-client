@@ -62,9 +62,11 @@ export default function AccueilScreen() {
         setCarte(f ? { tampons: Number(f.tampons) || 0, cadeaux: Number(f.cadeaux) || 0 } : null);
       }
 
-      // Commande active (suivi live)
+      // Commande active (suivi live) — filtrée sur SA commande (sinon un admin,
+      // dont la RLS lit tout, verrait ici la commande d'un autre client)
       const { data: c } = await supabase.from('commandes')
         .select('numero, statut')
+        .eq('client_id', session.user.id)
         .in('statut', ['en_attente', 'en_preparation', 'prete'])
         .order('created_at', { ascending: false }).limit(1).maybeSingle();
       setCmdActive(c ?? null);
