@@ -3,7 +3,7 @@
 // Réutilise les règles de prix/portions du POS (catalogue.js).
 import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { StyleSheet, View, Text, ScrollView, Pressable, Switch, TextInput, Image } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Pressable, Switch, TextInput, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // @ts-ignore — règles de prix partagées avec le POS (fonctions pures)
@@ -103,7 +103,10 @@ export default function PersonnalisationScreen() {
 
   return (
     <View style={styles.fond}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 130 }}>
+      {/* KAV (rejet App Store 4.0 iPad) : le champ « Une précision ? » est en bas de page —
+          sans ça, le clavier masquait le champ ET la barre « Ajouter ». */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 130 }} keyboardShouldPersistTaps="handled">
         {/* === En-tête immersif : photo de la catégorie === */}
         <View style={styles.hero}>
           {photo
@@ -284,6 +287,7 @@ export default function PersonnalisationScreen() {
           </Text>
         </Pressable>
       </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }

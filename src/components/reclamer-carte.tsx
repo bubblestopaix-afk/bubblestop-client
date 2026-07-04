@@ -3,7 +3,7 @@
 // /c/<jeton> (route dynamique, navigation interne). Le client récupère les tampons accumulés
 // sur sa vraie carte (par numéro de fidélité), via la fonction Edge carte-temp.
 import { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, ScrollView, Linking } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, ScrollView, Linking, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import type { Session } from '@supabase/supabase-js';
@@ -15,7 +15,7 @@ import { appelCarteTemp, memoriserJeton, oublierJeton } from '@/lib/carte-temp';
 
 // Téléchargement de l'appli native (le QR ouvre déjà l'appli web ; le natif est un +).
 const LIEN_PLAY = 'https://play.google.com/store/apps/details?id=com.bubblestop.client';
-const LIEN_IOS = 'https://apps.apple.com/fr/search?term=bubble+stop'; // TODO : lien direct App Store (id) quand dispo
+const LIEN_IOS = 'https://apps.apple.com/fr/app/id6783475068'; // lien direct App Store (BubbleStop)
 
 export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
   const insets = useSafeAreaInsets();
@@ -169,8 +169,11 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
           <Text style={styles.appTitre}>📲 Garde l'appli Bubble Stop</Text>
           <Text style={styles.appSous}>Tes tampons, tes offres et la commande à l'avance — toujours dans ta poche.</Text>
           <View style={styles.appBoutons}>
-            <BoutonGhost titre="App Store" onPress={() => Linking.openURL(LIEN_IOS)} />
-            <BoutonGhost titre="Google Play" onPress={() => Linking.openURL(LIEN_PLAY)} />
+            {/* ⚠️ Guideline App Store 2.3.10 : ne JAMAIS montrer un bouton Google Play dans
+                l'app iOS (mention d'une autre plateforme = motif de rejet). Sur le web on
+                montre les deux ; sur chaque plateforme native, seulement la sienne. */}
+            {Platform.OS !== 'android' && <BoutonGhost titre="App Store" onPress={() => Linking.openURL(LIEN_IOS)} />}
+            {Platform.OS !== 'ios' && <BoutonGhost titre="Google Play" onPress={() => Linking.openURL(LIEN_PLAY)} />}
           </View>
         </Carte>
 

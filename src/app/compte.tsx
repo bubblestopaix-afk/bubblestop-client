@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import {
   StyleSheet, View, Text, TextInput, Pressable,
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert, Switch, Linking,
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert, Switch, Linking, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -757,6 +757,9 @@ export default function CompteScreen() {
     const nomMagasin = magasinClient ? (MAGASINS.find((m) => m.id === magasinClient)?.nom || magasinClient) : null;
     return (
       <View style={styles.fond}>
+        {/* KAV indispensable (rejet App Store 4.0 iPad) : les champs number-pad du bas
+            (PIN, codes) n'ont pas de touche retour et masquaient leurs boutons. */}
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           contentContainerStyle={[styles.contenu, { paddingTop: insets.top + 18 }]}
           keyboardShouldPersistTaps="handled">
@@ -1085,6 +1088,7 @@ export default function CompteScreen() {
             </>
           )}
         </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     );
   }
@@ -1218,10 +1222,13 @@ export default function CompteScreen() {
                     if (ch.length > 4) aff = `${ch.slice(0, 2)}/${ch.slice(2, 4)}/${ch.slice(4)}`;
                     else if (ch.length > 2) aff = `${ch.slice(0, 2)}/${ch.slice(2)}`;
                     setDateNaissance(aff);
+                    if (ch.length === 8) Keyboard.dismiss(); // date complète → clavier rendu (cf. rejet 4.0)
                   }}
                   placeholder="Date de naissance (JJ/MM/AAAA)"
                   keyboardType="number-pad"
                   maxLength={10}
+                  returnKeyType="done"
+                  onSubmitEditing={() => Keyboard.dismiss()}
                 />
                 <Text style={styles.reglesMdp}>🎂 Une boisson offerte le jour de ton anniversaire. Non modifiable une fois enregistrée.</Text>
               </>
