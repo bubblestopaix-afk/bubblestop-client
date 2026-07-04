@@ -232,13 +232,15 @@ export default function CompteScreen() {
     }
     setOffreEtat('Publication…');
     try {
-      const { error } = await supabase.from('offres')
-        .insert({ titre: offreTitre.trim(), message: offreMessage.trim() });
+      const { data: creee, error } = await supabase.from('offres')
+        .insert({ titre: offreTitre.trim(), message: offreMessage.trim() })
+        .select('id').maybeSingle();
       if (error) throw error;
       let txt = '✅ Offre publiée (visible sur l\'accueil)';
       if (avecPush) {
         const { data, error: errPush } = await supabase.functions.invoke('envoyer-offre', {
-          body: { titre: offreTitre.trim(), message: offreMessage.trim() },
+          // offre_id → l'edge tamponne envoyee_le + nb_push sur l'offre (suivi dans l'appli stock)
+          body: { titre: offreTitre.trim(), message: offreMessage.trim(), offre_id: creee?.id ?? null },
         });
         txt = errPush
           ? '✅ Publiée, ⚠️ push échoué'

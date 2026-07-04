@@ -27,7 +27,8 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
   const [sessionPrete, setSessionPrete] = useState(false);
   const [chargementEtat, setChargementEtat] = useState(true);
   const [tampons, setTampons] = useState(0);
-  const [statut, setStatut] = useState(''); // active | reclamee | expiree | inconnu
+  const [cadeaux, setCadeaux] = useState(0);
+  const [statut, setStatut] = useState(''); // active | reclamee | rattachee | expiree | inconnu
   const [numero, setNumero] = useState('');
   const [numeroVerrou, setNumeroVerrou] = useState(false); // numéro déjà rattaché au profil
   const [enCours, setEnCours] = useState(false);
@@ -50,6 +51,7 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
       if (!vivant) return;
       if (d?.ok) {
         setTampons(Number(d.tampons) || 0);
+        setCadeaux(Number(d.cadeaux) || 0);
         setStatut(String(d.statut || ''));
         // Mémorise le jeton → s'il crée son compte juste après, on réclamera automatiquement.
         if (String(d.statut || '') === 'active') memoriserJeton(token);
@@ -73,21 +75,30 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
     if (!session) { setMsg('Connecte-toi pour récupérer ta carte.'); return; }
     setMsg(null); setEnCours(true);
     try {
-      // Le compte doit avoir un NUMÉRO DE FIDÉLITÉ (code). On en génère un si besoin — sans téléphone.
-      let code = numero.replace(/\D/g, '');
-      if (!code) {
-        const { data, error } = await supabase.rpc('activer_ma_carte');
-        if (error || !data) { setMsg('Activation de la carte impossible, réessaie.'); setEnCours(false); return; }
-        code = String(data); setNumero(code); setNumeroVerrou(true);
-      }
-      const d = await appelCarteTemp({ action: 'reclamer', token, telephone: code });
+      // Plus besoin de créer une carte avant : l'edge identifie le compte (JWT).
+      // Compte SANS carte → la carte express DEVIENT sa carte (rattachement direct,
+      // tampons + boissons offertes + historique conservés). Compte AVEC carte → transfert intégral.
+      const code = numero.replace(/\D/g, '');
+      const d = await appelCarteTemp({ action: 'reclamer', token, ...(code ? { telephone: code } : {}) });
       if (d?.ok) {
         await oublierJeton();
         const n = Number(d.tamponsCredites) || tampons;
-        setResultat({ ok: true, texte: `🎉 ${n} tampon${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''} à ta carte ! Ils apparaissent d'ici quelques instants.` });
+        const g = Number(d.cadeaux) || 0;
+        const detail = `${n} tampon${n > 1 ? 's' : ''}${g > 0 ? ` et ${g} boisson${g > 1 ? 's' : ''} offerte${g > 1 ? 's' : ''}` : ''}`;
+        setResultat({
+          ok: true,
+          texte: d.rattachee
+            ? `🎉 Cette carte est maintenant TA carte ! ${detail} conservé${n + g > 1 ? 's' : ''} — ton QR express reste valable en boutique.`
+            : `🎉 ${detail} en cours de transfert vers ta carte — ils apparaissent d'ici quelques instants. Ton QR express reste valable : il pointe désormais vers ta carte.`,
+        });
       } else {
         const e = String(d?.erreur || '');
-        setResultat({ ok: false, texte: /expir|réclam|reclam|déjà/i.test(e) ? 'Cette carte a déjà été récupérée, ou a expiré.' : 'La récupération a échoué. Réessaie.' });
+        setResultat({
+          ok: false,
+          texte: /autre compte/i.test(e) ? 'Cette carte est déjà associée à un autre compte.'
+            : /expir|réclam|reclam|déjà/i.test(e) ? 'Cette carte a déjà été récupérée, ou a expiré.'
+            : 'La récupération a échoué. Réessaie.',
+        });
       }
     } catch {
       setResultat({ ok: false, texte: 'La récupération a échoué. Réessaie.' });
@@ -106,16 +117,16 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
           {!token ? (
             <>
               <Text style={styles.sous}>
-                Tu as une carte express ? Entre son <Text style={{ fontFamily: F.t800 }}>numéro de jeton</Text> (sous le QR, sur ta photo) pour récupérer tes tampons.
+                Tu as une carte express (QR pris à la borne) ? Entre son <Text style={{ fontFamily: F.t800 }}>numéro de carte</Text> (inscrit sous le QR, sur ta photo) pour la récupérer sur ton compte.
               </Text>
               <ChampTexte
-                label="Numéro de jeton"
+                label="Numéro de carte"
                 value={saisie}
                 onChangeText={(v) => setSaisie(String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                placeholder="AB7K9P2M"
+                placeholder="12345678"
                 autoCapitalize="characters"
                 autoCorrect={false}
-                maxLength={8}
+                maxLength={10}
               />
               <BoutonPrimaire titre="Valider" onPress={() => setToken(saisie.trim())} />
             </>
@@ -131,6 +142,11 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
               <Message texte="Ce jeton n'est pas valide. Vérifie le numéro inscrit sous le QR." />
               <BoutonGhost titre="Saisir un autre jeton" onPress={() => { setToken(''); setSaisie(''); setStatut(''); }} />
             </>
+          ) : statut === 'rattachee' ? (
+            <>
+              <Message texte="Cette carte est déjà associée à un compte." />
+              <BoutonPrimaire titre="Voir ma carte" onPress={() => router.replace('/explore' as any)} />
+            </>
           ) : statut !== 'active' ? (
             <>
               <Message texte="Cette carte a déjà été récupérée, ou a expiré." />
@@ -139,24 +155,24 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
           ) : !session ? (
             <>
               <Text style={styles.sous}>
-                Tu as {tampons} tampon{tampons > 1 ? 's' : ''} à récupérer. Connecte-toi (ou crée ton compte) pour les ajouter à ta carte.
+                Tu as {tampons} tampon{tampons > 1 ? 's' : ''}{cadeaux > 0 ? ` et ${cadeaux} boisson${cadeaux > 1 ? 's' : ''} offerte${cadeaux > 1 ? 's' : ''}` : ''} à récupérer. Connecte-toi (ou crée ton compte) pour les retrouver dans l'appli.
               </Text>
               <BoutonPrimaire titre="Me connecter / m'inscrire" onPress={() => router.push('/compte' as any)} />
             </>
           ) : (
             <>
               <Text style={styles.sous}>
-                {tampons} tampon{tampons > 1 ? 's' : ''} prêt{tampons > 1 ? 's' : ''} à rejoindre ta carte.
+                {tampons} tampon{tampons > 1 ? 's' : ''}{cadeaux > 0 ? ` + ${cadeaux} boisson${cadeaux > 1 ? 's' : ''} offerte${cadeaux > 1 ? 's' : ''} 🎁` : ''} prêt{tampons + cadeaux > 1 ? 's' : ''} à rejoindre ton compte.
               </Text>
               {numeroVerrou ? (
-                <Text style={styles.sousPetit}>Carte associée à ton compte ✓</Text>
+                <Text style={styles.sousPetit}>Ton compte a déjà une carte : tout sera transféré dessus (tampons + boissons offertes).</Text>
               ) : (
-                <Text style={styles.sousPetit}>Une carte fidélité sera créée pour ton compte automatiquement — aucun téléphone requis.</Text>
+                <Text style={styles.sousPetit}>Cette carte express deviendra directement TA carte — tout est conservé, aucun téléphone requis.</Text>
               )}
-              <Message texte={`En validant, ${tampons > 0 ? `tes ${tampons} tampon${tampons > 1 ? 's' : ''} seront transférés` : 'ta carte sera transférée'} sur ta carte fidélité (ton QR dans l'appli). Ce QR express ne sera alors plus utilisable.`} />
+              <Message texte="Ton QR express photographié restera valable en boutique : il pointera automatiquement vers ta carte." />
               {!!msg && <Message texte={msg} />}
               <BoutonPrimaire
-                titre={`Récupérer ${tampons > 0 ? `mes ${tampons} tampon${tampons > 1 ? 's' : ''}` : 'ma carte'}`}
+                titre="Récupérer ma carte sur mon compte"
                 onPress={recuperer}
                 loading={enCours}
               />
