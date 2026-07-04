@@ -134,13 +134,21 @@ export default function FideliteScreen() {
   const [msg, setMsg] = useState<string | null>(null);
 
   // Tampons en TEMPS RÉEL pour le numéro du compte
+  const [histo, setHisto] = useState<any[] | null>(null); // historique des cartes complétées
   const chargerCarte = useCallback(async (t: string) => {
     const { data } = await supabase
       .from('fidelite_cloud')
-      .select('tampons, cadeaux, tampons_par_carte')
+      .select('tampons, cadeaux, tampons_par_carte, cartes_completees')
       .eq('numero_fidelite', t)
       .maybeSingle();
     setCarte(data ?? null);
+    // Historique des cartes remplies (RLS : chacun ne voit que les siennes)
+    const { data: h } = await supabase
+      .from('fidelite_cartes')
+      .select('completed_le, magasin')
+      .order('completed_le', { ascending: false })
+      .limit(30);
+    setHisto(h ?? []);
   }, []);
 
   useEffect(() => {
@@ -244,6 +252,31 @@ export default function FideliteScreen() {
               cadeaux={carte?.cadeaux || 0}
             />
 
+            {/* === Historique des cartes complétées (les cartes se cumulent : chaque carte
+                pleine = une grande boisson offerte, gardée tant qu'elle n'est pas utilisée) === */}
+            {(Number(carte?.cartes_completees) || 0) > 0 && (
+              <View style={styles.histoCarte}>
+                <Text style={styles.histoTitre}>
+                  🏆 Mes cartes complétées — {carte.cartes_completees}
+                </Text>
+                {(histo ?? []).map((h, i) => (
+                  <View key={i} style={styles.histoLigne}>
+                    <Text style={styles.histoDate}>
+                      {new Date(h.completed_le).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    </Text>
+                    <Text style={styles.histoMag}>
+                      {h.magasin ? h.magasin.charAt(0).toUpperCase() + h.magasin.slice(1) : ''}
+                    </Text>
+                  </View>
+                ))}
+                {(Number(carte?.cartes_completees) || 0) > (histo?.length ?? 0) && (
+                  <Text style={styles.histoNote}>
+                    + {carte.cartes_completees - (histo?.length ?? 0)} carte{carte.cartes_completees - (histo?.length ?? 0) > 1 ? 's' : ''} complétée{carte.cartes_completees - (histo?.length ?? 0) > 1 ? 's' : ''} avant la mise en place de l'historique 💜
+                  </Text>
+                )}
+              </View>
+            )}
+
             <Text style={styles.secours}>
               Pas ton QR sous la main ? Donne ton numéro de fidélité au comptoir.
             </Text>
@@ -276,6 +309,14 @@ const styles = StyleSheet.create({
   fond: { flex: 1, backgroundColor: C.fond },
   contenu: { padding: 18, gap: 14, paddingBottom: 32 },
   titre: { fontFamily: F.titre, fontSize: 26, color: C.violet },
+
+  // Historique des cartes complétées
+  histoCarte: { backgroundColor: C.carte, borderRadius: 20, padding: 18, gap: 8, ...OMBRE },
+  histoTitre: { fontFamily: F.t800, fontSize: 15, color: C.violetProfond, marginBottom: 2 },
+  histoLigne: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: C.lavande, paddingTop: 8 },
+  histoDate: { fontFamily: F.t600, fontSize: 13.5, color: C.texte },
+  histoMag: { fontFamily: F.t700, fontSize: 13, color: C.violetClair },
+  histoNote: { fontFamily: F.t400, fontSize: 12, color: C.texte2, marginTop: 4 },
 
   // Carte membre violette
   carteMembre: {

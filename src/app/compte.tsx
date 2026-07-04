@@ -796,7 +796,7 @@ export default function CompteScreen() {
                   🎟️ Ton numéro de fidélité est attribué automatiquement. Active ta carte dans l'onglet Fidélité pour l'obtenir et afficher ton QR.
                 </Text>
                 <ChampTexte
-                  label="Date de naissance 🎂 (boisson offerte le jour J)"
+                  label="Date de naissance 🎂 (grande boisson offerte le jour J)"
                   value={dateNaissance}
                   editable={!naissanceVerrou}
                   onChangeText={(v) => {
@@ -1230,7 +1230,7 @@ export default function CompteScreen() {
                   returnKeyType="done"
                   onSubmitEditing={() => Keyboard.dismiss()}
                 />
-                <Text style={styles.reglesMdp}>🎂 Une boisson offerte le jour de ton anniversaire. Non modifiable une fois enregistrée.</Text>
+                <Text style={styles.reglesMdp}>🎂 Une grande boisson (taille L) offerte le jour de ton anniversaire. Non modifiable une fois enregistrée.</Text>
               </>
             )}
             <ChampTexte
