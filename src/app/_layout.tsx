@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AppState, Platform } from 'react-native';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { PaytoneOne_400Regular } from '@expo-google-fonts/paytone-one';
@@ -11,6 +12,7 @@ import AppTabs from '@/components/app-tabs';
 import { GateNaissance } from '@/components/gate-naissance';
 import { supabase } from '@/lib/supabase';
 import { reclamerJetonEnAttente } from '@/lib/carte-temp';
+import { enregistrerPush } from '@/lib/push';
 
 export default function TabLayout() {
   // Polices DA : Paytone One (titres) + Outfit (textes)
@@ -22,6 +24,18 @@ export default function TabLayout() {
   // Utilisateur connecté SANS date de naissance → on bloque sur l'écran de saisie.
   const [naissanceUserId, setNaissanceUserId] = useState<string | null>(null);
 
+  // Badge sur l'icône : les pushs (offres, agent, POS) posent badge=1 → on l'efface
+  // dès que l'appli est ouverte / revient au premier plan (le client « a vu »).
+  useEffect(() => {
+    if (Platform.OS === 'web') return undefined;
+    const effacer = async () => {
+      try { (await import('expo-notifications')).setBadgeCountAsync(0); } catch { /* ignore */ }
+    };
+    effacer();
+    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') effacer(); });
+    return () => sub.remove();
+  }, []);
+
   // Marque le profil "utilise l'appli" (la borne masque alors la promo de téléchargement)
   // + garantit qu'une ligne profils existe (ex. première connexion via Google)
   // + détecte l'absence de date de naissance (Google/Apple/anciens comptes) → gate bloquant.
@@ -30,6 +44,9 @@ export default function TabLayout() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) { setNaissanceUserId(null); return; }
+        // Jeton de notifications enregistré dès l'OUVERTURE (avant : seulement en visitant
+        // l'onglet Compte → beaucoup de clients connectés ne recevaient jamais de push).
+        enregistrerPush();
         const { data: prof } = await supabase.from('profils')
           .select('id, date_naissance, numero_fidelite').eq('id', session.user.id).maybeSingle();
         // Carte fidélité express : un jeton en attente + un numéro → on récupère les tampons auto.

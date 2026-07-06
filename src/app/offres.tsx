@@ -4,6 +4,7 @@ import { StyleSheet, View, Text, ScrollView, RefreshControl } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { supabase } from '@/lib/supabase';
+import RappelNotifs from '@/components/rappel-notifs';
 import { C, F, R, OMBRE } from '@/constants/charte';
 
 // "il y a 2 j" / "aujourd'hui" pour dater une offre
@@ -39,6 +40,9 @@ export default function OffresScreen() {
         refreshControl={<RefreshControl refreshing={refresh} onRefresh={tirer} tintColor={C.violet} />}>
         <Text style={styles.titre}>Offres</Text>
         <Text style={styles.sousTitre}>Les bons plans du moment, à montrer en caisse.</Text>
+
+        {/* 🔔 Sans notifications activées, les promos passent à la trappe → rappel */}
+        <RappelNotifs />
 
         {offres === null && <Text style={styles.vide}>Chargement…</Text>}
 

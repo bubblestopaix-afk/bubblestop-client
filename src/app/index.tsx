@@ -15,6 +15,7 @@ import { usePanier, ajouterLigne, totalPanier } from '@/store/panier';
 import { calculerPrix } from '@/data/catalogue';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { Chevron } from '@/components/ui-kit';
+import RappelNotifs from '@/components/rappel-notifs';
 
 const STATUT_LIB: Record<string, { txt: string; etape: number }> = {
   en_attente: { txt: 'Commande reçue', etape: 1 },
@@ -117,6 +118,9 @@ export default function AccueilScreen() {
         </View>
 
         <View style={styles.contenu}>
+          {/* 🔔 Rappel notifications (connecté sans permission → il raterait toutes les promos) */}
+          <RappelNotifs />
+
           {/* === Suivi LIVE de la commande en cours (l'info n°1 quand elle existe) === */}
           {cmdActive && statut && (
             <Pressable
