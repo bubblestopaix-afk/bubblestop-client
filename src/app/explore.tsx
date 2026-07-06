@@ -10,6 +10,7 @@ import { router } from 'expo-router';
 
 import { supabase } from '@/lib/supabase';
 import GobeletBubble from '@/components/gobelet-bubble';
+import Parrainage from '@/components/parrainage';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { BoutonPrimaire, BoutonGhost, Message } from '@/components/ui-kit';
 
@@ -297,6 +298,9 @@ export default function FideliteScreen() {
             />
           </View>
         )}
+
+        {/* 🤝 Parrainage : mon code + saisir un code (récompenses à la 1ère commande du filleul) */}
+        <Parrainage />
 
         {/* Carte express (QR pris à la borne) : saisir le jeton pour récupérer les tampons */}
         <BoutonGhost titre="🎟️ J'ai une carte express — saisir mon jeton" onPress={() => router.push('/c' as any)} />
