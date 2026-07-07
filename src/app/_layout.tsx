@@ -26,8 +26,24 @@ export default function TabLayout() {
 
   // Badge sur l'icône : les pushs (offres, agent, POS) posent badge=1 → on l'efface
   // dès que l'appli est ouverte / revient au premier plan (le client « a vu »).
+  // + Handler PREMIER PLAN : sans lui, iOS n'affiche RIEN quand un push arrive
+  // pendant que l'appli est OUVERTE (cas vécu : Yoann publie une offre depuis
+  // l'admin de l'appli → le push part → l'app est au premier plan → silence).
   useEffect(() => {
     if (Platform.OS === 'web') return undefined;
+    (async () => {
+      try {
+        const Notifications = await import('expo-notifications');
+        Notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowBanner: true, // bannière même appli ouverte (SDK 53+)
+            shouldShowList: true,   // visible dans le centre de notifications
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+          }),
+        });
+      } catch { /* ignore (web / module absent) */ }
+    })();
     const effacer = async () => {
       try { (await import('expo-notifications')).setBadgeCountAsync(0); } catch { /* ignore */ }
     };
