@@ -23,6 +23,7 @@ import { C, F, R, OMBRE } from '@/constants/charte';
 import {
   Carte, LigneMenu, ChampTexte, Message, BoutonPrimaire, BoutonGhost, TitreSection,
 } from '@/components/ui-kit';
+import PictoOffre, { FOND_PICTO } from '@/components/pictos-offres';
 
 const URL_CONFIDENTIALITE = 'https://commande.bubblestop.fr/confidentialite';
 const EMAIL_CONTACT = 'contact@bubblestop.fr';
@@ -107,6 +108,48 @@ const PRESETS_OFFRES = [
     titre: '📸 Ta story = 1 topping offert',
     message: 'Poste ta boisson en story en nous identifiant, montre-la en caisse : topping offert sur ta prochaine commande.',
     conseil: 'Contenu gratuit sur les réseaux — l\'équipe vérifie la story au comptoir.',
+  },
+  {
+    id: 'derniere-heure', emoji: '🌙', nom: 'Happy end',
+    apercu: 'Booster la dernière heure',
+    titre: '🌙 Happy end : -30 % avant la fermeture',
+    message: 'Dernière heure de la journée : -30 % sur toutes les boissons. Le meilleur moment pour passer !',
+    conseil: 'Lisse la fin de journée et évite les pertes. Push ~1 h 30 avant la fermeture.',
+  },
+  {
+    id: 'etudiants', emoji: '🎓', nom: 'Étudiants',
+    apercu: 'Attirer les campus voisins',
+    titre: '🎓 Pause révisions : -10 % étudiants',
+    message: 'Sur présentation de ta carte étudiante : -10 % sur ta boisson, tous les jours. Bon courage pour les révisions !',
+    conseil: 'Parfait en période d\'examens (mai-juin, décembre). La remise s\'applique en caisse sur présentation de la carte.',
+  },
+  {
+    id: 'hiver', emoji: '❄️', nom: 'Saison chaude',
+    apercu: 'Lancer les boissons chaudes',
+    titre: '❄️ Les boissons CHAUDES sont de retour',
+    message: 'Le froid arrive, nos bubble teas chauds aussi ! Viens goûter le retour des boissons chaudes — réconfort garanti.',
+    conseil: 'À pousser au premier coup de froid (octobre-novembre). Marche aussi en sens inverse au printemps (boissons glacées).',
+  },
+  {
+    id: 'merci', emoji: '💜', nom: 'Merci !',
+    apercu: 'Fêter un cap avec tes clients',
+    titre: '💜 MERCI ! Topping offert aujourd\'hui',
+    message: 'Vous êtes toujours plus nombreux sur l\'appli — pour fêter ça, topping OFFERT sur toutes les boissons aujourd\'hui !',
+    conseil: 'À dégainer pour un jalon (X clients appli, anniversaire de la boutique). Coût faible, gros capital sympathie.',
+  },
+  {
+    id: 'nouveau-topping', emoji: '🫧', nom: 'Nouveau topping',
+    apercu: 'Faire goûter un lancement',
+    titre: '🫧 Nouveau topping à découvrir',
+    message: 'Un nouveau topping débarque ! Cette semaine, il est OFFERT sur ta boisson pour le goûter. Dis-nous ce que tu en penses !',
+    conseil: 'Remplace par le nom du topping. Une semaine d\'essai gratuit installe l\'habitude — mesure ses ventes dans Stats ensuite.',
+  },
+  {
+    id: 'gouter', emoji: '🍪', nom: 'Le goûter',
+    apercu: 'Le créneau 16h-18h des familles',
+    titre: '🍪 Le goûter : -1 € de 16h à 18h',
+    message: 'Mercredi et samedi, c\'est goûter : -1 € sur toutes les boissons entre 16h et 18h. On t\'attend après les cours !',
+    conseil: 'Cible familles et lycéens sur le créneau sortie d\'école. Récurrent = ancre l\'habitude.',
   },
 ] as const;
 
@@ -998,9 +1041,12 @@ export default function CompteScreen() {
 
               {/* Offres / annonces */}
               <Carte style={{ gap: 10 }}>
-                <Text style={styles.adminTitre}>Offres</Text>
+                <Text style={styles.adminTitre}>Offres & annonces</Text>
+                <Text style={styles.cmdToggleSous}>
+                  Publiée = visible sur l'accueil de l'appli · « + push » = notification à tous les clients.
+                </Text>
 
-                {/* === Presets : modèles prêts à publier (scroll horizontal) === */}
+                {/* === Modèles prêts à publier (pictos maison, scroll horizontal) === */}
                 <Text style={styles.presetsAide}>Choisis un modèle ou écris librement :</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetsRail}>
                   {PRESETS_OFFRES.map((p) => (
@@ -1008,7 +1054,7 @@ export default function CompteScreen() {
                       key={p.id}
                       style={[styles.preset, presetId === p.id && styles.presetActif]}
                       onPress={() => choisirPreset(p)}>
-                      <Text style={styles.presetEmoji}>{p.emoji}</Text>
+                      <PictoOffre id={p.id} fond={presetId === p.id ? '#fff' : FOND_PICTO[p.id]} taille={42} />
                       <Text style={styles.presetNom} numberOfLines={1}>{p.nom}</Text>
                       <Text style={styles.presetApercu} numberOfLines={2}>{p.apercu}</Text>
                     </Pressable>
@@ -1038,10 +1084,20 @@ export default function CompteScreen() {
                   <BoutonPrimaire titre="📣 + push" onPress={() => publierOffre(true)} style={{ flex: 1 }} />
                 </View>
                 {offres.map((o) => (
-                  <View key={o.id} style={styles.offreLigne}>
-                    <Text style={[styles.offreLigneTexte, !o.active && { opacity: 0.45 }]} numberOfLines={1}>
-                      {o.active ? '🟢' : '⚪'} {o.titre}
-                    </Text>
+                  <View key={o.id} style={[styles.offreLigne, !o.active && { opacity: 0.5 }]}>
+                    <View style={[styles.offreStatut, { backgroundColor: o.active ? '#eef4d8' : C.fond }]}>
+                      <Text style={[styles.offreStatutTxt, { color: o.active ? '#6d8a1a' : C.texte3 }]}>
+                        {o.active ? 'ACTIVE' : 'OFF'}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.offreLigneTexte} numberOfLines={1}>{o.titre}</Text>
+                      <Text style={styles.offreLigneSous} numberOfLines={1}>
+                        {o.envoyee_le
+                          ? `📲 poussée le ${String(o.envoyee_le).slice(8, 10)}/${String(o.envoyee_le).slice(5, 7)}${o.nb_push ? ` → ${o.nb_push} appareils` : ''}`
+                          : '📭 jamais poussée en notification'}
+                      </Text>
+                    </View>
                     <Pressable onPress={() => basculerOffre(o)} style={{ padding: 6 }}>
                       <Text style={styles.offreAction}>{o.active ? 'Masquer' : 'Activer'}</Text>
                     </Pressable>
@@ -1314,16 +1370,15 @@ const styles = StyleSheet.create({
   cmdToggleSous: { fontFamily: F.t600, fontSize: 12.5, color: C.texte2, lineHeight: 17 },
   cmdMagLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
   cmdMagNom: { fontFamily: F.t700, fontSize: 15, color: C.texte },
-  // Presets d'offres
+  // Presets d'offres (pictos SVG maison — charte)
   presetsAide: { fontFamily: F.t600, fontSize: 12.5, color: C.texte3, marginBottom: -2 },
   presetsRail: { gap: 9, paddingVertical: 2, paddingRight: 6 },
   preset: {
-    width: 128, backgroundColor: C.fond, borderRadius: 14, padding: 11, gap: 3,
+    width: 132, backgroundColor: C.fond, borderRadius: 16, padding: 11, gap: 5,
     borderWidth: 1.5, borderColor: C.bord,
   },
   presetActif: { backgroundColor: C.vertPale, borderColor: C.vert },
-  presetEmoji: { fontSize: 20 },
-  presetNom: { fontFamily: F.t800, fontSize: 12.5, color: C.texte },
+  presetNom: { fontFamily: F.t800, fontSize: 12.5, color: C.texte, marginTop: 2 },
   presetApercu: { fontFamily: F.t400, fontSize: 11, color: C.texte2, lineHeight: 14 },
   adminMultiligne: {
     backgroundColor: C.fond, borderRadius: 12, borderWidth: 1.5, borderColor: C.bord,
@@ -1331,10 +1386,13 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   offreLigne: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: C.fond, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: C.fond, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7,
   },
-  offreLigneTexte: { flex: 1, fontFamily: F.t700, fontSize: 13, color: C.texte },
+  offreStatut: { borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 3 },
+  offreStatutTxt: { fontFamily: F.t800, fontSize: 9.5, letterSpacing: 0.4 },
+  offreLigneTexte: { fontFamily: F.t700, fontSize: 13, color: C.texte },
+  offreLigneSous: { fontFamily: F.t400, fontSize: 10.5, color: C.texte3, marginTop: 1 },
   offreAction: { fontFamily: F.t700, fontSize: 13, color: C.violetClair },
   msgCaisseMags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   msgCaisseChip: { backgroundColor: C.lavande, borderRadius: R.pill, paddingVertical: 8, paddingHorizontal: 14 },
