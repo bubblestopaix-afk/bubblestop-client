@@ -18,6 +18,7 @@ import { enregistrerPush } from '@/lib/push';
 import { reclamerJetonEnAttente } from '@/lib/carte-temp';
 import { lireCommandeMagasins, ecrireCommandeMagasin } from '@/lib/app-config';
 import { offreEnCours, offreProgrammee, resumeRecurrence } from '@/lib/offres';
+import { useCatalogueCloud } from '@/data/catalogue-cloud';
 import { GoogleLogo } from '@/components/google-logo';
 import { MAGASINS, MagasinId } from '@/store/magasin';
 import { C, F, R, OMBRE } from '@/constants/charte';
@@ -247,6 +248,12 @@ export default function CompteScreen() {
   const [offreDateDebut, setOffreDateDebut] = useState(''); // JJ/MM/AAAA (optionnel)
   const [offreDateFin, setOffreDateFin] = useState('');
   const [offrePushAuto, setOffrePushAuto] = useState(false);
+  // Contenu STRUCTURÉ (remise appliquée AUTOMATIQUEMENT par la caisse, ≥ POS 0.28.138) :
+  // type −% (sur les lignes ciblées) ou −€ (par boisson ciblée) + catégories cibles.
+  const [offreRemiseType, setOffreRemiseType] = useState<'' | 'pourcent' | 'montant'>('');
+  const [offreRemiseValeur, setOffreRemiseValeur] = useState('');
+  const [offreCibleCats, setOffreCibleCats] = useState<string[]>([]);
+  const { categories: catsCatalogue } = useCatalogueCloud(); // catégories du catalogue POS (fruit-tea…)
   const [offres, setOffres] = useState<any[]>([]);
   const [cmdMap, setCmdMap] = useState<Record<string, boolean> | null>(null); // commande en ligne par magasin
   const [cmdBusy, setCmdBusy] = useState<string | null>(null); // magasin en cours de bascule
@@ -311,6 +318,13 @@ export default function CompteScreen() {
     if (offreDateDebut.trim() && !dDebut) { setOffreEtat('Date de début invalide (JJ/MM/AAAA).'); return; }
     if (offreDateFin.trim() && !dFin) { setOffreEtat('Date de fin invalide (JJ/MM/AAAA).'); return; }
     if (dDebut && dFin && dFin < dDebut) { setOffreEtat('La date de fin doit être après le début.'); return; }
+    // Remise structurée (appliquée auto par la caisse)
+    let remiseValeur: number | null = null;
+    if (offreRemiseType) {
+      remiseValeur = Number(String(offreRemiseValeur).trim().replace(',', '.'));
+      if (!(remiseValeur > 0)) { setOffreEtat('Valeur de remise invalide (ex : 30 ou 1,50).'); return; }
+      if (offreRemiseType === 'pourcent' && remiseValeur > 100) { setOffreEtat('Un pourcentage ne peut pas dépasser 100.'); return; }
+    }
     setOffreEtat('Publication…');
     try {
       const { data: creee, error } = await supabase.from('offres')
@@ -321,6 +335,9 @@ export default function CompteScreen() {
           heure_debut: hDebut, heure_fin: hFin,
           date_debut: dDebut, date_fin: dFin,
           push_auto: offrePushAuto,
+          remise_type: offreRemiseType || null,
+          remise_valeur: remiseValeur,
+          cible_categories: offreRemiseType && offreCibleCats.length ? offreCibleCats : null,
         })
         .select('id').maybeSingle();
       if (error) throw error;
@@ -339,6 +356,7 @@ export default function CompteScreen() {
       setOffreTitre(''); setOffreMessage(''); setPresetId(null);
       setOffreJours([]); setOffreHeureDebut(''); setOffreHeureFin('');
       setOffreDateDebut(''); setOffreDateFin(''); setOffrePushAuto(false);
+      setOffreRemiseType(''); setOffreRemiseValeur(''); setOffreCibleCats([]);
       setOffreEtat(txt);
       chargerOffres();
     } catch (e: any) {
@@ -1174,6 +1192,51 @@ export default function CompteScreen() {
                   </View>
                 </View>
 
+                {/* === 💶 Remise automatique en caisse (contenu structuré de l'offre) === */}
+                <View style={styles.progBloc}>
+                  <Text style={styles.progTitre}>💶 Remise automatique en caisse (optionnel)</Text>
+                  <Text style={styles.progAide}>
+                    La caisse applique la remise TOUTE SEULE pendant la fenêtre de l'offre
+                    (caisse + borne, ligne dédiée sur le ticket). Sans réglage, l'offre est
+                    purement informative et l'employé applique la remise à la main.
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    {([['', 'Aucune'], ['pourcent', '− %'], ['montant', '− € / boisson']] as ['' | 'pourcent' | 'montant', string][]).map(([t, nom]) => (
+                      <Pressable
+                        key={t || 'aucune'}
+                        style={[styles.progJour, offreRemiseType === t && styles.progJourActif]}
+                        onPress={() => setOffreRemiseType(t)}>
+                        <Text style={[styles.progJourTxt, offreRemiseType === t && styles.progJourTxtActif]}>{nom}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  {offreRemiseType !== '' && (
+                    <>
+                      <ChampTexte
+                        value={offreRemiseValeur}
+                        onChangeText={setOffreRemiseValeur}
+                        placeholder={offreRemiseType === 'pourcent' ? 'Ex : 30 (= −30 %)' : 'Ex : 1,50 (= −1,50 € par boisson)'}
+                        keyboardType="decimal-pad"
+                        maxLength={6}
+                      />
+                      <Text style={styles.progAide}>Catégories concernées (rien de coché = toute la carte) :</Text>
+                      <View style={styles.msgCaisseMags}>
+                        {catsCatalogue.map((c: any) => (
+                          <Pressable
+                            key={c.id}
+                            style={[styles.msgCaisseChip, offreCibleCats.includes(c.id) && styles.msgCaisseChipActif]}
+                            onPress={() => setOffreCibleCats((prev) =>
+                              prev.includes(c.id) ? prev.filter((x) => x !== c.id) : [...prev, c.id])}>
+                            <Text style={[styles.msgCaisseChipTxt, offreCibleCats.includes(c.id) && styles.msgCaisseChipTxtActif]}>
+                              {c.nom}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </>
+                  )}
+                </View>
+
                 {offreEtat && <Message texte={offreEtat} />}
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <BoutonPrimaire titre="Publier" onPress={() => publierOffre(false)} style={{ flex: 1 }} />
@@ -1191,6 +1254,18 @@ export default function CompteScreen() {
                       {offreProgrammee(o) && (
                         <Text style={styles.offreLigneSous} numberOfLines={1}>
                           ⏰ {resumeRecurrence(o)}{o.push_auto ? ' · 📣 push auto' : ''}
+                        </Text>
+                      )}
+                      {o.remise_type && Number(o.remise_valeur) > 0 && (
+                        <Text style={styles.offreLigneSous} numberOfLines={1}>
+                          💶 {o.remise_type === 'pourcent'
+                            ? `−${o.remise_valeur} %`
+                            : `−${Number(o.remise_valeur).toFixed(2).replace('.', ',')} €/boisson`}
+                          {' sur '}
+                          {Array.isArray(o.cible_categories) && o.cible_categories.length
+                            ? o.cible_categories.map((id: string) => catsCatalogue.find((c: any) => c.id === id)?.nom || id).join(', ')
+                            : 'toute la carte'}
+                          {' · appliquée auto en caisse'}
                         </Text>
                       )}
                       <Text style={styles.offreLigneSous} numberOfLines={1}>

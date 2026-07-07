@@ -20,6 +20,10 @@ export type Offre = {
   date_fin?: string | null;
   push_auto?: boolean | null;
   dernier_push_auto?: string | null;
+  // Contenu structuré : remise appliquée AUTOMATIQUEMENT par la caisse (≥ POS 0.28.138)
+  remise_type?: 'pourcent' | 'montant' | null; // −% sur lignes ciblées | −€ par boisson ciblée
+  remise_valeur?: number | null;
+  cible_categories?: string[] | null;          // ids catégories POS (fruit-tea…) ; null = toute la carte
 };
 
 const minutes = (hhmm?: string | null): number | null => {
