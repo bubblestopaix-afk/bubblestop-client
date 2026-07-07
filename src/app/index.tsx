@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { supabase } from '@/lib/supabase';
+import { offreEnCours } from '@/lib/offres';
 import { MAGASINS } from '@/store/magasin';
 import { useCatalogueCloud, trouverCategorieCloud, trouverSaveurCloud } from '@/data/catalogue-cloud';
 import { photoCategorie } from '@/data/photos-categories';
@@ -38,11 +39,13 @@ export default function AccueilScreen() {
 
   const charger = useCallback(async () => {
     try {
-      // Offres actives (visibles même sans compte)
+      // Offres actives (visibles même sans compte) — les offres PROGRAMMÉES
+      // (jours/heures/dates) ne s'affichent que pendant leur fenêtre (offreEnCours).
       const { data: offresData } = await supabase.from('offres')
-        .select('id, titre, message').eq('active', true)
-        .order('created_at', { ascending: false }).limit(5);
-      setOffres(offresData ?? []);
+        .select('id, titre, message, jours, heure_debut, heure_fin, date_debut, date_fin, active')
+        .eq('active', true)
+        .order('created_at', { ascending: false }).limit(10);
+      setOffres((offresData ?? []).filter((o) => offreEnCours(o as any)).slice(0, 5));
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { setCarteLiee(false); return; }

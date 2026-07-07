@@ -12,6 +12,7 @@ import AppTabs from '@/components/app-tabs';
 import { GateNaissance } from '@/components/gate-naissance';
 import { supabase } from '@/lib/supabase';
 import { reclamerJetonEnAttente } from '@/lib/carte-temp';
+import { appliquerParrainEnAttente } from '@/lib/parrainage';
 import { enregistrerPush } from '@/lib/push';
 
 export default function TabLayout() {
@@ -63,6 +64,8 @@ export default function TabLayout() {
         // Jeton de notifications enregistré dès l'OUVERTURE (avant : seulement en visitant
         // l'onglet Compte → beaucoup de clients connectés ne recevaient jamais de push).
         enregistrerPush();
+        // Code parrain scanné AVANT l'inscription (/p?c=…) → appliqué dès la connexion.
+        appliquerParrainEnAttente().catch(() => {});
         const { data: prof } = await supabase.from('profils')
           .select('id, date_naissance, numero_fidelite').eq('id', session.user.id).maybeSingle();
         // Carte fidélité express : un jeton en attente + un numéro → on récupère les tampons auto.

@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { enregistrerPush } from '@/lib/push';
 import { reclamerJetonEnAttente } from '@/lib/carte-temp';
 import { lireCommandeMagasins, ecrireCommandeMagasin } from '@/lib/app-config';
+import { offreEnCours, offreProgrammee, resumeRecurrence } from '@/lib/offres';
 import { GoogleLogo } from '@/components/google-logo';
 import { MAGASINS, MagasinId } from '@/store/magasin';
 import { C, F, R, OMBRE } from '@/constants/charte';
@@ -237,6 +238,15 @@ export default function CompteScreen() {
   // === Admin : gestion des offres ===
   const [offreTitre, setOffreTitre] = useState('');
   const [offreMessage, setOffreMessage] = useState('');
+  // Programmation (optionnelle) : jours de semaine, plage horaire, période, push auto.
+  // Ex. « -30 % fruit tea » les lundis 16:00→18:00 : jours=[1], 16:00, 18:00, push auto ON
+  // → visible (appli + bandeau caisse) UNIQUEMENT pendant la fenêtre, push au début de chaque occurrence.
+  const [offreJours, setOffreJours] = useState<number[]>([]);
+  const [offreHeureDebut, setOffreHeureDebut] = useState('');
+  const [offreHeureFin, setOffreHeureFin] = useState('');
+  const [offreDateDebut, setOffreDateDebut] = useState(''); // JJ/MM/AAAA (optionnel)
+  const [offreDateFin, setOffreDateFin] = useState('');
+  const [offrePushAuto, setOffrePushAuto] = useState(false);
   const [offres, setOffres] = useState<any[]>([]);
   const [cmdMap, setCmdMap] = useState<Record<string, boolean> | null>(null); // commande en ligne par magasin
   const [cmdBusy, setCmdBusy] = useState<string | null>(null); // magasin en cours de bascule
@@ -268,15 +278,50 @@ export default function CompteScreen() {
     setCmdBusy(null);
   };
 
+  // 'HH:MM' toléré en saisie : '16', '16h', '16h30', '16:30' → normalisé ou null si invalide
+  const normaliserHeure = (v: string): string | null => {
+    const s = String(v || '').trim().toLowerCase().replace('h', ':');
+    if (!s) return null;
+    const m = /^(\d{1,2})(?::(\d{1,2}))?$/.exec(s);
+    if (!m) return null;
+    const h = Number(m[1]); const mn = Number(m[2] || 0);
+    if (h > 23 || mn > 59) return null;
+    return `${String(h).padStart(2, '0')}:${String(mn).padStart(2, '0')}`;
+  };
+  const dateFrVersIso = (v: string): string | null => {
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(v || '').trim());
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+  };
+  const basculerJourOffre = (j: number) =>
+    setOffreJours((prev) => (prev.includes(j) ? prev.filter((x) => x !== j) : [...prev, j]));
+
   const publierOffre = async (avecPush: boolean) => {
     if (!offreTitre.trim() || !offreMessage.trim()) {
       setOffreEtat('Titre et message requis.');
       return;
     }
+    // Programmation : validation AVANT publication (heures / dates lisibles)
+    const hDebut = normaliserHeure(offreHeureDebut);
+    const hFin = normaliserHeure(offreHeureFin);
+    if (offreHeureDebut.trim() && !hDebut) { setOffreEtat('Heure de début invalide (ex : 16:00).'); return; }
+    if (offreHeureFin.trim() && !hFin) { setOffreEtat('Heure de fin invalide (ex : 18:00).'); return; }
+    if (hDebut && hFin && hFin <= hDebut) { setOffreEtat('L\'heure de fin doit être après le début.'); return; }
+    const dDebut = dateFrVersIso(offreDateDebut);
+    const dFin = dateFrVersIso(offreDateFin);
+    if (offreDateDebut.trim() && !dDebut) { setOffreEtat('Date de début invalide (JJ/MM/AAAA).'); return; }
+    if (offreDateFin.trim() && !dFin) { setOffreEtat('Date de fin invalide (JJ/MM/AAAA).'); return; }
+    if (dDebut && dFin && dFin < dDebut) { setOffreEtat('La date de fin doit être après le début.'); return; }
     setOffreEtat('Publication…');
     try {
       const { data: creee, error } = await supabase.from('offres')
-        .insert({ titre: offreTitre.trim(), message: offreMessage.trim() })
+        .insert({
+          titre: offreTitre.trim(),
+          message: offreMessage.trim(),
+          jours: offreJours.length > 0 && offreJours.length < 7 ? offreJours : null,
+          heure_debut: hDebut, heure_fin: hFin,
+          date_debut: dDebut, date_fin: dFin,
+          push_auto: offrePushAuto,
+        })
         .select('id').maybeSingle();
       if (error) throw error;
       let txt = '✅ Offre publiée (visible sur l\'accueil)';
@@ -288,8 +333,12 @@ export default function CompteScreen() {
         txt = errPush
           ? '✅ Publiée, ⚠️ push échoué'
           : `✅ Publiée + push envoyé à ${data?.destinataires ?? 0} appareil(s)`;
+      } else if (offrePushAuto) {
+        txt = '✅ Offre programmée — push automatique au début de chaque occurrence';
       }
       setOffreTitre(''); setOffreMessage(''); setPresetId(null);
+      setOffreJours([]); setOffreHeureDebut(''); setOffreHeureFin('');
+      setOffreDateDebut(''); setOffreDateFin(''); setOffrePushAuto(false);
       setOffreEtat(txt);
       chargerOffres();
     } catch (e: any) {
@@ -1078,6 +1127,53 @@ export default function CompteScreen() {
                   multiline
                   maxLength={180}
                 />
+                {/* === ⏰ Programmation (optionnelle) : jours · heures · période · push auto === */}
+                <View style={styles.progBloc}>
+                  <Text style={styles.progTitre}>⏰ Programmation (optionnel)</Text>
+                  <Text style={styles.progAide}>
+                    Ex : -30 % fruit tea les lundis 16:00 → 18:00. L'offre ne s'affiche (appli + caisses)
+                    que pendant sa fenêtre, et disparaît toute seule en dehors.
+                  </Text>
+                  <View style={styles.progJours}>
+                    {([[1, 'L'], [2, 'M'], [3, 'M'], [4, 'J'], [5, 'V'], [6, 'S'], [0, 'D']] as [number, string][]).map(([j, nom], i) => (
+                      <Pressable
+                        key={`${j}-${i}`}
+                        style={[styles.progJour, offreJours.includes(j) && styles.progJourActif]}
+                        onPress={() => basculerJourOffre(j)}>
+                        <Text style={[styles.progJourTxt, offreJours.includes(j) && styles.progJourTxtActif]}>{nom}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <View style={{ flex: 1 }}>
+                      <ChampTexte value={offreHeureDebut} onChangeText={setOffreHeureDebut} placeholder="De (ex : 16:00)" maxLength={5} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <ChampTexte value={offreHeureFin} onChangeText={setOffreHeureFin} placeholder="À (ex : 18:00)" maxLength={5} />
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <View style={{ flex: 1 }}>
+                      <ChampTexte value={offreDateDebut} onChangeText={setOffreDateDebut} placeholder="Du (JJ/MM/AAAA)" maxLength={10} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <ChampTexte value={offreDateFin} onChangeText={setOffreDateFin} placeholder="Au (JJ/MM/AAAA)" maxLength={10} />
+                    </View>
+                  </View>
+                  <View style={styles.cmdMagLigne}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cmdMagNom}>📣 Push auto à chaque occurrence</Text>
+                      <Text style={styles.progAide}>Notification envoyée à tous au début de chaque créneau (max 1/jour par offre).</Text>
+                    </View>
+                    <Switch
+                      value={offrePushAuto}
+                      onValueChange={setOffrePushAuto}
+                      trackColor={{ true: C.vert, false: '#C9C2D6' }}
+                      thumbColor="#fff"
+                    />
+                  </View>
+                </View>
+
                 {offreEtat && <Message texte={offreEtat} />}
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <BoutonPrimaire titre="Publier" onPress={() => publierOffre(false)} style={{ flex: 1 }} />
@@ -1085,13 +1181,18 @@ export default function CompteScreen() {
                 </View>
                 {offres.map((o) => (
                   <View key={o.id} style={[styles.offreLigne, !o.active && { opacity: 0.5 }]}>
-                    <View style={[styles.offreStatut, { backgroundColor: o.active ? '#eef4d8' : C.fond }]}>
-                      <Text style={[styles.offreStatutTxt, { color: o.active ? '#6d8a1a' : C.texte3 }]}>
-                        {o.active ? 'ACTIVE' : 'OFF'}
+                    <View style={[styles.offreStatut, { backgroundColor: !o.active ? C.fond : offreEnCours(o) ? '#eef4d8' : '#fdf3d7' }]}>
+                      <Text style={[styles.offreStatutTxt, { color: !o.active ? C.texte3 : offreEnCours(o) ? '#6d8a1a' : '#b07d10' }]}>
+                        {!o.active ? 'OFF' : offreEnCours(o) ? 'EN COURS' : 'PROGRAMMÉE'}
                       </Text>
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.offreLigneTexte} numberOfLines={1}>{o.titre}</Text>
+                      {offreProgrammee(o) && (
+                        <Text style={styles.offreLigneSous} numberOfLines={1}>
+                          ⏰ {resumeRecurrence(o)}{o.push_auto ? ' · 📣 push auto' : ''}
+                        </Text>
+                      )}
                       <Text style={styles.offreLigneSous} numberOfLines={1}>
                         {o.envoyee_le
                           ? `📲 poussée le ${String(o.envoyee_le).slice(8, 10)}/${String(o.envoyee_le).slice(5, 7)}${o.nb_push ? ` → ${o.nb_push} appareils` : ''}`
@@ -1394,6 +1495,18 @@ const styles = StyleSheet.create({
   offreLigneTexte: { fontFamily: F.t700, fontSize: 13, color: C.texte },
   offreLigneSous: { fontFamily: F.t400, fontSize: 10.5, color: C.texte3, marginTop: 1 },
   offreAction: { fontFamily: F.t700, fontSize: 13, color: C.violetClair },
+  // Programmation d'une offre (récurrence)
+  progBloc: { backgroundColor: C.fond, borderRadius: 14, padding: 12, gap: 8 },
+  progTitre: { fontFamily: F.t800, fontSize: 13, color: C.violetProfond },
+  progAide: { fontFamily: F.t400, fontSize: 11.5, color: C.texte3, lineHeight: 16 },
+  progJours: { flexDirection: 'row', gap: 6 },
+  progJour: {
+    flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 10,
+    backgroundColor: C.carte, borderWidth: 1.5, borderColor: C.bord,
+  },
+  progJourActif: { backgroundColor: C.violet, borderColor: C.violet },
+  progJourTxt: { fontFamily: F.t800, fontSize: 12.5, color: C.texte2 },
+  progJourTxtActif: { color: '#fff' },
   msgCaisseMags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   msgCaisseChip: { backgroundColor: C.lavande, borderRadius: R.pill, paddingVertical: 8, paddingHorizontal: 14 },
   msgCaisseChipActif: { backgroundColor: C.vert },

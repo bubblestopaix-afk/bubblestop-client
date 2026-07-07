@@ -75,6 +75,11 @@ export default function AppTabs() {
         name="c"
         options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
+      {/* Lien/QR de parrainage (/p?c=<code>) — même traitement que /c (route sans onglet). */}
+      <Tabs.Screen
+        name="p"
+        options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
     </Tabs>
   );
 }

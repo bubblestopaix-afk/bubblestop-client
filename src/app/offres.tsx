@@ -4,6 +4,7 @@ import { StyleSheet, View, Text, ScrollView, RefreshControl } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { supabase } from '@/lib/supabase';
+import { offreEnCours } from '@/lib/offres';
 import RappelNotifs from '@/components/rappel-notifs';
 import { C, F, R, OMBRE } from '@/constants/charte';
 
@@ -22,11 +23,12 @@ export default function OffresScreen() {
 
   const charger = useCallback(async () => {
     const { data } = await supabase.from('offres')
-      .select('id, titre, message, created_at')
+      .select('id, titre, message, created_at, jours, heure_debut, heure_fin, date_debut, date_fin, active')
       .eq('active', true)
       .order('created_at', { ascending: false })
       .limit(20);
-    setOffres(data ?? []);
+    // Offres programmées : visibles uniquement pendant leur fenêtre (jours/heures/dates)
+    setOffres((data ?? []).filter((o) => offreEnCours(o as any)));
   }, []);
 
   useEffect(() => { charger(); }, [charger]);
