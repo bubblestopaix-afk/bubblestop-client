@@ -36,6 +36,10 @@ But : tester un build natif **sans dépenser de crédit EAS** (le build EAS paya
 - Le **bouton Apple est iOS-only** (`Platform.OS === 'ios'`) → sur Android l'écran de connexion est inchangé (Google + email).
 - ⚠️ Le **build EAS CLOUD (payant) n'a PAS le souci Java** (il embarque son propre JDK). Ce réglage `JAVA_HOME` ne concerne **QUE les builds locaux Mac** (`expo run:*`, `eas build --local`).
 
+# QR UNIQUE vers les stores (10/07)
+
+- **`public/app/index.html`** → **`https://commande.bubblestop.fr/app`** (servi par Cloudflare Pages avec le reste du repo, déploiement auto au push — comme `confidentialite.html`). Page « smart link » : détection du téléphone côté client → redirection immédiate vers **App Store `https://apps.apple.com/fr/app/id6783475068`** (iPhone/iPad — iPadOS 13+ se présente comme Macintosh, reconnu au tactile) ou **Google Play `com.bubblestop.client`** (Android) ; ordinateur/UA inconnu → page charte (violet/vert) avec les DEUX boutons. **Un seul QR à imprimer partout** : il encode cette URL (fichiers livrés à Yoann : `qr-appli-bubblestop.png` 1640px + `.svg` vectoriel, violet #623E91, correction d'erreur Q, vérifié au décodage). Si l'app id Apple ou le package Android change un jour → éditer CETTE page uniquement, les QR imprimés restent valables. NB : le lien Play est actif dès que Google publie la release (en examen au 03/07).
+
 # Fidélité — identifiant = `numero_fidelite` (code), PAS le téléphone (depuis 27/06)
 
 - La carte est identifiée par **`profils.numero_fidelite`** = **code à 8 chiffres** (généré côté serveur par la RPC **`activer_ma_carte()`**), **plus jamais le téléphone**. Le téléphone est un **contact optionnel** (`profils.telephone`).

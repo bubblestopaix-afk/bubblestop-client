@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bubble Stop — l'appli</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#623E91">
+<script>
+  // ===== QR UNIQUE → BON STORE (07/2026) =====
+  // Un seul QR code imprimé partout : cette page détecte le téléphone et redirige
+  // immédiatement vers le store concerné. Sur ordinateur (ou UA inconnu), elle
+  // affiche les deux boutons. Hébergée par Cloudflare Pages avec le repo client
+  // (public/app/index.html → commande.bubblestop.fr/app).
+  (function () {
+    var ua = navigator.userAgent || '';
+    var IOS = 'https://apps.apple.com/fr/app/id6783475068';
+    var ANDROID = 'https://play.google.com/store/apps/details?id=com.bubblestop.client';
+    // iPadOS 13+ se présente comme « Macintosh » : on le reconnaît au tactile.
+    var estIos = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && 'ontouchend' in document);
+    if (estIos) { location.replace(IOS); }
+    else if (/Android/i.test(ua)) { location.replace(ANDROID); }
+  })();
+</script>
+<style>
+  :root { --violet: #623E91; --violet-profond: #341e58; --vert: #9BC31E; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    font-family: 'Outfit', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(160deg, var(--violet-profond), var(--violet));
+    color: #fff; text-align: center; padding: 24px;
+  }
+  main { max-width: 420px; }
+  h1 { font-size: 34px; letter-spacing: .01em; margin-bottom: 6px; }
+  .sous { opacity: .85; font-size: 16px; margin-bottom: 28px; line-height: 1.5; }
+  .btn {
+    display: block; margin: 12px auto; padding: 16px 22px; width: 100%;
+    border-radius: 16px; text-decoration: none; font-weight: 700; font-size: 17px;
+    background: #fff; color: var(--violet-profond);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+  }
+  .btn.play { background: var(--vert); color: var(--violet-profond); }
+  .note { margin-top: 26px; font-size: 13.5px; opacity: .75; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <main>
+    <h1>Bubble Stop 🧋</h1>
+    <p class="sous">Carte de fidélité, boisson offerte, offres exclusives — l'appli Bubble Stop dans ta poche.</p>
+    <a class="btn" href="https://apps.apple.com/fr/app/id6783475068">&#63743; Télécharger sur l'App Store</a>
+    <a class="btn play" href="https://play.google.com/store/apps/details?id=com.bubblestop.client">▶ Disponible sur Google Play</a>
+    <p class="note">Scanne le QR avec ton téléphone pour être redirigé automatiquement vers ton store.</p>
+  </main>
+</body>
+</html>

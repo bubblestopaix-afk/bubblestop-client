@@ -72,6 +72,16 @@ export default function AppTabs() {
         name="c"
         options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
+      {/* Route /p (parrainage) — même traitement que /c (miroir du natif) */}
+      <Tabs.Screen
+        name="p"
+        options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
+      {/* 🕹️ Boba Quest (/jeu) — route sans onglet (miroir du natif) */}
+      <Tabs.Screen
+        name="jeu"
+        options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
     </Tabs>
   );
 }

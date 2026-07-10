@@ -16,6 +16,7 @@ import { usePanier, ajouterLigne, totalPanier } from '@/store/panier';
 import { calculerPrix } from '@/data/catalogue';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { Chevron } from '@/components/ui-kit';
+import { PictoHub } from '@/components/jeu/ui-jeu';
 import RappelNotifs from '@/components/rappel-notifs';
 
 const STATUT_LIB: Record<string, { txt: string; etape: number }> = {
@@ -161,6 +162,19 @@ export default function AccueilScreen() {
             </View>
           </Pressable>
 
+          {/* === 🕹️ Boba Quest : le jeu à collection (perles, capsules, prix réels) === */}
+          <Pressable style={styles.jeu} onPress={() => router.push('/jeu' as any)}>
+            <PictoHub id="jouer" fond="#fff" taille={46} />
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.jeuTitre}>Boba Quest</Text>
+                <View style={styles.jeuBadge}><Text style={styles.jeuBadgeTxt}>NOUVEAU</Text></View>
+              </View>
+              <Text style={styles.jeuSous}>Joue, collectionne, gagne de vrais prix !</Text>
+            </View>
+            <Chevron couleur={C.lavande} />
+          </Pressable>
+
           {/* === La carte : raccourcis catégories en photos === */}
           <Text style={styles.sectionTitre}>La carte</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRail}>
@@ -276,6 +290,16 @@ const styles = StyleSheet.create({
   },
 
   sectionTitre: { fontFamily: F.titre, fontSize: 18, color: C.violet, marginTop: 8, marginBottom: -2 },
+
+  // Boba Quest (jeu à collection)
+  jeu: {
+    backgroundColor: C.violet, borderRadius: R.carte, padding: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 12, ...OMBRE,
+  },
+  jeuTitre: { fontFamily: F.titre, fontSize: 18, color: '#fff' },
+  jeuBadge: { backgroundColor: C.jaune, borderRadius: R.pill, paddingVertical: 3, paddingHorizontal: 8 },
+  jeuBadgeTxt: { fontFamily: F.t800, fontSize: 10, color: C.violetProfond },
+  jeuSous: { fontFamily: F.t600, fontSize: 12.5, color: C.lavande, marginTop: 3 },
 
   // Rail catégories
   catRail: { gap: 12, paddingVertical: 4, paddingRight: 6 },

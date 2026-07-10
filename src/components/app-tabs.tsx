@@ -80,6 +80,12 @@ export default function AppTabs() {
         name="p"
         options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
+      {/* 🕹️ Boba Quest (/jeu) — le jeu à collection, ouvert depuis l'accueil.
+          Route SANS onglet (même pattern que /c et /p : jamais de `href` ici). */}
+      <Tabs.Screen
+        name="jeu"
+        options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
     </Tabs>
   );
 }
