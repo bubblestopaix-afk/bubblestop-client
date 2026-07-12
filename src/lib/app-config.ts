@@ -34,35 +34,68 @@ export async function ecrireCommandeMagasin(magasin: string, valeur: boolean): P
   return !error;
 }
 
-// --- 🕹️ Jeu Boba Quest : interrupteur GLOBAL (cf. AGENTS.md « Interrupteur ADMIN du jeu ») ---
-// valeur = { actif: boolean }. Ligne absente = caché. Erreur réseau → on garde le CACHE
-// AsyncStorage (offline) ; sans cache non plus → caché (fail-closed : on livre invisible).
+// --- 🕹️ Jeu Boba Quest : interrupteurs GLOBAUX (cf. AGENTS.md « Interrupteur ADMIN du jeu ») ---
+// valeur = { actif: boolean, admin: boolean } :
+//   · actif = visible pour les CLIENTS (non-admins)
+//   · admin = visible pour les ADMINS (clé ABSENTE = true — compat build 24 où l'admin
+//     voyait toujours le jeu ; la build 24 ignore simplement la clé admin)
+// Ligne absente = caché pour tous. Erreur réseau → CACHE AsyncStorage (offline) ;
+// sans cache non plus → caché (fail-closed : on livre invisible).
 export const FLAG_JEU = 'jeu';
 const CACHE_JEU = 'appConfig.jeuActif';
 
-// Lit le flag serveur. true/false = réponse du serveur ; null = réseau KO (utiliser le cache).
-export async function lireJeuActif(): Promise<boolean | null> {
+export type JeuFlags = { actif: boolean; adminVisible: boolean };
+
+// Lit les DEUX interrupteurs serveur. null = réseau KO (utiliser le cache).
+export async function lireJeuFlags(): Promise<JeuFlags | null> {
   try {
     const { data } = await supabase.from('app_config').select('valeur').eq('cle', FLAG_JEU).maybeSingle();
-    const v = data?.valeur;
-    return (v && typeof v === 'object' && !Array.isArray(v)) ? !!(v as { actif?: boolean }).actif : false;
+    const v = data?.valeur as { actif?: boolean; admin?: boolean } | null;
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return { actif: false, adminVisible: true };
+    return { actif: !!v.actif, adminVisible: v.admin !== false };
   } catch {
     return null;
   }
 }
 
-// Affiche / cache le jeu pour TOUS les clients (admin uniquement — RLS). Renvoie true si OK.
-export async function ecrireJeuActif(actif: boolean): Promise<boolean> {
+// Écrit un ou deux interrupteurs (lecture-modif-écriture : ne perd JAMAIS l'autre clé).
+// Admin uniquement (RLS). Renvoie true si OK.
+export async function ecrireJeuFlags(patch: Partial<JeuFlags>): Promise<boolean> {
+  const courant = (await lireJeuFlags()) ?? { actif: false, adminVisible: true };
+  const nv = { ...courant, ...patch };
   const { error } = await supabase
     .from('app_config')
-    .upsert({ cle: FLAG_JEU, valeur: { actif }, updated_at: new Date().toISOString() }, { onConflict: 'cle' });
-  if (!error) AsyncStorage.setItem(CACHE_JEU, actif ? '1' : '0').catch(() => {});
+    .upsert({ cle: FLAG_JEU, valeur: { actif: nv.actif, admin: nv.adminVisible }, updated_at: new Date().toISOString() }, { onConflict: 'cle' });
+  if (!error) AsyncStorage.setItem(CACHE_JEU, JSON.stringify(nv)).catch(() => {});
   return !error;
 }
 
-// Hook : le jeu est-il visible pour CET utilisateur ? visible = flag actif OU admin
-// (l'admin voit toujours le jeu pour le tester — même logique que la commande en ligne).
-// Relit le flag au montage ET à chaque retour sur l'écran (useFocusEffect) : une bascule
+// Compat : lecture du seul flag clients (utilisé par d'anciens appels)
+export async function lireJeuActif(): Promise<boolean | null> {
+  const f = await lireJeuFlags();
+  return f === null ? null : f.actif;
+}
+
+// Compat : bascule clients — préserve désormais la clé admin (avant : l'upsert l'écrasait)
+export async function ecrireJeuActif(actif: boolean): Promise<boolean> {
+  return ecrireJeuFlags({ actif });
+}
+
+// Cache : accepte l'ancien format '1'/'0' (build 24) ET le JSON {actif, adminVisible}
+function parserCacheJeu(brut: string | null): JeuFlags | null {
+  if (brut === null) return null;
+  if (brut === '1' || brut === '0') return { actif: brut === '1', adminVisible: true };
+  try {
+    const v = JSON.parse(brut);
+    return { actif: !!v.actif, adminVisible: v.adminVisible !== false };
+  } catch { return null; }
+}
+
+// Hook : le jeu est-il visible pour CET utilisateur ?
+//   · client (non-admin) → flag `actif`
+//   · admin              → flag `admin` (les DEUX toggles sont indépendants — demande Yoann :
+//     il peut cacher le jeu aux clients tout en le gardant pour tester, ou l'inverse)
+// Relit les flags au montage ET à chaque retour sur l'écran (useFocusEffect) : une bascule
 // à distance prend effet dès la prochaine navigation, sans relancer l'appli.
 // L'état du joueur (perles, collection…) n'est JAMAIS purgé : caché ≠ effacé.
 export function useJeuVisible() {
@@ -73,14 +106,14 @@ export function useJeuVisible() {
     let vivant = true;
     (async () => {
       // 1) cache : verdict immédiat hors-ligne / avant la réponse serveur
-      let cache: boolean | null = null;
-      try { const c = await AsyncStorage.getItem(CACHE_JEU); if (c !== null) cache = c === '1'; } catch { /* ignore */ }
+      let cache: JeuFlags | null = null;
+      try { cache = parserCacheJeu(await AsyncStorage.getItem(CACHE_JEU)); } catch { /* ignore */ }
       if (vivant && cache !== null) {
         const c = cache;
-        setEtat((e) => ({ ...e, actif: c, visible: c || e.admin }));
+        setEtat((e) => ({ ...e, actif: c.actif, visible: e.admin ? c.adminVisible : c.actif }));
       }
       // 2) serveur : la vérité (+ statut admin)
-      const serveur = await lireJeuActif();
+      const serveur = await lireJeuFlags();
       let admin = false;
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -89,9 +122,9 @@ export function useJeuVisible() {
           admin = !!data?.est_admin;
         }
       } catch { /* ignore */ }
-      const actif = serveur !== null ? serveur : (cache ?? false);
-      if (serveur !== null) AsyncStorage.setItem(CACHE_JEU, serveur ? '1' : '0').catch(() => {});
-      if (vivant) setEtat({ visible: actif || admin, actif, admin, charge: true });
+      const flags = serveur ?? cache ?? { actif: false, adminVisible: false };
+      if (serveur !== null) AsyncStorage.setItem(CACHE_JEU, JSON.stringify(serveur)).catch(() => {});
+      if (vivant) setEtat({ visible: admin ? flags.adminVisible : flags.actif, actif: flags.actif, admin, charge: true });
     })();
     return () => { vivant = false; };
   }, []));

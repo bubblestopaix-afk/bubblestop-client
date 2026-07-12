@@ -17,7 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { enregistrerPush } from '@/lib/push';
 import { reclamerJetonEnAttente } from '@/lib/carte-temp';
 import { memoriserCodeParrain } from '@/lib/parrainage';
-import { lireCommandeMagasins, ecrireCommandeMagasin } from '@/lib/app-config';
+import { lireCommandeMagasins, ecrireCommandeMagasin, lireJeuFlags, ecrireJeuFlags, JeuFlags } from '@/lib/app-config';
 import { offreEnCours, offreProgrammee, resumeRecurrence } from '@/lib/offres';
 import { useCatalogueCloud } from '@/data/catalogue-cloud';
 import { GoogleLogo } from '@/components/google-logo';
@@ -302,6 +302,9 @@ export default function CompteScreen() {
   const [offres, setOffres] = useState<any[]>([]);
   const [cmdMap, setCmdMap] = useState<Record<string, boolean> | null>(null); // commande en ligne par magasin
   const [cmdBusy, setCmdBusy] = useState<string | null>(null); // magasin en cours de bascule
+  // 🕹️ Jeu Boba Quest : interrupteurs clients / admin (déclarés AVANT le useEffect qui les charge)
+  const [jeuFlags, setJeuFlags] = useState<JeuFlags | null>(null);
+  const [jeuBusy, setJeuBusy] = useState(false);
   const [offreEtat, setOffreEtat] = useState<string | null>(null);
   // Preset sélectionné (pré-remplit les champs, modifiables ensuite)
   const [presetId, setPresetId] = useState<string | null>(null);
@@ -317,7 +320,7 @@ export default function CompteScreen() {
     const { data } = await supabase.from('offres').select('*').order('created_at', { ascending: false }).limit(10);
     setOffres(data ?? []);
   };
-  useEffect(() => { if (estAdmin) { chargerOffres(); lireCommandeMagasins().then(setCmdMap); } }, [estAdmin]);
+  useEffect(() => { if (estAdmin) { chargerOffres(); lireCommandeMagasins().then(setCmdMap); lireJeuFlags().then(setJeuFlags); } }, [estAdmin]);
 
   // Active / désactive la commande en ligne pour UN magasin (flag serveur app_config, par magasin).
   const toggleCommande = async (magasin: string) => {
@@ -328,6 +331,18 @@ export default function CompteScreen() {
     const ok = await ecrireCommandeMagasin(magasin, nouveau);
     if (!ok) setCmdMap((m) => ({ ...(m || {}), [magasin]: !nouveau })); // rollback si échec
     setCmdBusy(null);
+  };
+
+  // 🕹️ Jeu Boba Quest : DEUX interrupteurs serveur indépendants (demande Yoann) —
+  // visible pour les CLIENTS (actif) / visible pour les ADMINS (adminVisible).
+  const toggleJeu = async (cle: keyof JeuFlags) => {
+    if (jeuFlags === null || jeuBusy) return;
+    const nouveau = { ...jeuFlags, [cle]: !jeuFlags[cle] };
+    setJeuBusy(true);
+    setJeuFlags(nouveau); // optimiste
+    const ok = await ecrireJeuFlags({ [cle]: nouveau[cle] });
+    if (!ok) setJeuFlags(jeuFlags); // rollback si échec
+    setJeuBusy(false);
   };
 
   // 'HH:MM' toléré en saisie : '16', '16h', '16h30', '16:30' → normalisé ou null si invalide
@@ -1170,6 +1185,36 @@ export default function CompteScreen() {
                     />
                   </View>
                 ))}
+              </Carte>
+
+              {/* 🕹️ Jeu Boba Quest : deux interrupteurs indépendants (clients / admin) */}
+              <Carte style={{ gap: 10 }}>
+                <Text style={styles.adminTitre}>🕹️ Jeu Boba Quest</Text>
+                <Text style={styles.cmdToggleSous}>
+                  Deux interrupteurs indépendants : l'onglet jeu peut être ouvert aux clients,
+                  ou visible seulement pour toi (pour tester), ou coupé partout. La progression
+                  des joueurs n'est jamais effacée — caché ≠ remis à zéro.
+                </Text>
+                <View style={styles.cmdMagLigne}>
+                  <Text style={styles.cmdMagNom}>Visible pour les clients</Text>
+                  <Switch
+                    value={!!jeuFlags?.actif}
+                    onValueChange={() => toggleJeu('actif')}
+                    disabled={jeuFlags === null || jeuBusy}
+                    trackColor={{ true: C.vert, false: '#C9C2D6' }}
+                    thumbColor="#fff"
+                  />
+                </View>
+                <View style={styles.cmdMagLigne}>
+                  <Text style={styles.cmdMagNom}>Visible pour l'admin (moi)</Text>
+                  <Switch
+                    value={!!jeuFlags?.adminVisible}
+                    onValueChange={() => toggleJeu('adminVisible')}
+                    disabled={jeuFlags === null || jeuBusy}
+                    trackColor={{ true: C.vert, false: '#C9C2D6' }}
+                    thumbColor="#fff"
+                  />
+                </View>
               </Carte>
 
               {/* Offres / annonces */}

@@ -156,3 +156,12 @@ But : tester un build natif **sans dépenser de crédit EAS** (le build EAS paya
 ## 🎟️ Offres « Tampons ×N » (12/07/2026 — build 24, PAS d'OTA)
 
 Nouveau type d'offre structurée : `remise_type='tampons'`, `remise_valeur` = multiplicateur (2..5, entier). Créé depuis Compte → admin → offres (chip « 🎟️ Tampons ×N », validation 2..5, pas de catégories ciblées — toute la commande). Le POS ≥ 0.28.159 l'applique AUTOMATIQUEMENT (borne + caisse) : chaque boisson payée crédite ×N tampons ; les boissons offertes n'en gagnent pas ; le multiplicateur est figé DANS la commande (les espèces borne encaissées après la fenêtre gardent leur ×N). **Décision Yoann : CUMUL** — le bonus ne crée pas de « cadeau anticipé » utilisable dans la même commande, il se cumule pour la prochaine visite. `Offre.remise_type` élargi dans `lib/offres.ts` ; la carte affichée dans l'appli se met à jour via le sync cloud habituel. La fidélité reste valable dans TOUTES les boutiques (la ville du profil ne restreint rien — texte explicite ajouté sous le choix de boutique).
+
+## 🕹️ Jeu : DEUX toggles admin (clients / admin) — 12/07/2026, part en OTA après la build 24
+
+Demande Yoann : contrôler séparément la visibilité du jeu pour les clients ET pour lui. `app_config.jeu` devient `{ actif: bool, admin: bool }` (déjà migré en base : `{actif:true, admin:true}`) :
+- `actif` = visible pour les CLIENTS (non-admins) · `admin` = visible pour les ADMINS.
+- Clé `admin` ABSENTE = true → **compat build 24** (qui lit seulement `actif` et montre toujours le jeu aux admins ; elle ignore la clé en plus, rien ne casse).
+- `lib/app-config.ts` : `lireJeuFlags()` / `ecrireJeuFlags(patch)` (lecture-modif-écriture — ne perd jamais l'autre clé ; l'ancien `ecrireJeuActif` écrasait la valeur entière, corrigé en wrapper), cache AsyncStorage passé en JSON (parse l'ancien format '1'/'0'), `useJeuVisible()` → `visible = admin ? flags.adminVisible : flags.actif` (le hook alimente la carte Boba Quest de l'accueil ET la garde de route `jeu/_layout`).
+- `compte.tsx` admin : carte « 🕹️ Jeu Boba Quest » avec 2 switches (« Visible pour les clients » / « Visible pour l'admin (moi) »), optimiste + rollback, même pattern que la commande en ligne.
+⚠️ La build 24 (déjà construite) n'a PAS cette UI : ces fichiers partent dans le PREMIER `eas update --channel production` une fois la 24 en ligne (runtime 1.0.2), ou dans la build 25. D'ici là, demander à l'agent de basculer les flags en base.
