@@ -31,7 +31,7 @@ export default function TrocScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.contenu}>
-        <Text style={styles.pitch}>Transforme tes doublons en cartes qui te manquent.</Text>
+        <Text style={styles.pitch}>Transforme un doublon en carte manquante de la même rareté.</Text>
 
         {/* === Échange du jour === */}
         <View style={styles.carte}>
@@ -62,8 +62,8 @@ export default function TrocScreen() {
             </>
           ) : (
             <Text style={styles.vide}>
-              Il te faut au moins un doublon ET une carte manquante pour échanger. Ouvre des capsules
-              pour accumuler des doublons à troquer !
+              Il te faut un doublon et une carte manquante de la même rareté. Une commune ne peut
+              donc jamais être échangée contre une légendaire.
             </Text>
           )}
           <Text style={styles.aide}>Sam (démo) · Bientôt : échange avec de vrais amis par QR, avec l'arrivée des duels.</Text>

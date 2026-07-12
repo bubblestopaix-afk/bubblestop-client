@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 
 import { C, F, R, OMBRE } from '@/constants/charte';
+import { capsulePremiereVictoireNiveau } from '@/components/jeu/economie';
 import { paramsNiveau } from '@/components/jeu/moteur-shooter';
 import { Icone } from '@/components/jeu/icones';
 import { EnTeteJeu } from '@/components/jeu/ui-jeu';
@@ -30,7 +31,8 @@ export default function ParcoursScreen() {
         <EnTeteJeu titre="Aventure" onRetour={() => router.back()} perles={etat.perles} />
         <Text style={styles.pitch}>
           Libère les capsules : coupe les perles qui les retiennent, en tirs limités.
-          Boss tous les 5 niveaux = capsule dorée !
+          Garde des tirs pour gagner 1 à 3 étoiles. Les 4 premiers niveaux offrent une capsule,
+          puis une classique tous les 2 niveaux ; chaque boss offre une dorée.
         </Text>
       </View>
 
@@ -91,11 +93,21 @@ function Noeud({ n, boss, fait, jouable, courant, etoiles, xFrac, y }: {
   etoiles: number; xFrac: number; y: number;
 }) {
   const taille = boss ? 74 : 62;
+  const recompense = capsulePremiereVictoireNiveau(n, boss);
+  const labelRecompense = recompense === 'doree'
+    ? 'capsule dorée'
+    : recompense === 'classique' ? 'capsule classique' : 'bonus de perles';
   return (
-    <View style={{ position: 'absolute', top: y, left: `${xFrac * 100}%`, marginLeft: -taille / 2, alignItems: 'center', width: taille }}>
+    <View style={{ position: 'absolute', top: y, left: `${xFrac * 100}%`, marginLeft: -85, alignItems: 'center', width: 170 }}>
       <Pressable
         disabled={!jouable}
         onPress={() => router.push(`/jeu/shooter?niveau=${n}` as any)}
+        accessibilityRole="button"
+        accessibilityLabel={jouable
+          ? `Niveau ${n}${boss ? ', boss' : ''}${fait ? `, terminé avec ${etoiles} étoiles` : `, première victoire : ${labelRecompense}`}`
+          : `Niveau ${n}, verrouillé`}
+        accessibilityHint={jouable ? 'Lance ce niveau de Perle Rush' : undefined}
+        accessibilityState={{ disabled: !jouable }}
         style={[
           styles.noeud,
           { width: taille, height: taille, borderRadius: taille / 2 },
@@ -124,7 +136,12 @@ function Noeud({ n, boss, fait, jouable, courant, etoiles, xFrac, y }: {
           <View key={i} style={{ opacity: fait ? (i <= etoiles ? 1 : 0.2) : 0 }}><Icone nom="etoile" taille={12} /></View>
         ))}
       </View>
-      {courant && <View style={styles.chipJoue}><Text style={styles.chipJoueTxt}>JOUER</Text></View>}
+      {courant && (
+        <View style={styles.chipJoue}>
+          <Icone nom={recompense ? 'cadeau' : 'perles-multi'} taille={11} />
+          <Text style={styles.chipJoueTxt}>JOUER · {labelRecompense}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -148,7 +165,7 @@ const styles = StyleSheet.create({
 
   chipJoue: {
     marginTop: 4, backgroundColor: C.vert, borderRadius: R.pill,
-    paddingVertical: 3, paddingHorizontal: 10,
+    paddingVertical: 3, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 4,
   },
   chipJoueTxt: { fontFamily: F.t800, fontSize: 10.5, color: C.violetProfond },
 });

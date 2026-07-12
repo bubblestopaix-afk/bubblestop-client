@@ -19,16 +19,20 @@ import {
   CONSOMMABLES, ConsommableId, coutEquipe, BUDGET_EQUIPE, equipeAutoSousBudget,
   SegmentRoulette, SETS, SetId, tirageDefisDuJour, tirerCapsule, tirerCapsuleMin,
   tirerRoulette, TOURNOI_CONSOLATION, TOURNOI_RECOMPENSES, trouverCollectible,
-  TypeCapsule, COLLECTIBLES, trocDuJour,
+  TypeCapsule, COLLECTIBLES, trocDuJour, ActionMissionCarte, BONUS_VEDETTE_HEBDO,
+  capsulePremiereVictoireNiveau, carteVedetteSemaine, MISSIONS_CARTES,
+  protegerNouveauCollectible,
 } from '@/components/jeu/economie';
 import {
   MISES_DUEL_PAR_JOUR, PERLES_DEFAITE_ARENE, recompenseRang, AMIS_DEMO,
 } from '@/components/jeu/arene';
+import {
+  missionsCartesApresMigration, onboardingTermineApresMigration,
+  prestigeApresMigration, VERSION_SAUVEGARDE,
+} from '@/components/jeu/sauvegarde-jeu';
 
 const CLE_SAUVEGARDE = 'bobaQuest.etat';
 const CLE_SAUVEGARDE_SECOURS = 'bobaQuest.etat.backup';
-const VERSION_SAUVEGARDE = 1;
-
 // Statistiques d'une partie (défis du jour) — fournies par l'écran shooter
 export type StatsPartie = {
   score: number;
@@ -54,8 +58,13 @@ type StatsJour = {
 
 export type EtatBobaQuest = {
   versionSauvegarde: number;                    // version du schéma local, migrée au chargement
+  onboardingTermine: boolean;                   // 1er niveau → capsule → collection, puis hub complet
   perles: number;
   collection: Record<string, number>;   // id collectible → nb possédés
+  missionsCartes: Record<string, { progres: number; reclamee: boolean }>;
+  prestige: Record<string, boolean>;    // variantes brillantes, après le 24/24
+  prestigeReclame: boolean;
+  vedetteHebdo: { semaine: string; recompenseRecuperee: boolean };
   gains: Gain[];                        // prix réels gagnés (à réclamer)
   capsulesGratuites: number;            // capsules classiques gagnées (niveaux, défis)
   capsulesDoreesGratuites: number;      // boss + roulette
@@ -119,8 +128,13 @@ const STATS_JOUR_VIERGES = (jour: string): StatsJour => ({
 
 const DEFAUT: EtatBobaQuest = {
   versionSauvegarde: VERSION_SAUVEGARDE,
+  onboardingTermine: false,
   perles: 0,
   collection: {},
+  missionsCartes: {},
+  prestige: {},
+  prestigeReclame: false,
+  vedetteHebdo: { semaine: '', recompenseRecuperee: false },
   gains: [],
   capsulesGratuites: 0,
   capsulesDoreesGratuites: 0,
@@ -195,6 +209,12 @@ function migrerSauvegarde(brut: string): EtatBobaQuest | null {
       ...JSON.parse(JSON.stringify(DEFAUT)),
       ...sauve,
       versionSauvegarde: VERSION_SAUVEGARDE,
+      // Les joueurs ayant déjà ouvert une capsule ne sont pas renvoyés dans le
+      // tutoriel lors du passage au schéma v2.
+      onboardingTermine: onboardingTermineApresMigration(sauve),
+      missionsCartes: missionsCartesApresMigration(sauve.missionsCartes),
+      prestige: prestigeApresMigration(sauve.prestige),
+      vedetteHebdo: { ...DEFAUT.vedetteHebdo, ...(sauve.vedetteHebdo || {}) },
       powerups: { ...DEFAUT.powerups, ...(sauve.powerups || {}) },
       aventure: { ...DEFAUT.aventure, ...(sauve.aventure || {}) },
       arene: { ...DEFAUT.arene, ...(sauve.arene || {}) },
@@ -293,6 +313,12 @@ export function useHydratationBobaQuest(): EtatHydratationBobaQuest {
   );
 }
 
+export function terminerOnboardingJeu() {
+  if (etat.onboardingTermine) return;
+  etat.onboardingTermine = true;
+  emit();
+}
+
 // Les stats & défis repartent de zéro chaque jour (vérifié paresseusement)
 function assurerJour() {
   const jour = cleJour();
@@ -365,6 +391,101 @@ export function setComplet(set: SetId, e: EtatBobaQuest = etat): boolean {
 
 export function collectionComplete(e: EtatBobaQuest = etat): boolean {
   return nbUniques(e) === COLLECTIBLES.length;
+}
+
+export function nbPrestige(e: EtatBobaQuest = etat): number {
+  return COLLECTIBLES.filter((c) => e.prestige[c.id] === true).length;
+}
+
+export function prestigeComplet(e: EtatBobaQuest = etat): boolean {
+  return nbPrestige(e) === COLLECTIBLES.length;
+}
+
+export function etatMissionCarte(id: string, e: EtatBobaQuest = etat): {
+  progres: number; reclamee: boolean; terminee: boolean;
+} {
+  const mission = MISSIONS_CARTES[id];
+  const sauvee = e.missionsCartes[id] || { progres: 0, reclamee: false };
+  const progres = Math.min(mission?.cible ?? 0, Math.max(0, sauvee.progres));
+  return { progres, reclamee: sauvee.reclamee, terminee: !!mission && progres >= mission.cible };
+}
+
+export function etatVedetteHebdo(e: EtatBobaQuest = etat): {
+  semaine: string; collectible: Collectible; recompenseRecuperee: boolean;
+} {
+  const semaine = cleSemaine();
+  return {
+    semaine,
+    collectible: carteVedetteSemaine(semaine),
+    recompenseRecuperee: e.vedetteHebdo.semaine === semaine && e.vedetteHebdo.recompenseRecuperee,
+  };
+}
+
+function incrementerMission(id: string, action: ActionMissionCarte): boolean {
+  const mission = MISSIONS_CARTES[id];
+  if (!mission || mission.action !== action || !(etat.collection[id] > 0)) return false;
+  const actuel = etatMissionCarte(id);
+  if (actuel.reclamee || actuel.progres >= mission.cible) return false;
+  etat.missionsCartes = {
+    ...etat.missionsCartes,
+    [id]: { progres: Math.min(mission.cible, actuel.progres + 1), reclamee: false },
+  };
+  return true;
+}
+
+// Appelé au moment où une action joueur est réellement engagée dans le moteur.
+export function enregistrerActionCarte(id: string, action: ActionMissionCarte): boolean {
+  const change = incrementerMission(id, action);
+  if (change) emit();
+  return change;
+}
+
+// Une victoire fait progresser les missions « victoire » des trois membres et
+// crédite une seule fois par semaine le bonus de la carte vedette.
+export function enregistrerVictoireEquipe(ids: string[]): { bonusVedette: number } {
+  let change = false;
+  for (const id of new Set(ids)) change = incrementerMission(id, 'victoire') || change;
+
+  const semaine = cleSemaine();
+  const vedette = carteVedetteSemaine(semaine);
+  const deja = etat.vedetteHebdo.semaine === semaine && etat.vedetteHebdo.recompenseRecuperee;
+  const bonusVedette = ids.includes(vedette.id) && !deja ? BONUS_VEDETTE_HEBDO : 0;
+  if (bonusVedette) {
+    etat.perles += bonusVedette;
+    etat.vedetteHebdo = { semaine, recompenseRecuperee: true };
+    change = true;
+  } else if (etat.vedetteHebdo.semaine !== semaine) {
+    etat.vedetteHebdo = { semaine, recompenseRecuperee: false };
+    change = true;
+  }
+  if (change) emit();
+  return { bonusVedette };
+}
+
+export function reclamerMissionCarte(id: string): number {
+  const mission = MISSIONS_CARTES[id];
+  const actuel = etatMissionCarte(id);
+  if (!mission || !actuel.terminee || actuel.reclamee) return 0;
+  etat.missionsCartes = {
+    ...etat.missionsCartes,
+    [id]: { progres: mission.cible, reclamee: true },
+  };
+  etat.perles += mission.recompensePerles;
+  emit();
+  return mission.recompensePerles;
+}
+
+export function reclamerPrestige(): number {
+  if (!prestigeComplet() || etat.prestigeReclame) return 0;
+  const recompense = 3000;
+  const titre = 'Boba Mythique';
+  etat.perles += recompense;
+  etat.prestigeReclame = true;
+  if (!etat.classement.titres.includes(titre)) {
+    etat.classement = { ...etat.classement, titres: [...etat.classement.titres, titre] };
+  }
+  emit();
+  return recompense;
 }
 
 export function bonusJourDispo(e: EtatBobaQuest = etat): boolean {
@@ -482,9 +603,9 @@ export function terminerNiveau(
 
   let capsule: TypeCapsule | null = null;
   if (premiere) {
-    capsule = boss ? 'doree' : 'classique';
+    capsule = capsulePremiereVictoireNiveau(niveau, boss);
     if (capsule === 'doree') etat.capsulesDoreesGratuites += 1;
-    else etat.capsulesGratuites += 1;
+    else if (capsule === 'classique') etat.capsulesGratuites += 1;
   }
   gagnerXpPass(premiere ? PASS_XP.niveauPremiere : PASS_XP.niveauRejoue);
   etat.aventure.etoiles = {
@@ -719,8 +840,12 @@ export function enregistrerMiseDuel() {
 export function resoudreDuelAmi(gagne: boolean, miseId?: string, gainId?: string): { nouveau: boolean } {
   let nouveau = false;
   if (gagne && gainId) {
+    const completeAvant = collectionComplete();
     nouveau = (etat.collection[gainId] || 0) === 0;
     etat.collection = { ...etat.collection, [gainId]: (etat.collection[gainId] || 0) + 1 };
+    if (completeAvant && !nouveau && !etat.prestige[gainId]) {
+      etat.prestige = { ...etat.prestige, [gainId]: true };
+    }
   } else if (!gagne && miseId) {
     etat.collection = { ...etat.collection, [miseId]: Math.max(1, (etat.collection[miseId] || 1) - 1) };
   }
@@ -911,7 +1036,7 @@ export function reclamerPalierPass(index: number): boolean {
 // --- Capsules / collection / boutique / roulette (inchangé) ---------------------------
 
 export function ouvrirCapsule(type: TypeCapsule, gratuite: boolean): {
-  collectible: Collectible; doublon: boolean; perlesRendues: number;
+  collectible: Collectible; doublon: boolean; perlesRendues: number; prestigeNouveau: boolean;
 } | null {
   if (gratuite) {
     if (type === 'classique') {
@@ -928,12 +1053,18 @@ export function ouvrirCapsule(type: TypeCapsule, gratuite: boolean): {
   }
   // 🎁 PITY : la garantie prend le pas si le compteur est au maximum
   let collectible: Collectible;
+  let minimum: 'epique' | 'legendaire' | null = null;
   if (etat.pity.legendaire + 1 >= PITY_LEGENDAIRE) {
+    minimum = 'legendaire';
     collectible = tirerCapsuleMin(type, 'legendaire');
   } else if (etat.pity.epique + 1 >= PITY_EPIQUE) {
+    minimum = 'epique';
     collectible = tirerCapsuleMin(type, 'epique');
   } else {
     collectible = tirerCapsule(type);
+  }
+  if (etat.capsulesOuvertes < 3) {
+    collectible = protegerNouveauCollectible(collectible, etat.collection, type, minimum);
   }
   // mise à jour des compteurs pity (reset quand la rareté est atteinte)
   const ordre = RARETES[collectible.rarete].ordre;
@@ -942,18 +1073,24 @@ export function ouvrirCapsule(type: TypeCapsule, gratuite: boolean): {
     legendaire: ordre >= RARETES.legendaire.ordre ? 0 : etat.pity.legendaire + 1,
   };
 
+  const collectionEtaitComplete = collectionComplete();
   const deja = etat.collection[collectible.id] || 0;
   const doublon = deja > 0;
   let perlesRendues = 0;
+  let prestigeNouveau = false;
   etat.collection = { ...etat.collection, [collectible.id]: deja + 1 };
   if (doublon) {
     perlesRendues = DOUBLON_PERLES[collectible.rarete];
     etat.perles += perlesRendues;
+    if (collectionEtaitComplete && !etat.prestige[collectible.id]) {
+      etat.prestige = { ...etat.prestige, [collectible.id]: true };
+      prestigeNouveau = true;
+    }
   }
   etat.capsulesOuvertes += 1;
   gagnerXpPass(PASS_XP.capsule);
   emit();
-  return { collectible, doublon, perlesRendues };
+  return { collectible, doublon, perlesRendues, prestigeNouveau };
 }
 
 export function reclamerSet(set: SetId): Gain | null {

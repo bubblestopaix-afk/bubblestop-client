@@ -815,6 +815,9 @@ export default function ShooterScreen() {
                       {fin.capsule === 'doree' && <Icone nom="couronne" taille={15} />}
                     </View>
                   )}
+                  {fin.premiere && !fin.capsule && (
+                    <Text style={styles.finNote}>Première victoire validée : ce palier rapporte des perles ; la prochaine capsule est indiquée sur le parcours.</Text>
+                  )}
                   {!fin.premiere && <Text style={styles.finNote}>Niveau déjà réussi : perles réduites, pas de capsule.</Text>}
                   <BoutonJeu titre="Niveau suivant →" onPress={niveauSuivant} style={{ alignSelf: 'stretch', backgroundColor: C.vert }} />
                   <Pressable onPress={versParcours} hitSlop={6}>

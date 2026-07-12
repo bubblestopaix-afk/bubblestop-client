@@ -27,6 +27,11 @@ export default function BoutiqueScreen() {
   const etat = useBobaQuest();
   const [celebration, setCelebration] = useState<Gain | null>(null);
   const [detail, setDetail] = useState<Gain | null>(null);
+  const objectif = BOUTIQUE
+    .filter((p) => restantCeMois(p.id, etat) > 0)
+    .sort((a, b) => Math.max(0, a.cout - etat.perles) - Math.max(0, b.cout - etat.perles))[0];
+  const manqueObjectif = objectif ? Math.max(0, objectif.cout - etat.perles) : 0;
+  const partiesEstimees = Math.max(1, Math.ceil(manqueObjectif / 200));
 
   return (
     <View style={[styles.fond, { paddingTop: insets.top + 10 }]}>
@@ -38,6 +43,30 @@ export default function BoutiqueScreen() {
         <Text style={styles.pitch}>
           Échange tes perles contre de vrais prix Bubble Stop
         </Text>
+
+        {objectif && (
+          <View style={styles.objectif} accessibilityRole="summary">
+            <View style={styles.objectifHaut}>
+              <Icone nom="cible" taille={21} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.objectifLabel}>Ton prochain objectif</Text>
+                <Text style={styles.objectifPrix}>{objectif.label}</Text>
+              </View>
+              <View style={styles.objectifCout}>
+                <IconePerle taille={15} />
+                <Text style={styles.objectifCoutTxt}>{formatNb(objectif.cout)}</Text>
+              </View>
+            </View>
+            <View style={styles.barre}>
+              <View style={[styles.barreRemplie, { width: `${Math.min(100, etat.perles / objectif.cout * 100)}%` }]} />
+            </View>
+            <Text style={styles.objectifAide}>
+              {manqueObjectif === 0
+                ? 'Tu peux le récupérer maintenant.'
+                : `Encore ${formatNb(manqueObjectif)} perles · environ ${partiesEstimees} partie${partiesEstimees > 1 ? 's' : ''} réussie${partiesEstimees > 1 ? 's' : ''} à ~200 perles`}
+            </Text>
+          </View>
+        )}
 
         {BOUTIQUE.map((p) => {
           const restant = restantCeMois(p.id, etat);
@@ -164,6 +193,16 @@ const styles = StyleSheet.create({
   fond: { flex: 1, backgroundColor: C.fond },
   contenu: { padding: 18, gap: 14, paddingBottom: 34 },
   pitch: { fontFamily: F.t700, fontSize: 14.5, color: C.texte2, textAlign: 'center' },
+  objectif: {
+    backgroundColor: C.vertPale, borderRadius: R.carte, padding: 16, gap: 10,
+    borderWidth: 1.5, borderColor: C.vert,
+  },
+  objectifHaut: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  objectifLabel: { fontFamily: F.t700, fontSize: 11.5, color: C.vertFonce },
+  objectifPrix: { fontFamily: F.titre, fontSize: 17, color: C.violetProfond, marginTop: 1 },
+  objectifCout: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  objectifCoutTxt: { fontFamily: F.t800, fontSize: 13.5, color: C.violetProfond },
+  objectifAide: { fontFamily: F.t600, fontSize: 12.5, lineHeight: 18, color: C.texte2 },
   // 🗓️ pastille « plafond mensuel » intégrée à chaque carte
   mois: {
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',

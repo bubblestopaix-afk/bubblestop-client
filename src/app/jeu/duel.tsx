@@ -3,7 +3,9 @@
 // les événements du moteur (arene.ts) sont rejoués un à un avec animations.
 // Modes : ?mode=pnj&rang=N (Maître de l'Arène) · ?mode=ami[&amical=1|&mise=X&gain=Y]
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import Svg, { Line } from 'react-native-svg';
@@ -23,19 +25,23 @@ import {
 } from '@/components/jeu/economie';
 import { BoutonJeu, formatNb, IconePerle } from '@/components/jeu/ui-jeu';
 import {
-  defaiteArene, defaiteTournoi, objetsEquipe, resoudreDefiAmi, resoudreDuelAmi, useBobaQuest,
+  defaiteArene, defaiteTournoi, enregistrerActionCarte, enregistrerVictoireEquipe,
+  objetsEquipe, resoudreDefiAmi, resoudreDuelAmi, useBobaQuest,
   utiliserConsommable, victoireArene, victoireBoss, victoireTournoi,
 } from '@/store/jeu';
 
-type Recap =
+type Recap = (
   | { type: 'pnj'; gagne: boolean; perles: number; capsule: 'classique' | 'doree' | null; rang: number; pc: number }
   | { type: 'tournoi'; gagne: boolean; perles: number; capsule: 'classique' | 'doree' | null; etape: number; champion: boolean }
   | { type: 'boss'; gagne: boolean; perles: number; capsules: number; eclats: number; deja: boolean }
   | { type: 'defi'; gagne: boolean; ami: string; perles: number }
-  | { type: 'ami'; gagne: boolean; amical: boolean; miseId?: string; gainId?: string; nouveau?: boolean };
+  | { type: 'ami'; gagne: boolean; amical: boolean; miseId?: string; gainId?: string; nouveau?: boolean }
+) & { bonusVedette?: number };
 
 export default function DuelScreen() {
   const insets = useSafeAreaInsets();
+  const { height: hauteurEcran } = useWindowDimensions();
+  const compact = hauteurEcran < 900;
   const jeu = useBobaQuest();
   const params = useLocalSearchParams<{ mode?: string; rang?: string; etape?: string; amical?: string; mise?: string; gain?: string; ami?: string }>();
   const mode = params.mode === 'pnj' ? 'pnj' : params.mode === 'tournoi' ? 'tournoi' : params.mode === 'boss' ? 'boss' : params.mode === 'defi' ? 'defi' : 'ami';
@@ -137,10 +143,13 @@ export default function DuelScreen() {
     if (crediteRef.current) return;
     crediteRef.current = true;
     const gagne = vainqueur === 'a';
+    const progression = gagne
+      ? enregistrerVictoireEquipe(combat.equipes.a.map((c) => c.id))
+      : { bonusVedette: 0 };
     if (mode === 'pnj') {
       if (gagne) {
         const r = victoireArene(rang);
-        setRecap({ type: 'pnj', gagne, perles: r.perles, capsule: r.capsule, rang, pc: r.pc });
+        setRecap({ type: 'pnj', gagne, perles: r.perles, bonusVedette: progression.bonusVedette, capsule: r.capsule, rang, pc: r.pc });
       } else {
         const r = defaiteArene();
         setRecap({ type: 'pnj', gagne, perles: r.perles, capsule: null, rang, pc: r.pc });
@@ -148,26 +157,26 @@ export default function DuelScreen() {
     } else if (mode === 'boss') {
       if (gagne) {
         const r = victoireBoss();
-        setRecap({ type: 'boss', gagne, perles: r.perles, capsules: r.capsules, eclats: r.eclats, deja: r.deja });
+        setRecap({ type: 'boss', gagne, perles: r.perles, bonusVedette: progression.bonusVedette, capsules: r.capsules, eclats: r.eclats, deja: r.deja });
       } else {
         setRecap({ type: 'boss', gagne, perles: 0, capsules: 0, eclats: 0, deja: false });
       }
     } else if (mode === 'tournoi') {
       if (gagne) {
         const r = victoireTournoi(etape);
-        setRecap({ type: 'tournoi', gagne, perles: r.perles, capsule: r.capsule, etape, champion: r.champion });
+        setRecap({ type: 'tournoi', gagne, perles: r.perles, bonusVedette: progression.bonusVedette, capsule: r.capsule, etape, champion: r.champion });
       } else {
         const r = defaiteTournoi();
         setRecap({ type: 'tournoi', gagne, perles: r.perles, capsule: null, etape, champion: false });
       }
     } else if (mode === 'defi') {
       const r = resoudreDefiAmi(amiNom, gagne);
-      setRecap({ type: 'defi', gagne, ami: amiNom, perles: r.perles });
+      setRecap({ type: 'defi', gagne, ami: amiNom, perles: r.perles, bonusVedette: progression.bonusVedette });
     } else if (amical) {
-      setRecap({ type: 'ami', gagne, amical: true });
+      setRecap({ type: 'ami', gagne, amical: true, bonusVedette: progression.bonusVedette });
     } else {
       const { nouveau } = resoudreDuelAmi(gagne, miseId, gainId);
-      setRecap({ type: 'ami', gagne, amical: false, miseId, gainId, nouveau });
+      setRecap({ type: 'ami', gagne, amical: false, miseId, gainId, nouveau, bonusVedette: progression.bonusVedette });
     }
   }, [mode, rang, etape, amical, miseId, gainId, amiNom]);
 
@@ -232,6 +241,9 @@ export default function DuelScreen() {
   const attaquer = async (choix: 0 | 1 | 'signature') => {
     if (enCours || combat.fini) return;
     setEnCours(true);
+    const actif = combat.equipes.a[combat.actifs.a];
+    if (!actif.etourdi && choix === 1) enregistrerActionCarte(actif.id, 'spe');
+    else if (!actif.etourdi && choix === 'signature') enregistrerActionCarte(actif.id, 'signature');
     const evts = jouerRound(combat, choix);
     await rejouerEvts(evts);
     synchroniser(); // filet de sécurité : affichage = état exact du moteur
@@ -241,6 +253,8 @@ export default function DuelScreen() {
   const garder = async () => {
     if (enCours || combat.fini) return;
     setEnCours(true);
+    const actif = combat.equipes.a[combat.actifs.a];
+    if (!actif.etourdi) enregistrerActionCarte(actif.id, 'garde');
     const evts = jouerRound(combat, 'garde');
     await rejouerEvts(evts);
     synchroniser();
@@ -298,17 +312,25 @@ export default function DuelScreen() {
       : intention.ton === 'defense' ? '#E9E2F7' : '#FFF3D6';
 
   return (
-    <View style={[styles.fond, { paddingTop: insets.top + 8 }]}>
+    <View style={[styles.fond, { paddingTop: insets.top + (compact ? 4 : 8) }]}>
       {/* header */}
       <View style={styles.hud}>
-        <Pressable style={styles.fermer} onPress={quitter} hitSlop={8}>
+        <Pressable
+          style={styles.fermer} onPress={quitter} hitSlop={8}
+          accessibilityRole="button" accessibilityLabel="Quitter le combat"
+        >
           <Svg width={20} height={20} viewBox="0 0 24 24">
             <Line x1={6} y1={6} x2={18} y2={18} stroke={C.violetProfond} strokeWidth={2.6} strokeLinecap="round" />
             <Line x1={18} y1={6} x2={6} y2={18} stroke={C.violetProfond} strokeWidth={2.6} strokeLinecap="round" />
           </Svg>
         </Pressable>
         <Text style={styles.titre} numberOfLines={1}>{adversaire.nom}</Text>
-        <Pressable style={styles.vitesseBtn} disabled={enCours} onPress={() => setVitesse((v) => v === 1 ? 2 : 1)}>
+        <Pressable
+          style={styles.vitesseBtn} disabled={enCours} onPress={() => setVitesse((v) => v === 1 ? 2 : 1)}
+          accessibilityRole="button" accessibilityLabel={`Vitesse du combat, fois ${vitesse}`}
+          accessibilityHint="Bascule entre la vitesse normale et accélérée"
+          accessibilityState={{ disabled: enCours }}
+        >
           <Text style={styles.vitesseTxt}>×{vitesse}</Text>
         </Pressable>
       </View>
@@ -323,28 +345,38 @@ export default function DuelScreen() {
         </View>
       )}
 
-      {!combat.fini && (
-        <View style={[styles.intention, { backgroundColor: fondIntention }]}>
-          <View style={styles.intentionHaut}>
-            <Text style={styles.intentionLabel}>PROCHAINE ACTION ADVERSE</Text>
-            {lui.gimmick && <Text style={styles.phaseBoss}>PHASE {lui.bossPhase}</Text>}
+      <ScrollView
+        style={styles.combatScroll}
+        contentContainerStyle={[styles.combatContenu, compact && styles.combatContenuCompact]}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {!combat.fini && (
+          <View
+            style={[styles.intention, compact && styles.intentionCompact, { backgroundColor: fondIntention }]}
+            accessibilityRole="summary"
+            accessibilityLabel={`Prochaine action adverse : ${intention.titre}. ${intention.detail}`}
+          >
+            <View style={styles.intentionHaut}>
+              <Text style={styles.intentionLabel}>PROCHAINE ACTION ADVERSE</Text>
+              {lui.gimmick && <Text style={styles.phaseBoss}>PHASE {lui.bossPhase}</Text>}
+            </View>
+            <Text style={styles.intentionTitre} numberOfLines={1}>{intention.titre}</Text>
+            <Text style={styles.intentionDetail} numberOfLines={compact ? 1 : 2}>{intention.detail}</Text>
           </View>
-          <Text style={styles.intentionTitre} numberOfLines={1}>{intention.titre}</Text>
-          <Text style={styles.intentionDetail} numberOfLines={2}>{intention.detail}</Text>
-        </View>
-      )}
+        )}
 
-      <View style={styles.zone}>
+        <View style={[styles.zone, compact && styles.zoneCompact]}>
         {/* === Adversaire === */}
         <CarteCombattant
           key={`b-${affiche.actifs.b}`}
           cote="b" equipe={combat.equipes.b} actifIdx={affiche.actifs.b}
           pvAffiches={affiche.pv.b} secousse={secousses.b} flottant={flottant}
-          burst={burst?.cote === 'b' ? burst : null} inverse
+          burst={burst?.cote === 'b' ? burst : null} inverse compact={compact}
         />
 
         {/* === Journal + avantage === */}
-        <View style={styles.centre}>
+        <View style={[styles.centre, compact && styles.centreCompact]}>
           {avantage !== 1 && !combat.fini && (
             <View style={[styles.avantage, { backgroundColor: avantage === 1.5 ? C.vertPale : C.dangerPale }]}>
               {avantage === 1.5 ? (
@@ -369,39 +401,48 @@ export default function DuelScreen() {
           key={`a-${affiche.actifs.a}`}
           cote="a" equipe={combat.equipes.a} actifIdx={affiche.actifs.a}
           pvAffiches={affiche.pv.a} secousse={secousses.a} flottant={flottant}
-          burst={burst?.cote === 'a' ? burst : null}
+          burst={burst?.cote === 'a' ? burst : null} compact={compact}
         />
-      </View>
+        </View>
 
-      {/* === ⭐ Signature : jauge (se remplit en agissant/encaissant) ou bouton prêt === */}
-      {!combat.fini && (
-        sigPrete ? (
-          <Pressable
-            style={[styles.sigPret, enCours && { opacity: 0.45 }]}
-            disabled={enCours}
-            onPress={() => attaquer('signature')}
-          >
-            <Icone nom="eclat" taille={18} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sigPretNom}>{sig.nom} — PRÊT !</Text>
-              <Text style={styles.sigPretHint}>{sig.desc}</Text>
+        {/* === ⭐ Signature : jauge (se remplit en agissant/encaissant) ou bouton prêt === */}
+        {!combat.fini && (
+          sigPrete ? (
+            <Pressable
+              style={[styles.sigPret, compact && styles.sigPretCompact, enCours && { opacity: 0.45 }]}
+              disabled={enCours}
+              onPress={() => attaquer('signature')}
+              accessibilityRole="button"
+              accessibilityLabel={`Signature prête : ${sig.nom}. ${sig.desc}`}
+              accessibilityState={{ disabled: enCours }}
+            >
+              <Icone nom="eclat" taille={18} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.sigPretNom, compact && styles.sigPretNomCompact]} numberOfLines={1}>{sig.nom} — PRÊT !</Text>
+                {!compact && <Text style={styles.sigPretHint} numberOfLines={1}>{sig.desc}</Text>}
+              </View>
+            </Pressable>
+          ) : (
+            <View
+              style={[styles.sigJauge, compact && styles.sigJaugeCompact]}
+              accessibilityRole="progressbar"
+              accessibilityLabel={`Signature chargée à ${moi.charge} sur ${CHARGE_MAX}`}
+              accessibilityValue={{ min: 0, max: CHARGE_MAX, now: moi.charge }}
+            >
+              <Text style={styles.sigJaugeTxt}>Signature</Text>
+              <View style={styles.sigPips}>
+                {Array.from({ length: CHARGE_MAX }, (_, i) => (
+                  <View key={i} style={[styles.sigPip, i < moi.charge && styles.sigPipPlein]} />
+                ))}
+              </View>
+              {!compact && <Text style={styles.sigJaugeHint}>attaque et encaisse pour charger</Text>}
             </View>
-          </Pressable>
-        ) : (
-          <View style={styles.sigJauge}>
-            <Text style={styles.sigJaugeTxt}>Signature</Text>
-            <View style={styles.sigPips}>
-              {Array.from({ length: CHARGE_MAX }, (_, i) => (
-                <View key={i} style={[styles.sigPip, i < moi.charge && styles.sigPipPlein]} />
-              ))}
-            </View>
-            <Text style={styles.sigJaugeHint}>attaque et encaisse pour charger</Text>
-          </View>
-        )
-      )}
+          )
+        )}
+      </ScrollView>
 
       {/* === Attaques === */}
-      <View style={[styles.attaques, { paddingBottom: (bancActif || sacDispo) ? 8 : insets.bottom + 12 }]}>
+      <View style={[styles.attaques, compact && styles.attaquesCompact, { paddingBottom: (bancActif || sacDispo) ? 6 : insets.bottom + 12 }]}>
         {moi.attaques.map((a, i) => {
           const spe = i === 1;
           const epuisee = spe && moi.speRestantes <= 0;
@@ -411,6 +452,9 @@ export default function DuelScreen() {
               style={[styles.btnAttaque, (enCours || combat.fini || epuisee) && { opacity: 0.45 }, spe && styles.btnAttaqueSpe]}
               disabled={enCours || combat.fini || epuisee}
               onPress={() => attaquer(i as 0 | 1)}
+              accessibilityRole="button"
+              accessibilityLabel={`${a.nom}. ${HINT_ATTAQUE[a.type]}${spe ? `. ${moi.speRestantes} utilisations restantes` : ''}`}
+              accessibilityState={{ disabled: enCours || combat.fini || epuisee }}
             >
               <Text style={[styles.btnAttaqueNom, spe && { color: '#fff' }]}>{a.nom}</Text>
               <Text style={[styles.btnAttaqueHint, spe && { color: C.lavande }]}>
@@ -431,39 +475,56 @@ export default function DuelScreen() {
         const banc = combat.equipes.a.map((c, i) => ({ c, i })).filter(({ c, i }) => i !== affiche.actifs.a && c.pv > 0);
         if (combat.fini || (banc.length === 0 && !sacDispo)) return null;
         return (
-          <View style={[styles.bancRang, { paddingBottom: insets.bottom + 6 }]}>
-            {banc.length > 0 && <Text style={styles.bancLabel}>Changer :</Text>}
-            {banc.map(({ c, i }) => {
-              const av = multType(c.set, lui.set);
-              return (
-                <Pressable
-                  key={c.id}
-                  style={[styles.bancChip, enCours && { opacity: 0.4 }]}
-                  disabled={enCours}
-                  onPress={() => changer(i)}
-                >
-                  <PastilleCollectible id={c.id} taille={26} />
-                  <Text style={styles.bancChipNom} numberOfLines={1}>{c.nom}</Text>
-                  {av !== 1 && <Text style={[styles.bancAv, { color: av === 1.5 ? C.vertFonce : C.danger }]}>{av === 1.5 ? '▲' : '▼'}</Text>}
-                </Pressable>
-              );
-            })}
-            <Pressable
-              style={[styles.gardeBtn, (!gardeDispo || enCours) && { opacity: 0.42 }]}
-              disabled={!gardeDispo || enCours}
-              onPress={garder}
-            >
-              <Icone nom="bouclier" taille={15} />
-              <Text style={styles.gardeBtnTxt}>
-                {gardeDispo ? `Garde −${Math.round(GARDE_REDUCTION * 100)} %` : `Garde · ${gardeRestante} t`}
-              </Text>
-            </Pressable>
-            {sacDispo && (
-              <Pressable style={[styles.sacBtn, enCours && { opacity: 0.4 }]} disabled={enCours} onPress={() => setSacVisible(true)}>
-                <Icone nom="sac" taille={15} />
-                <Text style={styles.sacBtnTxt}>Sac{sacObjets.length ? ` · ${sacObjets.reduce((s, id) => s + (jeu.consommables[id] ?? 0), 0)}` : ''}</Text>
-              </Pressable>
+          <View style={[styles.bancBloc, compact && styles.bancBlocCompact, { paddingBottom: insets.bottom + 6 }]}>
+            {banc.length > 0 && (
+              <View style={styles.bancRang}>
+                <Text style={styles.bancLabel}>Changer :</Text>
+                {banc.map(({ c, i }) => {
+                  const av = multType(c.set, lui.set);
+                  return (
+                    <Pressable
+                      key={c.id}
+                      style={[styles.bancChip, compact && styles.bancChipCompact, enCours && { opacity: 0.4 }]}
+                      disabled={enCours}
+                      onPress={() => changer(i)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Faire entrer ${c.nom}${av === 1.5 ? ', avantage de type' : av === 0.75 ? ', désavantage de type' : ''}`}
+                      accessibilityHint="Changer de combattant coûte le tour"
+                      accessibilityState={{ disabled: enCours }}
+                    >
+                      <PastilleCollectible id={c.id} taille={compact ? 22 : 26} />
+                      <Text style={styles.bancChipNom} numberOfLines={1}>{c.nom}</Text>
+                      {av !== 1 && <Text style={[styles.bancAv, { color: av === 1.5 ? C.vertFonce : C.danger }]}>{av === 1.5 ? '▲' : '▼'}</Text>}
+                    </Pressable>
+                  );
+                })}
+              </View>
             )}
+            <View style={styles.outilsRang}>
+              <Pressable
+                style={[styles.gardeBtn, (!gardeDispo || enCours) && styles.gardeBtnInactif]}
+                disabled={!gardeDispo || enCours}
+                onPress={garder}
+                accessibilityRole="button"
+                accessibilityLabel={gardeDispo ? `Garde, réduit le prochain impact de ${Math.round(GARDE_REDUCTION * 100)} pour cent` : `Garde indisponible pendant ${gardeRestante} tour`}
+                accessibilityState={{ disabled: !gardeDispo || enCours }}
+              >
+                <Icone nom="bouclier" taille={15} />
+                <Text style={[styles.gardeBtnTxt, !gardeDispo && styles.gardeBtnTxtInactif]}>
+                  {gardeDispo ? `Garde −${Math.round(GARDE_REDUCTION * 100)} %` : `Garde · ${gardeRestante} t`}
+                </Text>
+              </Pressable>
+              {sacDispo && (
+                <Pressable
+                  style={[styles.sacBtn, enCours && { opacity: 0.4 }]} disabled={enCours} onPress={() => setSacVisible(true)}
+                  accessibilityRole="button" accessibilityLabel={`Sac de combat, ${sacObjets.reduce((s, id) => s + (jeu.consommables[id] ?? 0), 0)} objets`}
+                  accessibilityState={{ disabled: enCours }}
+                >
+                  <Icone nom="sac" taille={15} />
+                  <Text style={styles.sacBtnTxt}>Sac{sacObjets.length ? ` · ${sacObjets.reduce((s, id) => s + (jeu.consommables[id] ?? 0), 0)}` : ''}</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         );
       })()}
@@ -513,6 +574,12 @@ export default function DuelScreen() {
             <View style={styles.modalCarte}>
               <Icone nom={recap.gagne ? 'trophee' : 'triste'} taille={48} />
               <Text style={styles.modalTitre}>{recap.gagne ? 'VICTOIRE !' : 'Défaite…'}</Text>
+              {!!recap.bonusVedette && (
+                <View style={styles.gainRang}>
+                  <Icone nom="etoile" taille={15} />
+                  <Text style={styles.capsuleGain}>Carte vedette : +{formatNb(recap.bonusVedette)} perles</Text>
+                </View>
+              )}
 
               {recap.type === 'pnj' && (
                 <>
@@ -650,18 +717,21 @@ export default function DuelScreen() {
 
 // Carte d'un combattant actif : pastille, nom, chips, barre de PV ANIMÉE
 // (elle glisse à chaque coup), points d'équipe. Tout vient de l'état REJOUÉ.
-function CarteCombattant({ cote, equipe, actifIdx, pvAffiches, secousse, flottant, burst, inverse }: {
+function CarteCombattant({ cote, equipe, actifIdx, pvAffiches, secousse, flottant, burst, inverse, compact }: {
   cote: CoteCombat; equipe: Combattant[]; actifIdx: number; pvAffiches: number[];
   secousse: Animated.Value;
   flottant: { cote: CoteCombat; txt: string; couleur: string; cle: number } | null;
   burst: { cote: CoteCombat; crit: boolean; cle: number } | null;
   inverse?: boolean;
+  compact: boolean;
 }) {
   const c = equipe[actifIdx];
   const pv = pvAffiches[actifIdx];
   const pct = Math.max(0, Math.min(100, (pv / c.pvMax) * 100));
   const couleurPv = pct > 50 ? C.vert : pct > 22 ? C.jaune : C.danger;
   const meta = trouverCollectible(c.id);
+  const taillePastille = compact ? 68 : 86;
+  const tailleBurst = compact ? 104 : 124;
 
   // La barre GLISSE vers sa nouvelle valeur (au lieu de sauter)
   const largeur = useRef(new Animated.Value(pct)).current;
@@ -673,16 +743,16 @@ function CarteCombattant({ cote, equipe, actifIdx, pvAffiches, secousse, flottan
 
   return (
     <Animated.View
-      style={[styles.combattant, inverse && { flexDirection: 'row-reverse' }, {
+      style={[styles.combattant, compact && styles.combattantCompact, inverse && { flexDirection: 'row-reverse' }, {
         transform: [{ translateX: secousse.interpolate({ inputRange: [-1, 1], outputRange: [-9, 9] }) }],
       }]}
     >
       <View style={{ alignItems: 'center', gap: 4 }}>
         <View style={{ opacity: pv > 0 ? 1 : 0.3 }}>
-          <PastilleCollectible id={c.id} taille={86} />
+          <PastilleCollectible id={c.id} taille={taillePastille} />
           {burst && (
-            <View pointerEvents="none" style={{ position: 'absolute', left: 43 - 62, top: 43 - 62 }}>
-              <BurstSkia taille={124} crit={burst.crit} cle={burst.cle} />
+            <View pointerEvents="none" style={{ position: 'absolute', left: taillePastille / 2 - tailleBurst / 2, top: taillePastille / 2 - tailleBurst / 2 }}>
+              <BurstSkia taille={tailleBurst} crit={burst.crit} cle={burst.cle} />
             </View>
           )}
         </View>
@@ -690,10 +760,10 @@ function CarteCombattant({ cote, equipe, actifIdx, pvAffiches, secousse, flottan
           <Text key={flottant.cle} style={[styles.flottant, { color: flottant.couleur }]}>{flottant.txt}</Text>
         )}
       </View>
-      <View style={{ flex: 1, gap: 6 }}>
+      <View style={{ flex: 1, gap: compact ? 4 : 6 }}>
         <View style={styles.nomLigne}>
           <View style={styles.nomRang}>
-            <Text style={styles.nom} numberOfLines={1}>{c.nom}</Text>
+            <Text style={[styles.nom, compact && styles.nomCompact]} numberOfLines={1}>{c.nom}</Text>
             {c.objets.map((o) => <IconeEmoji key={o} emoji={OBJETS[o].emoji} taille={14} />)}
           </View>
           <View style={styles.chipsRow}>
@@ -752,25 +822,33 @@ const styles = StyleSheet.create({
   },
   vitesseTxt: { fontFamily: F.t800, fontSize: 13, color: '#fff', fontVariant: ['tabular-nums'] },
 
+  combatScroll: { flex: 1, minHeight: 0 },
+  combatContenu: { flexGrow: 1 },
+  combatContenuCompact: { paddingTop: 1 },
+
   intention: {
     marginHorizontal: 18, marginTop: 5, borderRadius: 14, paddingVertical: 8, paddingHorizontal: 12,
     borderWidth: 1, borderColor: C.bord,
   },
+  intentionCompact: { marginHorizontal: 12, marginTop: 3, paddingVertical: 5, paddingHorizontal: 10 },
   intentionHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   intentionLabel: { fontFamily: F.t800, fontSize: 9.5, color: C.texte3, letterSpacing: 0.4 },
   intentionTitre: { fontFamily: F.t800, fontSize: 13.5, color: C.texte, marginTop: 2 },
   intentionDetail: { fontFamily: F.t600, fontSize: 10.5, color: C.texte2 },
   phaseBoss: { fontFamily: F.t800, fontSize: 9.5, color: C.danger },
 
-  zone: { flex: 1, padding: 18, gap: 12, justifyContent: 'space-between' },
+  zone: { flexGrow: 1, padding: 18, gap: 12, justifyContent: 'space-between' },
+  zoneCompact: { paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
 
   combattant: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     backgroundColor: C.carte, borderRadius: R.carte, padding: 14, ...OMBRE,
   },
+  combattantCompact: { gap: 10, padding: 10, borderRadius: 18 },
   nomLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   nomRang: { flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 1 },
   nom: { fontFamily: F.t800, fontSize: 16.5, color: C.texte },
+  nomCompact: { fontSize: 15 },
   pvTxtRang: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   chargeRang: { flexDirection: 'row', gap: 2.5, marginLeft: 3 },
   chargePip: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.lavande },
@@ -787,12 +865,14 @@ const styles = StyleSheet.create({
   flottant: { position: 'absolute', top: -6, alignSelf: 'center', fontFamily: F.titre, fontSize: 20 },
 
   centre: { alignItems: 'center', gap: 6, minHeight: 74, justifyContent: 'center' },
+  centreCompact: { gap: 3, minHeight: 54 },
   avantage: { borderRadius: R.pill, paddingVertical: 5, paddingHorizontal: 12 },
   avantageTxt: { fontFamily: F.t800, fontSize: 12 },
   avantageRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap', justifyContent: 'center' },
   journal: { fontFamily: F.t700, fontSize: 14.5, color: C.texte, textAlign: 'center' },
 
   attaques: { flexDirection: 'row', gap: 12, paddingHorizontal: 18 },
+  attaquesCompact: { gap: 8, paddingHorizontal: 12 },
   btnAttaque: {
     flex: 1, backgroundColor: C.carte, borderRadius: R.btn + 2, paddingVertical: 14,
     alignItems: 'center', gap: 3, borderWidth: 2, borderColor: C.bord, ...OMBRE,
@@ -808,6 +888,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 18, marginBottom: 8, paddingVertical: 7, paddingHorizontal: 12,
     backgroundColor: C.carte, borderRadius: 12, borderWidth: 1, borderColor: C.bord,
   },
+  sigJaugeCompact: { marginHorizontal: 12, marginBottom: 6, paddingVertical: 6, justifyContent: 'center' },
   sigJaugeTxt: { fontFamily: F.t800, fontSize: 11.5, color: C.texte2 },
   sigPips: { flexDirection: 'row', gap: 4 },
   sigPip: { width: 14, height: 8, borderRadius: 4, backgroundColor: C.lavande },
@@ -818,14 +899,19 @@ const styles = StyleSheet.create({
     marginHorizontal: 18, marginBottom: 8, paddingVertical: 10, paddingHorizontal: 14,
     backgroundColor: '#F5A93B', borderRadius: 14, borderWidth: 2, borderColor: '#E8920F',
   },
+  sigPretCompact: { marginHorizontal: 12, marginBottom: 6, paddingVertical: 7, paddingHorizontal: 12 },
   sigPretNom: { fontFamily: F.t800, fontSize: 14.5, color: '#4A2B00' },
+  sigPretNomCompact: { fontSize: 13.5 },
   sigPretHint: { fontFamily: F.t700, fontSize: 10.5, color: '#7A4B05' },
-  bancRang: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingTop: 8, flexWrap: 'wrap' },
+  bancBloc: { gap: 6, paddingHorizontal: 18, paddingTop: 7 },
+  bancBlocCompact: { gap: 4, paddingHorizontal: 12, paddingTop: 5 },
+  bancRang: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bancLabel: { fontFamily: F.t800, fontSize: 12.5, color: C.texte2 },
   bancChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.carte,
     borderRadius: R.pill, paddingVertical: 5, paddingHorizontal: 10, borderWidth: 1.5, borderColor: C.bord,
   },
+  bancChipCompact: { flex: 1, minWidth: 0, gap: 4, paddingVertical: 4, paddingHorizontal: 7 },
   bancChipNom: { fontFamily: F.t700, fontSize: 12.5, color: C.texte },
   bancAv: { fontFamily: F.t800, fontSize: 12 },
   gardeBtn: {
@@ -834,6 +920,9 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: C.violetClair,
   },
   gardeBtnTxt: { fontFamily: F.t800, fontSize: 11.5, color: C.violet },
+  gardeBtnInactif: { backgroundColor: '#E4DEEC', borderColor: '#B9ABD0', opacity: 0.72 },
+  gardeBtnTxtInactif: { color: '#6F6383' },
+  outilsRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
   sacBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: C.violet, borderRadius: R.pill, paddingVertical: 6, paddingHorizontal: 14,

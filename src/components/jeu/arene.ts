@@ -29,7 +29,7 @@ export type FicheCombat = {
 // Indications affichées sous les boutons d'attaque
 export const HINT_ATTAQUE: Record<TypeAttaque, string> = {
   degats: 'Dégâts',
-  soin: 'Se soigne',
+  soin: 'Se soigne · max 25 % des PV',
   bouclier: 'Encaisse le prochain coup à moitié',
   boost: '+40 % ATQ pendant 2 tours',
   etourdit: 'Dégâts + peut étourdir',
@@ -46,7 +46,11 @@ export const HINT_ATTAQUE: Record<TypeAttaque, string> = {
 // plus fort (et étourdit plus souvent) — fini le spam, il faut choisir ses moments.
 export const CHARGE_MAX = 3;   // actions/coups encaissés pour débloquer la signature
 export const SPE_USAGES = 3;   // munitions de l'attaque n°2 (par combattant, par combat)
-export const SPE_BONUS = 1.2;  // la spé tape/soigne 20 % plus fort (compense les munitions)
+export const SPE_BONUS = 1.2;  // la spé offensive tape 20 % plus fort (compense les munitions)
+export const SOIN_DIRECT_MAX_PV_PCT = 25; // un soin actif ne rend jamais plus d'un quart des PV max
+export const VOL_DE_VIE_MAX_PCT = 25;     // les objets/passifs se cumulent, puis ce plafond s'applique
+export const VOL_DE_VIE_MAX_PV_PCT_ACTION = 12; // évite qu'une zone/multi-coup remplisse toute la barre
+export const REGEN_MAX_PAR_ACTION = 10;   // régénération passive maximale après une action non soignante
 
 // Dégâts = % des PV MAX de la CIBLE (équitable quel que soit l'écart de stats — l'ulti
 // du petit mord autant que celui du grand), plafonnés par l'ATQ de l'attaquant (×3,5)
@@ -57,7 +61,7 @@ export type SignatureDef = {
 };
 export const SIGNATURES: Record<SetId, SignatureDef> = {
   fruit: { nom: 'Tsunami Tropical', desc: 'Imparable · énorme vague qui transperce les boucliers', pvPct: 26, perceBouclier: true },
-  milk: { nom: 'Marée Onctueuse', desc: 'Imparable · dégâts + rend 30 % des PV', pvPct: 18, soinPct: 30 },
+  milk: { nom: 'Marée Onctueuse', desc: 'Imparable · dégâts + rend 20 % des PV', pvPct: 18, soinPct: 20 },
   topping: { nom: 'Avalanche de Perles', desc: 'Imparable · dégâts + étourdit à coup sûr', pvPct: 18, etourdit: true },
   signature: { nom: 'Sacre Royal', desc: 'Imparable · dégâts + monte en puissance (+40 %)', pvPct: 20, boost: true },
 };
@@ -387,6 +391,10 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
   if (choix === 'signature' && moi.charge < CHARGE_MAX) choix = 0;
   if (choix === 1 && moi.speRestantes <= 0) choix = 0;
   const estSpe = choix === 1;
+  const actionSoignante = choix === 'signature'
+    ? Boolean(SIGNATURES[moi.set].soinPct)
+    : moi.attaques[choix].type === 'soin';
+  let degatsPourVolDeVie = 0;
   if (estSpe) moi.speRestantes--;                                      // 🔋 une munition (même si ça rate)
 
   const mut = etat.mutateur;                                           // ⚡ mutateur du jour
@@ -446,11 +454,9 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
     evts.push({ t: 'degats', cote: adverse(cote), index: indexQui, valeur: degats, efficace: mult, pvApres: qui.pv });
     if (revive) evts.push({ t: 'statut', cote: adverse(cote), texte: `${qui.nom} tient bon à 1 PV ! 🧿` });
     else if (qui.pv <= 0) evts.push({ t: 'ko', cote: adverse(cote), index: indexQui, nom: qui.nom });
-    // 🩸 vol de vie de l'attaquant (Caramel / panoplie Sucré) — modulé par le mutateur de soin
-    if (inflige > 0 && moi.eff.volDeViePct && moi.pv > 0) {
-      const soin = Math.round(inflige * moi.eff.volDeViePct / 100 * (mut?.soinMult ?? 1));
-      if (soin > 0) { moi.pv = Math.min(moi.pvMax, moi.pv + soin); evts.push({ t: 'soin', cote, index: indexMoi, valeur: soin, pvApres: moi.pv }); }
-    }
+    // 🩸 Le vol de vie est calculé UNE FOIS après l'action. Une attaque de zone
+    // ou multi-coup ne peut donc plus déclencher plusieurs soins indépendants.
+    degatsPourVolDeVie += inflige;
     // 🌵 épines : la cible renvoie une partie des dégâts à l'attaquant
     if (inflige > 0 && qui.eff.epinesPct && moi.pv > 0) {
       const retour = Math.round(inflige * qui.eff.epinesPct / 100);
@@ -516,9 +522,10 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
     if (reviveSig) evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} tient bon à 1 PV ! 🧿` });
     else if (cible.pv <= 0) evts.push({ t: 'ko', cote: adverse(cote), index: indexCible, nom: cible.nom });
     if (sig.soinPct && moi.pv > 0 && moi.pv < moi.pvMax) {
-      const g = Math.round(moi.pvMax * sig.soinPct / 100 * (mut?.soinMult ?? 1));
-      moi.pv = Math.min(moi.pvMax, moi.pv + g);
-      evts.push({ t: 'soin', cote, index: indexMoi, valeur: g, pvApres: moi.pv });
+      const demande = Math.round(moi.pvMax * sig.soinPct / 100 * (mut?.soinMult ?? 1));
+      const g = Math.min(demande, moi.pvMax - moi.pv);
+      moi.pv += g;
+      if (g > 0) evts.push({ t: 'soin', cote, index: indexMoi, valeur: g, pvApres: moi.pv });
     }
     if (sig.etourdit && cible.pv > 0) {
       if (cible.eff.immuniteEtourdi) evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} est insensible à l'étourdissement ! ❄️` });
@@ -573,9 +580,13 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
         break;
       }
       case 'soin': {
-        const gain = Math.round(moi.atk * attaque.puissance * bonus * (mut?.soinMult ?? 1));
-        moi.pv = Math.min(moi.pvMax, moi.pv + gain);
-        evts.push({ t: 'soin', cote, index: indexMoi, valeur: gain, pvApres: moi.pv });
+        // Le multiplicateur offensif de Spé ne s'applique pas aux soins. Leur
+        // rendement est borné en % des PV max pour rester stable entre raretés.
+        const brut = Math.round(moi.atk * attaque.puissance * (mut?.soinMult ?? 1));
+        const plafond = Math.round(moi.pvMax * SOIN_DIRECT_MAX_PV_PCT / 100);
+        const gain = Math.min(brut, plafond, moi.pvMax - moi.pv);
+        moi.pv += gain;
+        if (gain > 0) evts.push({ t: 'soin', cote, index: indexMoi, valeur: gain, pvApres: moi.pv });
         break;
       }
       case 'bouclier':
@@ -606,11 +617,27 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
   if (moi.boostTours > 0) moi.boostTours--;
   if (moi.collantTours > 0) moi.collantTours--;
 
-  // 🍯 régénération par tour (Nappé / panoplie Sucré) — appliquée après l'action
-  if (moi.eff.soinTour && moi.pv > 0 && moi.pv < moi.pvMax) {
-    const soin = Math.round(moi.eff.soinTour * (mut?.soinMult ?? 1));
-    moi.pv = Math.min(moi.pvMax, moi.pv + soin);
-    evts.push({ t: 'soin', cote, index: indexMoi, valeur: soin, pvApres: moi.pv });
+  // 🩸 Vol de vie global : additionne les dégâts réellement infligés, puis
+  // applique les deux plafonds. Les soins de zone/multi-coups restent utiles
+  // sans pouvoir rendre une barre complète sur une seule action.
+  if (degatsPourVolDeVie > 0 && moi.eff.volDeViePct && moi.pv > 0 && moi.pv < moi.pvMax) {
+    const pct = Math.min(VOL_DE_VIE_MAX_PCT, moi.eff.volDeViePct);
+    const demande = Math.round(degatsPourVolDeVie * pct / 100 * (mut?.soinMult ?? 1));
+    const plafondAction = Math.round(moi.pvMax * VOL_DE_VIE_MAX_PV_PCT_ACTION / 100);
+    const soin = Math.min(demande, plafondAction, moi.pvMax - moi.pv);
+    if (soin > 0) {
+      moi.pv += soin;
+      evts.push({ t: 'soin', cote, index: indexMoi, valeur: soin, pvApres: moi.pv });
+    }
+  }
+
+  // 🍯 Régénération passive après une action NON soignante. Un soin actif ou la
+  // Signature Milk ne cumule plus un second soin gratuit dans le même tour.
+  if (!actionSoignante && moi.eff.soinTour && moi.pv > 0 && moi.pv < moi.pvMax) {
+    const demande = Math.round(moi.eff.soinTour * (mut?.soinMult ?? 1));
+    const soin = Math.min(demande, REGEN_MAX_PAR_ACTION, moi.pvMax - moi.pv);
+    moi.pv += soin;
+    if (soin > 0) evts.push({ t: 'soin', cote, index: indexMoi, valeur: soin, pvApres: moi.pv });
   }
 
   // 👹 gimmick regen : le boss se soigne à la fin de SON tour (sauté s'il était étourdi,

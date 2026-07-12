@@ -12,7 +12,7 @@ import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import PastilleCollectible from '@/components/jeu/collectibles';
 import {
-  CAPSULES, Collectible, PITY_EPIQUE, PITY_LEGENDAIRE, RARETES, SETS, TypeCapsule,
+  CAPSULES, Collectible, PITY_EPIQUE, PITY_LEGENDAIRE, rangMaitrise, RARETES, SETS, TypeCapsule,
 } from '@/components/jeu/economie';
 import { Icone, IconeEmoji, IconeNom } from '@/components/jeu/icones';
 import {
@@ -23,7 +23,7 @@ import { ouvrirCapsule, pityRestant, useBobaQuest } from '@/store/jeu';
 const VIOLET = '#4c2d77';
 
 type Resultat = {
-  collectible: Collectible; doublon: boolean; perlesRendues: number;
+  collectible: Collectible; doublon: boolean; perlesRendues: number; prestigeNouveau: boolean;
   type: TypeCapsule; premiere: boolean;
 };
 
@@ -33,6 +33,8 @@ export default function CapsulesScreen() {
 
   const [enCours, setEnCours] = useState<TypeCapsule | null>(null);
   const [resultat, setResultat] = useState<Resultat | null>(null);
+  const aucuneCapsuleGratuite = etat.capsulesGratuites + etat.capsulesDoreesGratuites === 0;
+  const manqueClassique = Math.max(0, CAPSULES.classique.cout - etat.perles);
   const wobble = useRef(new Animated.Value(0)).current;
   const chute = useRef(new Animated.Value(0)).current;
 
@@ -128,6 +130,11 @@ export default function CapsulesScreen() {
             Chaque capsule ouverte te rapproche d'un drop garanti — la garantie
             tombe même en cas de malchance.
           </Text>
+          {etat.capsulesOuvertes < 3 && (
+            <Text style={styles.pityAide}>
+              Départ protégé : encore {3 - etat.capsulesOuvertes} nouveau{3 - etat.capsulesOuvertes > 1 ? 'x' : ''} garanti{3 - etat.capsulesOuvertes > 1 ? 's' : ''}, sans doublon.
+            </Text>
+          )}
         </View>
 
         {/* === Les deux capsules === */}
@@ -177,10 +184,28 @@ export default function CapsulesScreen() {
           );
         })}
 
+        {aucuneCapsuleGratuite && manqueClassique > 0 && (
+          <View style={styles.zeroAction}>
+            <View style={styles.zeroActionTitre}>
+              <Icone nom="cible" taille={20} />
+              <Text style={styles.zeroTitre}>Il te manque {formatNb(manqueClassique)} perles</Text>
+            </View>
+            <Text style={styles.zeroTexte}>
+              Termine un niveau d’Aventure : tu gagneras des perles, et les paliers marqués d’un cadeau offrent aussi une capsule à la première victoire.
+            </Text>
+            <BoutonJeu
+              titre="Jouer pour gagner des perles"
+              onPress={() => router.push('/jeu/parcours' as any)}
+              accessibilityHint="Ouvre le parcours Aventure"
+              style={{ alignSelf: 'stretch', backgroundColor: C.vert }}
+            />
+          </View>
+        )}
+
         <Text style={styles.astuce}>
-          Les perles se gagnent en jouant à Perle Rush — et les perles dorées
-          du plateau contiennent des capsules gratuites. Les doublons sont
-          convertis en perles automatiquement.
+          Les perles se gagnent en jouant à Perle Rush. Les récompenses de
+          capsule sont indiquées directement sur le parcours ; les doublons sont
+          convertis en perles et débloquent la maîtrise visuelle.
         </Text>
         <BandeauPreview />
       </ScrollView>
@@ -262,7 +287,9 @@ function BarrePity({ nom, titre, restant, total, couleur, fond }: {
 
 // Carte de révélation du collectible (rayons + rareté + phrase)
 function Reveal({ resultat }: { resultat: Resultat }) {
-  const { collectible, doublon, perlesRendues } = resultat;
+  const { collectible, doublon, perlesRendues, prestigeNouveau } = resultat;
+  const etat = useBobaQuest();
+  const maitrise = rangMaitrise(etat.collection[collectible.id] || 1);
   const set = SETS[collectible.set];
   const rarete = RARETES[collectible.rarete];
   const zoom = useRef(new Animated.Value(0)).current;
@@ -298,9 +325,14 @@ function Reveal({ resultat }: { resultat: Resultat }) {
         </Animated.View>
       </View>
       <Text style={styles.revealNouveau}>
-        {doublon ? 'DOUBLON' : legendaire ? '✦ LÉGENDAIRE ✦' : 'NOUVEAU !'}
+        {prestigeNouveau ? '✦ VERSION PRESTIGE ✦' : doublon ? 'DOUBLON' : legendaire ? '✦ LÉGENDAIRE ✦' : 'NOUVEAU !'}
       </Text>
-      <PastilleCollectible id={collectible.id} taille={130} />
+      <PastilleCollectible
+        id={collectible.id}
+        taille={130}
+        maitrise={maitrise}
+        prestige={etat.prestige[collectible.id] === true}
+      />
       <Text style={styles.revealNom}>{collectible.nom}</Text>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <ChipRarete nom={rarete.nom} couleur={rarete.couleur} />
@@ -313,7 +345,11 @@ function Reveal({ resultat }: { resultat: Resultat }) {
       {doublon && (
         <View style={styles.doublon}>
           <IconePerle taille={16} />
-          <Text style={styles.doublonTxt}>Déjà dans ta collec' → +{formatNb(perlesRendues)} perles</Text>
+          <Text style={styles.doublonTxt}>
+            {prestigeNouveau
+              ? `Variante brillante ajoutée · +${formatNb(perlesRendues)} perles`
+              : `Maîtrise ${maitrise === 'holo' ? 'Holo' : maitrise === 'or' ? 'Or' : maitrise === 'argent' ? 'Argent' : 'Bronze'} · +${formatNb(perlesRendues)} perles`}
+          </Text>
         </View>
       )}
     </Animated.View>
@@ -386,6 +422,14 @@ const styles = StyleSheet.create({
     paddingVertical: 4, paddingHorizontal: 10,
   },
   btnAchatCoutTxt: { fontFamily: F.t800, fontSize: 13.5, color: C.violetProfond },
+
+  zeroAction: {
+    backgroundColor: C.vertPale, borderRadius: R.carte, padding: 16, gap: 9,
+    borderWidth: 1.5, borderColor: C.vert,
+  },
+  zeroActionTitre: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  zeroTitre: { fontFamily: F.t800, fontSize: 15, color: C.violetProfond },
+  zeroTexte: { fontFamily: F.t600, fontSize: 12.5, lineHeight: 18, color: C.texte2 },
 
   astuce: { fontFamily: F.t600, fontSize: 12.5, color: C.texte2, lineHeight: 18, textAlign: 'center' },
 

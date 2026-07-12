@@ -8,13 +8,15 @@ import { router } from 'expo-router';
 
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { BoutonRetour } from '@/components/ui-kit';
-import { COLLECTIBLES, evenementDuJour, PASS_PALIERS } from '@/components/jeu/economie';
+import PastilleCollectible from '@/components/jeu/collectibles';
+import { COLLECTIBLES, evenementDuJour, PASS_PALIERS, rangMaitrise } from '@/components/jeu/economie';
 import { Icone } from '@/components/jeu/icones';
 import {
   BandeauPreview, BoutonJeu, formatNb, IconePerle, PictoHub,
 } from '@/components/jeu/ui-jeu';
 import {
-  bonusJourDispo, defisDuJour, etatPass, nbUniques, paliersAReclamer,
+  bonusJourDispo, defisDuJour, etatMissionCarte, etatPass, etatVedetteHebdo,
+  nbPrestige, nbUniques, paliersAReclamer,
   reclamerBonusDefis, reclamerDefi, resetBobaQuest, rouletteDispo, useBobaQuest,
 } from '@/store/jeu';
 
@@ -25,6 +27,11 @@ export default function HubBobaQuest() {
   const [resetVisible, setResetVisible] = useState(false);
 
   const uniques = nbUniques(etat);
+  const prestige = nbPrestige(etat);
+  const missionsPretes = COLLECTIBLES.filter((c) => {
+    const mission = etatMissionCarte(c.id, etat);
+    return mission.terminee && !mission.reclamee;
+  }).length;
   const bonus = bonusJourDispo(etat);
   const roulette = rouletteDispo(etat);
   const aReclamer = etat.gains.filter((g) => g.statut === 'a_reclamer').length;
@@ -33,6 +40,7 @@ export default function HubBobaQuest() {
   const tousReclames = defis.every((d) => d.reclame);
   const etoilesTotal = Object.values(etat.aventure.etoiles).reduce((s, e) => s + e, 0);
   const evt = evenementDuJour();
+  const vedette = etatVedetteHebdo(etat);
   const pass = etatPass(etat);
   const passAReclamer = paliersAReclamer(etat);
   const prochainPalier = PASS_PALIERS.find((p) => pass.xp < p.xp);
@@ -42,10 +50,11 @@ export default function HubBobaQuest() {
   const versCapsuleArene = 5 - ((etat.arene.rang - 1) % 5);
   // Guide dérivé : tant que la collection n'a pas commencé, le hub pointe soit
   // vers l'Aventure, soit vers la capsule gratuite déjà gagnée. Zéro nouveau champ.
-  const debutSansCollection = etat.capsulesOuvertes === 0 && uniques === 0;
-  const etapeDebut: 'jouer' | 'ouvrir' | null = debutSansCollection
-    ? (capsulesGratuites > 0 ? 'ouvrir' : 'jouer')
-    : null;
+  const etapeDebut: 'jouer' | 'ouvrir' | 'collection' | null = etat.onboardingTermine
+    ? null
+    : etat.capsulesOuvertes > 0
+      ? 'collection'
+      : capsulesGratuites > 0 ? 'ouvrir' : 'jouer';
   const tuileAventure = (
     <Pressable
       style={styles.tuileJouer}
@@ -82,6 +91,24 @@ export default function HubBobaQuest() {
       <Text style={styles.tuileJouerGo}>OUVRIR</Text>
     </Pressable>
   );
+  const tuilePremiereCollection = (
+    <Pressable
+      style={[styles.tuileJouer, styles.tuileCollectionDebut]}
+      onPress={() => router.push('/jeu/collection' as any)}
+      accessibilityRole="button"
+      accessibilityLabel="Découvrir le premier personnage dans la collection"
+      accessibilityHint="Ouvre la collection et termine le guide de départ"
+    >
+      <PictoHub id="collection" fond="#fff" taille={52} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.tuileJouerTitre}>Ton premier personnage</Text>
+        <Text style={styles.tuileJouerSous}>
+          Retrouve-le dans ta collection et découvre son pouvoir.
+        </Text>
+      </View>
+      <Text style={styles.tuileJouerGo}>VOIR</Text>
+    </Pressable>
+  );
 
   return (
     <View style={styles.fond}>
@@ -105,11 +132,13 @@ export default function HubBobaQuest() {
           <Text style={styles.soldeUsage}>
             À dépenser en capsules, perles spéciales et vrais prix
           </Text>
-          <View style={[styles.bonusChip, !bonus && styles.bonusChipOff]}>
-            <Text style={[styles.bonusChipTxt, !bonus && { color: C.lavande }]}>
-              {bonus ? 'Bonus du jour : perles ×2 sur ta 1ʳᵉ partie' : 'Bonus du jour déjà utilisé — reviens demain !'}
-            </Text>
-          </View>
+          {!etapeDebut && (
+            <View style={[styles.bonusChip, !bonus && styles.bonusChipOff]}>
+              <Text style={[styles.bonusChipTxt, !bonus && { color: C.lavande }]}>
+                {bonus ? 'Bonus du jour : perles ×2 sur ta 1ʳᵉ partie' : 'Bonus du jour déjà utilisé — reviens demain !'}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.contenu}>
@@ -119,7 +148,9 @@ export default function HubBobaQuest() {
               accessibilityRole="summary"
               accessibilityLabel={etapeDebut === 'jouer'
                 ? 'Premier objectif, étape 1 sur 3 : jouer le niveau 1'
-                : 'Premier objectif, étape 2 sur 3 : ouvrir la capsule gratuite'}
+                : etapeDebut === 'ouvrir'
+                  ? 'Premier objectif, étape 2 sur 3 : ouvrir la capsule gratuite'
+                  : 'Premier objectif, étape 3 sur 3 : découvrir le personnage dans la collection'}
             >
               <View style={styles.departHaut}>
                 <Icone nom="cible" taille={24} />
@@ -136,23 +167,52 @@ export default function HubBobaQuest() {
                 styles.departEtape,
                 etapeDebut === 'ouvrir' && styles.departEtapeActive,
               ]}>2. Ouvre ta capsule gratuite</Text>
-              <Text style={styles.departEtape}>3. Découvre ton personnage dans la collection</Text>
+              <Text style={[
+                styles.departEtape,
+                etapeDebut === 'collection' && styles.departEtapeActive,
+              ]}>3. Découvre ton personnage dans la collection</Text>
             </View>
           )}
 
           {etapeDebut === 'jouer' && tuileAventure}
           {etapeDebut === 'ouvrir' && tuilePremiereCapsule}
+          {etapeDebut === 'collection' && tuilePremiereCollection}
 
           {/* === ⚡ Événement du week-end (double perles) === */}
-          {evt.actif && (
+          {!etapeDebut && evt.actif && (
             <View style={styles.evenement}>
               <Text style={styles.evenementTitre}>{evt.titre}</Text>
               <Text style={styles.evenementSous}>{evt.sous}</Text>
             </View>
           )}
 
+          {!etapeDebut && (
+            <Pressable
+              style={styles.vedette}
+              onPress={() => router.push('/jeu/collection' as any)}
+              accessibilityRole="button"
+              accessibilityLabel={`Carte vedette ${vedette.collectible.nom}. ${vedette.recompenseRecuperee ? 'Récompense récupérée' : 'Gagne un combat avec elle pour 300 perles'}`}
+              accessibilityHint="Ouvre sa fiche dans la collection"
+            >
+              <PastilleCollectible
+                id={vedette.collectible.id}
+                taille={58}
+                maitrise={rangMaitrise(etat.collection[vedette.collectible.id] || 0)}
+                vedette
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.vedetteSur}>CARTE VEDETTE</Text>
+                <Text style={styles.vedetteNom}>{vedette.collectible.nom}</Text>
+                <Text style={styles.vedetteSous}>
+                  {vedette.recompenseRecuperee ? 'Défi hebdomadaire accompli' : '1 victoire dans l’équipe = +300 perles'}
+                </Text>
+              </View>
+              <Icone nom={vedette.recompenseRecuperee ? 'check' : 'epee'} taille={21} />
+            </Pressable>
+          )}
+
           {/* === 🎫 Boba Pass (progression hebdo) === */}
-          <Pressable
+          {!etapeDebut && <Pressable
             style={styles.pass}
             onPress={() => router.push('/jeu/pass' as any)}
             accessibilityRole="button"
@@ -176,7 +236,7 @@ export default function HubBobaQuest() {
                   ? `Encore ${formatNb(prochainPalier.xp - pass.xp)} XP avant le prochain cadeau`
                   : 'Pass complet — bravo !'}
             </Text>
-          </Pressable>
+          </Pressable>}
 
           {/* === Aventure (tuile principale) === */}
           {!etapeDebut && (
@@ -199,7 +259,7 @@ export default function HubBobaQuest() {
           )}
 
           {/* === Défis du jour === */}
-          <View style={styles.defisCarte}>
+          {!etapeDebut && <View style={styles.defisCarte}>
             <View style={styles.defisHaut}>
               <View style={styles.defisTitreRang}><Icone nom="eclair" taille={17} /><Text style={styles.defisTitre}>Défis du jour</Text></View>
               <Text style={styles.defisSous}>{defis.filter((d) => d.reclame).length}/3</Text>
@@ -240,10 +300,10 @@ export default function HubBobaQuest() {
                 {etat.defisBonusReclame ? 'Capsule bonus du jour récupérée' : 'Les 3 défis réclamés = +1 capsule'}
               </Text>
             )}
-          </View>
+          </View>}
 
           {/* === Grille de tuiles === */}
-          <View style={styles.grille}>
+          {!etapeDebut && <View style={styles.grille}>
             <Tuile
               picto="arene" fond="#fbe4ee" titre="L'Arène"
               sous={versCapsuleArene <= 2
@@ -264,7 +324,8 @@ export default function HubBobaQuest() {
             />
             <Tuile
               picto="collection" fond="#f1ecfa" titre="Collection"
-              sous={`${uniques}/${COLLECTIBLES.length} trouvés`}
+              sous={uniques === COLLECTIBLES.length ? `Prestige ${prestige}/${COLLECTIBLES.length}` : `${uniques}/${COLLECTIBLES.length} trouvés`}
+              badge={missionsPretes > 0 ? String(missionsPretes) : undefined}
               onPress={() => router.push('/jeu/collection' as any)}
             />
             <Tuile
@@ -284,13 +345,13 @@ export default function HubBobaQuest() {
               sous="Échange tes doublons"
               onPress={() => router.push('/jeu/troc' as any)}
             />
-          </View>
+          </View>}
 
-          <Text style={styles.stats}>
+          {!etapeDebut && <Text style={styles.stats}>
             {formatNb(etat.partiesJouees)} partie{etat.partiesJouees > 1 ? 's' : ''} · {formatNb(etat.capsulesOuvertes)} capsule{etat.capsulesOuvertes > 1 ? 's' : ''} ouverte{etat.capsulesOuvertes > 1 ? 's' : ''}
-          </Text>
-          <BandeauPreview />
-          {__DEV__ && (
+          </Text>}
+          {!etapeDebut && <BandeauPreview />}
+          {!etapeDebut && __DEV__ && (
             <Pressable
               onPress={() => setResetVisible(true)}
               hitSlop={6}
@@ -425,6 +486,15 @@ const styles = StyleSheet.create({
   evenementSous: { fontFamily: F.t600, fontSize: 12.5, color: C.violetProfond, opacity: 0.8, lineHeight: 17 },
 
   // Boba Pass
+  vedette: {
+    backgroundColor: C.vertPale, borderRadius: R.carte, padding: 13,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: 1.5, borderColor: C.vert, ...OMBRE,
+  },
+  vedetteSur: { fontFamily: F.t800, fontSize: 9.5, color: C.vertFonce, letterSpacing: 0.5 },
+  vedetteNom: { fontFamily: F.titre, fontSize: 17, color: C.violetProfond, marginTop: 1 },
+  vedetteSous: { fontFamily: F.t600, fontSize: 11.5, color: C.texte2, marginTop: 1 },
+
   pass: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 8, ...OMBRE },
   passHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   passTitre: { fontFamily: F.t800, fontSize: 16, color: C.texte },
@@ -445,6 +515,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 14, ...OMBRE,
   },
   tuileCapsuleDebut: { backgroundColor: '#F3DCE9' },
+  tuileCollectionDebut: { backgroundColor: '#E7DDF4' },
   tuileJouerTitre: { fontFamily: F.titre, fontSize: 20, color: C.violetProfond },
   tuileJouerSous: { fontFamily: F.t600, fontSize: 12.5, color: C.violetProfond, opacity: 0.75, marginTop: 2, lineHeight: 17 },
   tuileJouerGo: {

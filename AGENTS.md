@@ -206,7 +206,7 @@ iOS : arrive dans TestFlight (~10 min de processing Apple) → tester sur l'iPho
 
 **Après la release native** : les OTA suivants ciblent le nouveau runtime automatiquement. Les caisses, elles, restent sur leur circuit : `npm run release:win` dans bubble-tea-pos.
 
-## 🕹️ Boba Quest v3 — tirs + combats enrichis (12/07/2026, JS uniquement, PAS encore déployé)
+## 🕹️ Boba Quest v3 — tirs + combats enrichis (12/07/2026, OTA production DÉPLOYÉ)
 
 Demande Yoann : rendre **Perle Rush** et les combats nettement plus tactiques. Implémentation terminée dans `components/jeu/moteur-shooter.ts`, `components/jeu/arene.ts`, `app/jeu/shooter.tsx`, `app/jeu/duel.tsx` (+ texte boss dans `app/jeu/arene.tsx`). **Aucune dépendance native, aucune nouvelle monnaie, aucune migration AsyncStorage** : les nouveaux champs vivent dans `EtatShooter` / `EtatCombat`, donc uniquement pendant la partie ; les anciennes sauvegardes restent compatibles.
 
@@ -231,4 +231,75 @@ Demande Yoann : rendre **Perle Rush** et les combats nettement plus tactiques. I
 - Nouveau test déterministe `scripts/test-jeu.cjs`, commande **`npm run test:jeu`** : 12 silhouettes distinctes et sans orphelines, aperçu sans mutation, attaque boss shooter, pouvoirs Fever, intention=coup exécuté, réduction Garde, 3 marques et phase boss combat.
 - Validé le 12/07 : `npx tsc --noEmit` ✅ · `npm run test:jeu` ✅ · bundle Metro `npx expo export --platform ios` ✅ · `git diff --check` ✅.
 - `npm run lint` n'est PAS une référence verte : le repo n'avait aucune config ESLint ; Expo a tenté d'en installer une puis a trouvé 72 erreurs typographiques préexistantes (`react/no-unescaped-entities`) dans toute l'app. L'installation automatique ESLint a été retirée, aucune dépendance gardée.
-- **Déploiement** : modifications JS/TS uniquement, donc suivre la procédure OTA officielle ci-dessus SI `app.json.version` correspond bien au runtime du binaire en ligne. Aucun `eas update`, commit ou push n'a été effectué dans cette conversation.
+- **Déploiement EFFECTUÉ le 12/07** : OTA « Boba Quest v3 : tirs et combats », groupe `bc5028e7-629a-42a2-9480-8bf9a38de929`, branche/canal `production`, runtime `1.0.2`, plateformes iOS + Android. Vérifié via `eas channel:view production` et `eas update:list --all` : la build iOS **24** (`appVersion/runtimeVersion 1.0.2`, canal production) est compatible. ⚠️ Un OTA n'apparaît JAMAIS comme une mise à jour dans TestFlight : ouvrir l'app avec Internet pour télécharger en arrière-plan, la fermer complètement, puis la rouvrir pour l'appliquer.
+
+## 🕹️ Boba Quest v3.1 — interface, onboarding et soins rééquilibrés (12/07/2026, JS/TS uniquement, PAS ENCORE DÉPLOYÉ)
+
+Retour TestFlight de Yoann + audit professionnel : sur iPhone court, la grande bannière **Signature prête** recouvrait la carte du combattant ; les soins/vols de vie rallongeaient trop les combats ; plusieurs recommandations d'onboarding et d'états vides restaient incomplètes. Correctifs implémentés dans `app/jeu/duel.tsx`, `components/jeu/arene.ts`, `components/jeu/economie.ts`, `app/jeu/index.tsx`, `app/jeu/parcours.tsx`, `app/jeu/capsules.tsx`, `app/jeu/collection.tsx`, `components/jeu/collectibles.tsx`, `app/jeu/boutique.tsx`, `store/jeu.ts`, nouveau `components/jeu/sauvegarde-jeu.ts` et `scripts/test-jeu.cjs`.
+
+### Duel responsive — règle à conserver
+
+- La zone intention + cartes + journal + Signature vit désormais dans un **`ScrollView` interne à hauteur flexible** (`minHeight:0`, contenu `flexGrow:1`) ; les attaques et contrôles restent accessibles sous cette zone. La Signature est donc toujours dans le flux de layout et ne peut plus peindre par-dessus la carte.
+- **Mode compact automatique si hauteur écran < 900 pt** (`useWindowDimensions`) : avatars 68 au lieu de 86, cartes/paddings/espaces réduits, intention sur une ligne, Signature prête en pill compact. Ne PAS revenir à une `zone flex:1` contenant des enfants plus hauts que sa place : c'était la cause de l'overlap.
+- Contrôles du bas séparés en deux rangées stables : remplaçants puis Garde/Sac ; le Sac ne tombe plus seul à la ligne. Contraste de Garde indisponible renforcé. Labels, hints et états d'accessibilité ajoutés aux actions critiques.
+
+### Équilibrage soins — nouvelles limites permanentes
+
+- **Soin actif** : maximum **25 % des PV max** (`SOIN_DIRECT_MAX_PV_PCT=25`) et le multiplicateur offensif Spé ×1,2 ne s'applique plus au soin.
+- **Vol de vie** : objets + passifs continuent de s'additionner, mais taux effectif plafonné à **25 %** (`VOL_DE_VIE_MAX_PCT`) ET récupération plafonnée à **12 % des PV max par action** (`VOL_DE_VIE_MAX_PV_PCT_ACTION`). Les dégâts d'une zone/d'un multi-coup sont consolidés puis produisent **un seul soin**, jamais un soin par cible/impact.
+- **Régénération passive** : maximum **10 PV après l'action** (`REGEN_MAX_PAR_ACTION`) et aucun tick passif après une action déjà soignante ou la Signature Milk.
+- **Marée Onctueuse (Signature Milk)** : soin réduit **30 % → 20 % des PV max** ; dégâts inchangés à 18 %. Potion Boba 45 % et gimmick boss regen 8 % inchangés (coût/contre-jeu distincts).
+- Les descriptions UI du vol de vie indiquent le cumul maximum de 25 %. Ne pas retirer ces plafonds sans refaire les tests de durée de combat.
+
+### Audit UX appliqué
+
+- **Premier lancement réellement progressif** : tant que l'onboarding n'est pas fini, le hub cache événement, Pass, défis, Arène, Infini, Roulette, boutique, etc. et ne montre que 3 étapes : niveau 1 → capsule gratuite → collection. L'ouverture de Collection termine le guide et révèle le hub complet.
+- Sauvegarde locale passée à **`VERSION_SAUVEGARDE=2`** avec `onboardingTermine`. Migration pure dans `sauvegarde-jeu.ts` : toute ancienne sauvegarde ayant déjà une capsule ou un collectible est considérée terminée ; une sauvegarde vierge garde le guide. Les joueurs existants ne régressent pas.
+- **Parcours** : explique les 1–3 étoiles et le niveau courant annonce la récompense de première victoire (capsule classique/dorée). Nœuds étiquetés pour lecteur d'écran.
+- **Capsules à solde insuffisant** : carte d'action « Jouer pour gagner des perles » vers Aventure, avec montant manquant.
+- **Collection vide** : les 24 inconnus gardent le `?` mais affichent en fond la vraie silhouette estompée de chaque collectible ; ils ne sont plus 24 cases identiques.
+- **Boutique** : encart « Ton prochain objectif », progression, perles manquantes et estimation transparente à ~200 perles par partie (hors bonus).
+
+### Tests, compatibilité et déploiement
+
+- `scripts/test-jeu.cjs` couvre désormais : plafonds soin/vol de vie/régénération, consolidation zone, Signature Milk 20 %, poids/pity capsules, contraintes boutique et migration sauvegarde v1→v2, en plus des tests v3 existants.
+- Validé le 12/07 : `npx tsc --noEmit` ✅ · `npm run test:jeu` ✅ · `git diff --check` ✅ · `npx expo export --platform ios` ✅ · compilation locale **Release iOS** sur le vrai **iPhone yo / iPhone 16 Pro (iOS 26.5)** via `npx expo run:ios --device "iPhone yo" --configuration Release` ✅ (0 erreur, 2 warnings pods non bloquants). L'étape de connexion Expo est restée bloquée après compilation, mais l'app produite a été installée directement avec `xcrun devicectl device install app` puis lancée avec succès via `xcrun devicectl device process launch` (`com.bubblestop.client`) ✅. Cela valide compilation, signature, installation et démarrage ; la vérification **visuelle** du duel (Signature prête dès l'entrée, absence d'overlap, deux rangées de contrôles) reste à faire manuellement sur l'iPhone.
+- **Aucune dépendance native ni migration serveur**. Compatible OTA runtime **1.0.2 / build 24**, mais **aucun commit, push ni `eas update` effectué dans cette intervention**. Avant publication : tester sur vrai iPhone le duel avec Signature prête dès l'entrée, les deux rangées de contrôles et plusieurs soins consécutifs ; après OTA, ouvrir avec Internet, tuer l'app puis la rouvrir.
+
+## 🃏 Boba Quest v3.2 — collection longue, maîtrises et Prestige (12/07/2026, JS/TS uniquement, PAS ENCORE DÉPLOYÉ)
+
+Demande Yoann : éviter que les 24 cartes soient terminées trop facilement et rendre chaque acquisition/doublon intéressant. Implémentation dans `components/jeu/economie.ts`, `components/jeu/collectibles.tsx`, `components/jeu/sauvegarde-jeu.ts`, `store/jeu.ts`, `app/jeu/{index,parcours,shooter,capsules,collection,troc,duel}.tsx` et `scripts/test-jeu.cjs`. Documentation Expo **SDK 56 exacte** relue avant code (`https://docs.expo.dev/versions/v56.0.0/`). Aucune dépendance, table Supabase ni fonction serveur ajoutée : progression toujours locale PREVIEW.
+
+### Économie et anti-accélération — valeurs à conserver
+
+- **Départ protégé** : les **3 premières capsules ouvertes** ne donnent jamais de doublon (`protegerNouveauCollectible`) ; priorité à une carte manquante de la rareté tirée, tout en respectant les raretés autorisées par le type de capsule et un éventuel pity. Les sauvegardes existantes utilisent leur vrai `capsulesOuvertes`, donc aucun cadeau rétroactif ni reset.
+- Prix : **Classique 600 perles** (avant 400) · **Dorée 1 800** (avant 1 200). Odds inchangées : Classique 62/26/9/3 %, Dorée 0/60/30/10 %.
+- **Cadence Aventure** (`capsulePremiereVictoireNiveau`) : niveaux 1–4 = classique ; chaque boss 5/10/15… = dorée ; après le niveau 5, classique uniquement sur les niveaux pairs hors boss. Les autres premières victoires donnent leurs perles/étoiles mais aucune capsule ; parcours et récap de victoire annoncent la vraie récompense. Les replays restent sans capsule.
+- **Pity corrigé** : épique au plus tard à 10 et légendaire au plus tard à 40. Si le tir naturel du pity épique est inférieur, le remplacement est une **épique exacte** ; ne jamais réutiliser l'ancien pool uniforme « épique ou légendaire », qui donnait artificiellement ~50 % de légendaires sur ce remplacement. Une légendaire naturelle reste légendaire.
+- **Troc du jour = même rareté obligatoire** : un doublon commun ne peut recevoir qu'une commune manquante, etc. `trocDuJour` ignore les doublons dont la rareté est déjà complète. Limite 1/jour et conservation d'un exemplaire inchangées.
+- Contrôle économique indicatif (simulation Monte-Carlo locale, 50 000 parcours, séquence approx. 4 classiques/1 dorée + 1 troc de même rareté/jour) : médiane ~**57 jours actifs à 2 ouvertures/jour** ; ~114 j à 1/j, ~38 j à 3/j. C'est une projection sans télémétrie, pas une garantie ; cible produit ≈45–60 jours pour un joueur régulier.
+
+### Chaque carte a désormais une vraie fiche et une mission
+
+- La fiche Collection affiche directement : **rôle** (Attaquant/Tank/Soutien/Contrôle/Zone/Multi-coup/Stratège), PV/ATQ/VIT de base, deux attaques + type/puissance, passif personnel, effet Copain de tir et valeur du doublon. Les données viennent des `FICHES`/`PASSIFS` existants, jamais d'une copie parallèle.
+- **24 missions personnelles** (`MISSIONS_CARTES`, exactement une par collectible) : victoire avec la carte, 5 utilisations de sa Spé, 3 Signatures ou 5 Gardes selon son identité. `duel.tsx` crédite uniquement une action réellement engagée (pas si l'actif est étourdi) et crédite les missions « victoire » des membres de l'équipe à la fin. Récompenses une seule fois : commun 250, rare 300, épique 400, légendaire 600 perles. État persisté `missionsCartes[id]={progres,reclamee}`.
+- L'accueil et les cases Collection affichent le nombre de missions prêtes ; la réclamation se fait dans la fiche. Les missions ne donnent jamais de statistiques permanentes.
+
+### Doublons, vedette hebdomadaire et album Prestige
+
+- **Maîtrise cosmétique dérivée du nombre possédé** (aucun nouveau compteur) : ×1 Bronze, ×2 Argent, ×3 Or, ×5 Holo. Cadres/badges visibles dans album et révélation de capsule ; **zéro bonus de puissance** pour ne pas créer de power creep. Le doublon continue aussi de rendre 60/150/350/800 perles selon la rareté.
+- **Carte vedette de la semaine** : `carteVedetteSemaine(cleSemaine())`, rotation déterministe commune à tous. Première victoire hebdomadaire avec elle parmi les 3 membres = **+300 perles une seule fois**, état `vedetteHebdo`. Mise en avant sur le hub et dans Collection ; le récap de duel détaille le bonus.
+- **Album Prestige après le 24/24** : toute carte tirée est alors un doublon ; la première répétition de chaque personnage débloque sa variante brillante (`prestige[id]=true`) en plus du remboursement. Les gains de duel misé après 24/24 peuvent aussi débloquer la variante. Progression 0/24 visible ; à 24/24 brillant, réclamation unique **+3 000 perles + titre cosmétique « Boba Mythique »** (`prestigeReclame`). Les prix réels du premier album restent inchangés.
+
+### Sauvegarde, tests et déploiement
+
+- Sauvegarde locale passée à **`VERSION_SAUVEGARDE=3`**. Migration additive et non destructive : initialise/nettoie `missionsCartes`, `prestige`, `prestigeReclame`, `vedetteHebdo` ; collection, doublons, pity, niveaux, gains et onboarding existants sont conservés. Helpers purs `missionsCartesApresMigration` / `prestigeApresMigration`, testés sous Node.
+- Validé le 12/07 : `npx tsc --noEmit` ✅ · `npm run test:jeu` ✅ (prix/cadence, pity épique exact, protection nouveau, troc même rareté, 24 missions, maîtrises, migration v3 + tests v3/v3.1) · `git diff --check` ✅ · `npx expo export --platform ios` ✅ · compilation locale Release sur **iPhone yo / iPhone 16 Pro** via `npx expo run:ios --device "iPhone yo" --configuration Release` ✅ (0 erreur, 2 warnings pods préexistants non bloquants) · installation directe du `.app` signé puis lancement `com.bubblestop.client` via `xcrun devicectl` ✅. Expo reste bloqué à son étape « Connecting to iPhone yo » APRÈS un build réussi : interrompre cette attente ne jette pas le build, utiliser `devicectl` comme documenté en v3.1.
+- **Statut : aucun commit, push, OTA ou build EAS effectué.** Changement JS/TS compatible runtime **1.0.2 / build 24** ; publication possible par OTA seulement après validation visuelle sur iPhone. Ne pas lancer l'OTA sans demande explicite de Yoann.
+
+## ✅ Prépublication Boba Quest v3.1/v3.2 — audit final (13/07/2026, PRÊT POUR OTA)
+
+- Yoann a explicitement demandé de commencer la livraison. Le diff complet a été relu : uniquement `src/app/jeu/*`, `src/components/jeu/*`, `src/store/jeu.ts`, `scripts/test-jeu.cjs` et cette documentation. **Aucune dépendance, configuration native, version `app.json`, runtime ni migration serveur n'a changé** : l'OTA reste compatible avec les builds **1.0.2 / runtime 1.0.2**, notamment la build iOS 24.
+- Deux défauts de prépublication ont été corrigés : dans `duel.tsx`, le récapitulatif conserve désormais les perles de victoire et le bonus Vedette sur deux lignes séparées (le bonus était crédité une seule fois dans l'état, mais inclus aussi dans le total affiché, ce qui pouvait laisser croire à un double gain) ; dans `capsules.tsx`, l'état sans solde ne promet plus une capsule à chaque première victoire et renvoie précisément vers les paliers cadeau du parcours.
+- Validations du 13/07 après ces corrections : `npx tsc --noEmit` ✅ · `npm run test:jeu` ✅ · `git diff --check` ✅ · `npx expo export --platform ios` ✅ (bundle 6,19 Mo) · `npx expo run:ios --device "iPhone yo" --configuration Release` ✅ pour la compilation/signature/installation (**0 erreur, 1 warning pod SDWebImage préexistant**). L'app Release exacte a été installée sur l'iPhone 16 Pro ; son lancement automatique a seulement été refusé car l'iPhone était verrouillé. La vérification visuelle humaine de la Signature prête et des contrôles reste donc à faire après déverrouillage.
+- **Statut au moment de cette note : pas encore commité, poussé ni publié en OTA.** Procédure retenue : commit/push, puis rollout OTA production progressif ; compléter cette section avec l'identifiant du groupe et le pourcentage réellement publié.
