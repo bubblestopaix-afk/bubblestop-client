@@ -13,6 +13,8 @@ import Parrainage from '@/components/parrainage';
 import QrView from '@/components/qr-view';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { BoutonPrimaire, BoutonGhost, Message } from '@/components/ui-kit';
+import { IconeApp } from '@/components/icones-app';
+import { LogoBubbleStop } from '@/components/logo-bubblestop';
 
 // Carte de tampons : 9 cases (✓ ou numéro, comme sur le POS) + la 10e case
 // "boisson offerte" avec le gobelet bubble tea dessiné, identique à la borne.
@@ -168,7 +170,7 @@ export default function FideliteScreen() {
       const code = String(data);
       AsyncStorage.setItem('fidelite.numero', code).catch(() => {});
       if (avant && avant.bonus_app === false) {
-        setBienvenue('🎁 Carte activée ! Ton tampon de bienvenue arrive d\'ici quelques minutes.');
+        setBienvenue('Carte activée ! Ton tampon de bienvenue arrive d\'ici quelques minutes.');
       }
       setNumero(code);
     } finally {
@@ -181,7 +183,7 @@ export default function FideliteScreen() {
     return (
       <View style={[styles.fond, { justifyContent: 'center', padding: 24 }]}>
         <View style={styles.videCarte}>
-          <Text style={{ fontSize: 40 }}>🎟</Text>
+          <IconeApp nom="ticket" taille={44} />
           <Text style={styles.videTitre}>Ma carte de fidélité</Text>
           <Text style={styles.aide}>
             Connecte-toi dans l'onglet Compte pour accéder à ta carte et ton QR.
@@ -205,7 +207,7 @@ export default function FideliteScreen() {
               {/* Cercles décoratifs */}
               <View style={[styles.deco, { top: -38, right: -30, width: 130, height: 130 }]} />
               <View style={[styles.deco, { bottom: -46, left: -36, width: 150, height: 150 }]} />
-              <Text style={styles.carteMembreLogo}>BUBBLE STOP</Text>
+              <View style={{ alignItems: 'center' }}><LogoBubbleStop variante="blanc" largeur={124} /></View>
               <View style={{ alignItems: 'center' }}>
                 <QrView valeur={numero} />
               </View>
@@ -225,9 +227,10 @@ export default function FideliteScreen() {
                 pleine = une grande boisson offerte, gardée tant qu'elle n'est pas utilisée) === */}
             {(Number(carte?.cartes_completees) || 0) > 0 && (
               <View style={styles.histoCarte}>
-                <Text style={styles.histoTitre}>
-                  🏆 Mes cartes complétées — {carte.cartes_completees}
-                </Text>
+                <View style={styles.histoTitreRang}>
+                  <IconeApp nom="carte" taille={16} />
+                  <Text style={styles.histoTitre}>Mes cartes complétées — {carte.cartes_completees}</Text>
+                </View>
                 {(histo ?? []).map((h, i) => (
                   <View key={i} style={styles.histoLigne}>
                     <Text style={styles.histoDate}>
@@ -240,7 +243,7 @@ export default function FideliteScreen() {
                 ))}
                 {(Number(carte?.cartes_completees) || 0) > (histo?.length ?? 0) && (
                   <Text style={styles.histoNote}>
-                    + {carte.cartes_completees - (histo?.length ?? 0)} carte{carte.cartes_completees - (histo?.length ?? 0) > 1 ? 's' : ''} complétée{carte.cartes_completees - (histo?.length ?? 0) > 1 ? 's' : ''} avant la mise en place de l'historique 💜
+                    + {carte.cartes_completees - (histo?.length ?? 0)} carte{carte.cartes_completees - (histo?.length ?? 0) > 1 ? 's' : ''} complétée{carte.cartes_completees - (histo?.length ?? 0) > 1 ? 's' : ''} avant la mise en place de l'historique
                   </Text>
                 )}
               </View>
@@ -256,7 +259,7 @@ export default function FideliteScreen() {
             <Text style={styles.aide}>
               Active ta carte de fidélité en un geste. Tu reçois un numéro de fidélité
               et un QR à présenter en caisse.
-              {'\n\n'}📵 Aucun téléphone requis, aucun SMS, jamais de démarchage.
+              {'\n\n'}Aucun téléphone requis, aucun SMS, jamais de démarchage.
             </Text>
             {msg && <Message type="erreur" texte={msg} />}
             <BoutonPrimaire
@@ -271,7 +274,7 @@ export default function FideliteScreen() {
         <Parrainage />
 
         {/* Carte express (QR pris à la borne) : saisir le jeton pour récupérer les tampons */}
-        <BoutonGhost titre="🎟️ J'ai une carte express — saisir mon jeton" onPress={() => router.push('/c' as any)} />
+        <BoutonGhost titre="J'ai une carte express — saisir mon jeton" onPress={() => router.push('/c' as any)} />
       </ScrollView>
     </View>
   );
@@ -284,7 +287,8 @@ const styles = StyleSheet.create({
 
   // Historique des cartes complétées
   histoCarte: { backgroundColor: C.carte, borderRadius: 20, padding: 18, gap: 8, ...OMBRE },
-  histoTitre: { fontFamily: F.t800, fontSize: 15, color: C.violetProfond, marginBottom: 2 },
+  histoTitre: { fontFamily: F.t800, fontSize: 15, color: C.violetProfond },
+  histoTitreRang: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 2 },
   histoLigne: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: C.lavande, paddingTop: 8 },
   histoDate: { fontFamily: F.t600, fontSize: 13.5, color: C.texte },
   histoMag: { fontFamily: F.t700, fontSize: 13, color: C.violetClair },

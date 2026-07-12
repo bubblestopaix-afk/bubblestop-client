@@ -14,13 +14,20 @@ import {
   ObjetId, OBJETS, PASS_PALIERS, PASS_XP, perlesPourScore, PITY_EPIQUE,
   PITY_LEGENDAIRE, POWERUPS, PowerupId, RARETES, RECOMPENSE_COLLECTION,
   Emplacement, CAPSULE_OBJET, ECLATS_DOUBLON, ECLATS_FORGE, tirerObjet, PITY_OBJET_EPIQUE,
+  Tier, TIERS, PC_VICTOIRE, PC_DEFAITE, tierPourPc, tierSuivant, progressionTier,
+  resetSaison, recompenseSaison, joursRestantsSaison, BOSS_RECOMPENSE,
+  CONSOMMABLES, ConsommableId, coutEquipe, BUDGET_EQUIPE, equipeAutoSousBudget,
   SegmentRoulette, SETS, SetId, tirageDefisDuJour, tirerCapsule, tirerCapsuleMin,
   tirerRoulette, TOURNOI_CONSOLATION, TOURNOI_RECOMPENSES, trouverCollectible,
-  TypeCapsule, COLLECTIBLES,
+  TypeCapsule, COLLECTIBLES, trocDuJour,
 } from '@/components/jeu/economie';
 import {
-  MISES_DUEL_PAR_JOUR, PERLES_DEFAITE_ARENE, recompenseRang,
+  MISES_DUEL_PAR_JOUR, PERLES_DEFAITE_ARENE, recompenseRang, AMIS_DEMO,
 } from '@/components/jeu/arene';
+
+const CLE_SAUVEGARDE = 'bobaQuest.etat';
+const CLE_SAUVEGARDE_SECOURS = 'bobaQuest.etat.backup';
+const VERSION_SAUVEGARDE = 1;
 
 // Statistiques d'une partie (défis du jour) — fournies par l'écran shooter
 export type StatsPartie = {
@@ -46,6 +53,7 @@ type StatsJour = {
 };
 
 export type EtatBobaQuest = {
+  versionSauvegarde: number;                    // version du schéma local, migrée au chargement
   perles: number;
   collection: Record<string, number>;   // id collectible → nb possédés
   gains: Gain[];                        // prix réels gagnés (à réclamer)
@@ -66,6 +74,18 @@ export type EtatBobaQuest = {
   portes: Record<string, Partial<Record<Emplacement, ObjetId>>>; // collectibleId → objet par emplacement
   eclats: number;                                         // 🔹 éclats d'objet (forge)
   pityObjet: number;                                      // Capsules Objet depuis le dernier épique+
+  consommables: Partial<Record<ConsommableId, number>>;   // 🎒 sac de consommables de combat
+  classement: {                                           // 🏆 ligue classée + saisons
+    pc: number;                                           // points de classement
+    saison: string;                                       // 'YYYY-MM' de la saison en cours
+    meilleurTierSaison: number;                           // meilleur tier atteint cette saison
+    recompenseEnAttente: { saison: string; tierId: number } | null;
+    titres: string[];                                     // titres cosmétiques gagnés
+  };
+  bossHebdo: { semaine: string; battu: boolean };         // 👹 boss de la semaine
+  prixMois: { mois: string; achats: Record<string, number> }; // 🛡️ anti-farm : achats boutique du mois, par article
+  trocJour: { jour: string; fait: boolean };              // 🤝 troc du jour (1/jour)
+  defis: { jour: string; resolus: string[]; historique: { ami: string; gagne: boolean }[] }; // ⚔️ défis d'amis
   tournoi: {
     semaine: string;                    // 'YYYY-Sxx' de la dernière participation
     etape: number;                      // 0..2 = prochaine étape, 3 = champion
@@ -98,6 +118,7 @@ const STATS_JOUR_VIERGES = (jour: string): StatsJour => ({
 });
 
 const DEFAUT: EtatBobaQuest = {
+  versionSauvegarde: VERSION_SAUVEGARDE,
   perles: 0,
   collection: {},
   gains: [],
@@ -110,6 +131,12 @@ const DEFAUT: EtatBobaQuest = {
   portes: {},
   eclats: 0,
   pityObjet: 0,
+  consommables: {},
+  classement: { pc: 0, saison: '', meilleurTierSaison: 0, recompenseEnAttente: null, titres: [] },
+  bossHebdo: { semaine: '', battu: false },
+  prixMois: { mois: '', achats: {} },
+  trocJour: { jour: '', fait: false },
+  defis: { jour: '', resolus: [], historique: [] },
   tournoi: { semaine: '', etape: 0, elimine: false, trophees: 0 },
   pity: { epique: 0, legendaire: 0 },
   pass: { semaine: '', xp: 0, reclames: [] },
@@ -149,43 +176,120 @@ function migrerPortes(brut: unknown): Record<string, Partial<Record<Emplacement,
 
 let etat: EtatBobaQuest = JSON.parse(JSON.stringify(DEFAUT));
 const listeners = new Set<() => void>();
+export type EtatHydratationBobaQuest = 'chargement' | 'prete' | 'recuperee' | 'erreur';
+let hydratation: EtatHydratationBobaQuest = 'chargement';
+let dernierSerialise: string | null = null;
+let fileEcriture: Promise<void> = Promise.resolve();
 
-// Restaure la sauvegarde au premier import du module
-AsyncStorage.getItem('bobaQuest.etat')
-  .then((brut) => {
-    if (!brut) return;
-    try {
-      const sauve = JSON.parse(brut);
-      if (sauve && typeof sauve === 'object') {
-        etat = {
-          ...JSON.parse(JSON.stringify(DEFAUT)),
-          ...sauve,
-          powerups: { ...DEFAUT.powerups, ...(sauve.powerups || {}) },
-          aventure: { ...DEFAUT.aventure, ...(sauve.aventure || {}) },
-          arene: { ...DEFAUT.arene, ...(sauve.arene || {}) },
-          objets: { ...(sauve.objets || {}) },
-          portes: migrerPortes(sauve.portes),
-          tournoi: { ...DEFAUT.tournoi, ...(sauve.tournoi || {}) },
-          pity: { ...DEFAUT.pity, ...(sauve.pity || {}) },
-          pass: { ...DEFAUT.pass, ...(sauve.pass || {}) },
-          statsJour: { ...STATS_JOUR_VIERGES(''), ...(sauve.statsJour || {}) },
-        };
-        listeners.forEach((l) => l());
+function notifier() {
+  listeners.forEach((l) => l());
+}
+
+// Convertit toutes les anciennes sauvegardes vers le schéma courant sans changer
+// la clé AsyncStorage historique. Les champs inconnus sont conservés par le spread.
+function migrerSauvegarde(brut: string): EtatBobaQuest | null {
+  try {
+    const sauve = JSON.parse(brut);
+    if (!sauve || typeof sauve !== 'object' || Array.isArray(sauve)) return null;
+    return {
+      ...JSON.parse(JSON.stringify(DEFAUT)),
+      ...sauve,
+      versionSauvegarde: VERSION_SAUVEGARDE,
+      powerups: { ...DEFAUT.powerups, ...(sauve.powerups || {}) },
+      aventure: { ...DEFAUT.aventure, ...(sauve.aventure || {}) },
+      arene: { ...DEFAUT.arene, ...(sauve.arene || {}) },
+      classement: { ...DEFAUT.classement, ...(sauve.classement || {}) },
+      bossHebdo: { ...DEFAUT.bossHebdo, ...(sauve.bossHebdo || {}) },
+      // prixMois v2 : plafond PAR ARTICLE ({achats}). Convertit l'ancien schéma
+      // v1 {boissons: n} ; l'ex-quota hebdo (prixSemaine) est abandonné, ignoré au chargement.
+      prixMois: {
+        mois: sauve.prixMois?.mois || '',
+        achats: {
+          ...(sauve.prixMois?.achats || {}),
+          ...(sauve.prixMois?.boissons ? { 'boisson-l': sauve.prixMois.boissons } : {}),
+        },
+      },
+      trocJour: { ...DEFAUT.trocJour, ...(sauve.trocJour || {}) },
+      defis: { ...DEFAUT.defis, ...(sauve.defis || {}) },
+      consommables: { ...(sauve.consommables || {}) },
+      objets: { ...(sauve.objets || {}) },
+      portes: migrerPortes(sauve.portes),
+      tournoi: { ...DEFAUT.tournoi, ...(sauve.tournoi || {}) },
+      pity: { ...DEFAUT.pity, ...(sauve.pity || {}) },
+      pass: { ...DEFAUT.pass, ...(sauve.pass || {}) },
+      statsJour: { ...STATS_JOUR_VIERGES(''), ...(sauve.statsJour || {}) },
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Restaure la sauvegarde avant d'autoriser le rendu des écrans du jeu. Si la
+// valeur principale est illisible, tente la dernière copie connue avant de bloquer.
+async function hydraterSauvegarde() {
+  try {
+    const principalBrut = await AsyncStorage.getItem(CLE_SAUVEGARDE);
+    const principal = principalBrut ? migrerSauvegarde(principalBrut) : null;
+    if (principal) {
+      etat = principal;
+      dernierSerialise = principalBrut;
+      hydratation = 'prete';
+      return;
+    }
+
+    const secoursBrut = await AsyncStorage.getItem(CLE_SAUVEGARDE_SECOURS);
+    const secours = secoursBrut ? migrerSauvegarde(secoursBrut) : null;
+    if (secours) {
+      etat = secours;
+      dernierSerialise = JSON.stringify(secours);
+      await AsyncStorage.setItem(CLE_SAUVEGARDE, dernierSerialise);
+      hydratation = 'recuperee';
+      return;
+    }
+
+    hydratation = principalBrut || secoursBrut ? 'erreur' : 'prete';
+  } catch {
+    hydratation = 'erreur';
+  } finally {
+    notifier();
+  }
+}
+
+void hydraterSauvegarde();
+
+function planifierEcriture(serialise: string) {
+  fileEcriture = fileEcriture
+    .catch(() => {})
+    .then(async () => {
+      const precedent = dernierSerialise;
+      if (precedent && precedent !== serialise) {
+        await AsyncStorage.setItem(CLE_SAUVEGARDE_SECOURS, precedent).catch(() => {});
       }
-    } catch { /* sauvegarde illisible → on repart de zéro */ }
-  })
-  .catch(() => {});
+      await AsyncStorage.setItem(CLE_SAUVEGARDE, serialise);
+      dernierSerialise = serialise;
+    })
+    .catch((erreur) => {
+      if (__DEV__) console.warn('Boba Quest : sauvegarde locale impossible', erreur);
+    });
+}
 
 function emit() {
   etat = { ...etat };
-  listeners.forEach((l) => l());
-  AsyncStorage.setItem('bobaQuest.etat', JSON.stringify(etat)).catch(() => {});
+  notifier();
+  planifierEcriture(JSON.stringify(etat));
 }
 
 export function useBobaQuest(): EtatBobaQuest {
   return useSyncExternalStore(
     (cb) => { listeners.add(cb); return () => listeners.delete(cb); },
     () => etat,
+  );
+}
+
+export function useHydratationBobaQuest(): EtatHydratationBobaQuest {
+  return useSyncExternalStore(
+    (cb) => { listeners.add(cb); return () => listeners.delete(cb); },
+    () => hydratation,
   );
 }
 
@@ -205,6 +309,36 @@ function assurerSemainePass() {
   if (etat.pass.semaine !== semaine) {
     etat.pass = { semaine, xp: 0, reclames: [] };
   }
+}
+
+// 🏆 Rollover de saison (mensuel) : reset DOUX des PC, récompense de fin de saison
+// mise en attente selon le meilleur tier atteint. Vérifié paresseusement.
+function assurerSaison() {
+  const saison = cleMois();
+  const c = etat.classement;
+  if (!c.saison) { etat.classement = { ...c, saison }; return; } // 1ʳᵉ initialisation
+  if (c.saison !== saison) {
+    const pc = resetSaison(c.pc);
+    etat.classement = {
+      pc,
+      saison,
+      meilleurTierSaison: tierPourPc(pc).id,
+      // récompense de la saison qui vient de finir (garde la plus haute si non réclamée)
+      recompenseEnAttente:
+        c.recompenseEnAttente && c.recompenseEnAttente.tierId >= c.meilleurTierSaison
+          ? c.recompenseEnAttente
+          : { saison: c.saison, tierId: c.meilleurTierSaison },
+      titres: c.titres,
+    };
+  }
+}
+
+// Applique un delta de PC (borné à 0), met à jour le meilleur tier de la saison.
+function appliquerPc(delta: number) {
+  assurerSaison();
+  const pc = Math.max(0, etat.classement.pc + delta);
+  const meilleur = Math.max(etat.classement.meilleurTierSaison, tierPourPc(pc).id);
+  etat.classement = { ...etat.classement, pc, meilleurTierSaison: meilleur };
 }
 
 // Multiplicateur d'événement du jour (×2 le week-end) appliqué à TOUS les gains de perles
@@ -343,7 +477,7 @@ export function terminerNiveau(
     ? Math.floor(stats.score / NIVEAU_DIV_SCORE) + etoiles * NIVEAU_PERLES_PAR_ETOILE
     : Math.floor(stats.score / NIVEAU_DIV_REJOUER);
   base = Math.round(base * (1 + effetBuddyActuel().perlesPct / 100));
-  const { perles, bonusJour } = appliquerBonusJour(Math.min(400, base));
+  const { perles, bonusJour } = appliquerBonusJour(Math.min(650, base));
   etat.perles += perles;
 
   let capsule: TypeCapsule | null = null;
@@ -426,9 +560,56 @@ export function idsDoublons(e: EtatBobaQuest = etat): string[] {
   return COLLECTIBLES.filter((c) => (e.collection[c.id] || 0) >= 2).map((c) => c.id);
 }
 
+// 🤝 Troc du jour : proposition de « Sam » (démo) — donne un doublon, reçois une carte
+// manquante. null s'il n'y a pas d'échange possible aujourd'hui.
+export function trocDuJourActuel(e: EtatBobaQuest = etat): { veut: string; offre: string; fait: boolean } | null {
+  const doublons = idsDoublons(e);
+  const manquants = COLLECTIBLES.filter((c) => !((e.collection[c.id] || 0) > 0)).map((c) => c.id);
+  const t = trocDuJour(cleJour(), doublons, manquants);
+  if (!t) return null;
+  const fait = e.trocJour.jour === cleJour() && e.trocJour.fait;
+  return { ...t, fait };
+}
+// Réalise l'échange du jour (1/jour). Retourne l'échange effectué ou null.
+export function faireTrocDuJour(): { veut: string; offre: string } | null {
+  const t = trocDuJourActuel();
+  if (!t || t.fait) return null;
+  if ((etat.collection[t.veut] || 0) < 2) return null; // sécurité : il faut le doublon
+  etat.collection[t.veut] -= 1;
+  etat.collection[t.offre] = (etat.collection[t.offre] || 0) + 1;
+  etat.trocJour = { jour: cleJour(), fait: true };
+  emit();
+  return { veut: t.veut, offre: t.offre };
+}
+
 export function definirEquipe(ids: string[]) {
   etat.arene = { ...etat.arene, equipe: ids.slice(0, 3) };
   emit();
+}
+
+// ⚖️ Une équipe est-elle valide (3 cartes possédées, sous le budget de rareté) ?
+export function equipeValideSousBudget(ids: string[], e: EtatBobaQuest = etat): boolean {
+  return ids.length === 3
+    && ids.every((id) => (e.collection[id] || 0) > 0)
+    && coutEquipe(ids) <= BUDGET_EQUIPE;
+}
+
+// --- 🎒 Consommables de combat ---------------------------------------------------------
+export function acheterConsommable(id: ConsommableId, n = 1): boolean {
+  const cout = CONSOMMABLES[id].cout * n;
+  if (etat.perles < cout) return false;
+  etat.perles -= cout;
+  etat.consommables = { ...etat.consommables, [id]: (etat.consommables[id] ?? 0) + n };
+  emit();
+  return true;
+}
+// Consomme 1 exemplaire (appelé quand on l'utilise en combat). True si dispo.
+export function utiliserConsommable(id: ConsommableId): boolean {
+  const n = etat.consommables[id] ?? 0;
+  if (n <= 0) return false;
+  etat.consommables = { ...etat.consommables, [id]: n - 1 };
+  emit();
+  return true;
 }
 
 export function definirBuddy(id: string | null) {
@@ -436,8 +617,8 @@ export function definirBuddy(id: string | null) {
   emit();
 }
 
-// Victoire contre le Maître du rang courant → perles + capsule éventuelle, rang +1
-export function victoireArene(rang: number): { perles: number; capsule: TypeCapsule | null } {
+// Victoire contre le Maître du rang courant → perles + capsule éventuelle, rang +1, +PC
+export function victoireArene(rang: number): { perles: number; capsule: TypeCapsule | null; pc: number } {
   const r = recompenseRang(rang);
   const gagnees = perlesEvenement(r.perles);
   etat.perles += gagnees;
@@ -445,16 +626,79 @@ export function victoireArene(rang: number): { perles: number; capsule: TypeCaps
   else if (r.capsule === 'classique') etat.capsulesGratuites += 1;
   if (rang === etat.arene.rang) etat.arene = { ...etat.arene, rang: rang + 1 };
   etat.arene = { ...etat.arene, victoires: etat.arene.victoires + 1 };
+  appliquerPc(PC_VICTOIRE);
   gagnerXpPass(PASS_XP.arene);
   emit();
-  return { perles: gagnees, capsule: r.capsule };
+  return { perles: gagnees, capsule: r.capsule, pc: PC_VICTOIRE };
 }
 
-export function defaiteArene(): { perles: number } {
+export function defaiteArene(): { perles: number; pc: number } {
   etat.perles += PERLES_DEFAITE_ARENE;
   etat.arene = { ...etat.arene, defaites: etat.arene.defaites + 1 };
+  const avant = etat.classement.pc;
+  appliquerPc(PC_DEFAITE);
+  const pc = etat.classement.pc - avant; // delta réel (planché à 0)
   emit();
-  return { perles: PERLES_DEFAITE_ARENE };
+  return { perles: PERLES_DEFAITE_ARENE, pc };
+}
+
+// 👹 Boss hebdomadaire : battable une fois par semaine (reset lazy au changement de semaine)
+function assurerSemaineBoss() {
+  const semaine = cleSemaine();
+  if (etat.bossHebdo.semaine !== semaine) etat.bossHebdo = { semaine, battu: false };
+}
+export function bossBattuCetteSemaine(e: EtatBobaQuest = etat): boolean {
+  return e.bossHebdo.semaine === cleSemaine() && e.bossHebdo.battu;
+}
+// Victoire contre le boss → grosse récompense, une seule fois par semaine
+export function victoireBoss(): { perles: number; capsules: number; eclats: number; deja: boolean } {
+  assurerSemaineBoss();
+  if (etat.bossHebdo.battu) return { perles: 0, capsules: 0, eclats: 0, deja: true };
+  const perles = perlesEvenement(BOSS_RECOMPENSE.perles);
+  etat.perles += perles;
+  etat.capsulesGratuites += BOSS_RECOMPENSE.capsules;
+  etat.eclats += BOSS_RECOMPENSE.eclats;
+  etat.bossHebdo = { semaine: cleSemaine(), battu: true };
+  appliquerPc(PC_VICTOIRE);
+  gagnerXpPass(PASS_XP.tournoi);
+  emit();
+  return { perles, capsules: BOSS_RECOMPENSE.capsules, eclats: BOSS_RECOMPENSE.eclats, deja: false };
+}
+
+// 🏆 Réclame la récompense de fin de saison en attente (perles, capsules, éclats, titre)
+export function reclamerRecompenseSaison(): { perles: number; capsules: number; eclats: number; titre: string | null } | null {
+  assurerSaison();
+  const pend = etat.classement.recompenseEnAttente;
+  if (!pend) return null;
+  const rec = recompenseSaison(pend.tierId);
+  const perles = perlesEvenement(rec.perles);
+  etat.perles += perles;
+  etat.capsulesGratuites += rec.capsules;
+  etat.eclats += rec.eclats;
+  const titres = rec.titre ? [...etat.classement.titres, `${rec.titre} · ${pend.saison}`] : etat.classement.titres;
+  etat.classement = { ...etat.classement, recompenseEnAttente: null, titres };
+  emit();
+  return { ...rec, perles };
+}
+
+// Lecture du classement courant (tier, progression, saison) pour l'UI
+export function classementActuel(e: EtatBobaQuest = etat): {
+  pc: number; tier: Tier; suivant: Tier | null; progression: number;
+  saison: string; joursRestants: number; meilleurTierSaison: number;
+  recompenseEnAttente: { saison: string; tierId: number } | null; titres: string[];
+} {
+  const pc = e.classement.pc;
+  return {
+    pc,
+    tier: tierPourPc(pc),
+    suivant: tierSuivant(pc),
+    progression: progressionTier(pc),
+    saison: e.classement.saison || cleMois(),
+    joursRestants: joursRestantsSaison(),
+    meilleurTierSaison: e.classement.meilleurTierSaison,
+    recompenseEnAttente: e.classement.recompenseEnAttente,
+    titres: e.classement.titres,
+  };
 }
 
 // Mises de duels (limitées par jour) — préview locale du « gagner les billes des autres »
@@ -482,6 +726,33 @@ export function resoudreDuelAmi(gagne: boolean, miseId?: string, gainId?: string
   }
   emit();
   return { nouveau };
+}
+
+// --- ⚔️ Défis asynchrones d'amis (preview) --------------------------------------------------
+const DEFI_PERLES = 80; // récompense d'un défi remporté
+
+// Reset lazy des défis relevés au changement de jour (l'historique, lui, reste).
+function assurerJourDefis() {
+  if (etat.defis.jour !== cleJour()) etat.defis = { ...etat.defis, jour: cleJour(), resolus: [] };
+}
+// Défis d'amis encore en attente aujourd'hui (ceux pas encore relevés).
+export function defisEnAttente(e: EtatBobaQuest = etat): string[] {
+  const resolus = e.defis.jour === cleJour() ? e.defis.resolus : [];
+  return AMIS_DEMO.filter((nom) => !resolus.includes(nom));
+}
+// Relève un défi : marque l'ami comme relevé, journalise le résultat, récompense si gagné.
+export function resoudreDefiAmi(nom: string, gagne: boolean): { perles: number } {
+  assurerJourDefis();
+  // 1 défi par ami et par jour : déjà relevé aujourd'hui → pas de double récompense ni de
+  // doublon d'historique. Inatteignable via l'UI actuelle (l'ami quitte la liste dès qu'il est
+  // relevé), mais protège les futurs vrais comptes (renvois réseau / double-soumission).
+  if (etat.defis.resolus.includes(nom)) return { perles: 0 };
+  etat.defis.resolus = [...etat.defis.resolus, nom];
+  etat.defis.historique = [{ ami: nom, gagne }, ...etat.defis.historique].slice(0, 12);
+  const perles = gagne ? perlesEvenement(DEFI_PERLES) : 0; // événement du jour appliqué (ex. ×2 le week-end)
+  if (perles) etat.perles += perles;
+  emit();
+  return { perles };
 }
 
 // --- 🎒 Objets à équiper : le méta de l'Arène -----------------------------------------------
@@ -704,9 +975,27 @@ export function reclamerCollection(): Gain | null {
   return gain;
 }
 
+// 🛡️ Anti-farm : reset lazy des plafonds mensuels de la boutique au changement de mois.
+function assurerMoisPrix() {
+  const mois = cleMois();
+  if (etat.prixMois.mois !== mois) etat.prixMois = { mois, achats: {} };
+}
+// Combien de fois cet article peut encore être débloqué ce mois-ci (0 = plafonné).
+export function restantCeMois(palierId: string, e: EtatBobaQuest = etat): number {
+  const palier = BOUTIQUE.find((p) => p.id === palierId);
+  if (!palier) return 0;
+  const pris = e.prixMois.mois === cleMois() ? (e.prixMois.achats[palierId] || 0) : 0;
+  return Math.max(0, palier.parMois - pris);
+}
+
 export function acheterBoutique(palierId: string): Gain | null {
   const palier = BOUTIQUE.find((p) => p.id === palierId);
   if (!palier || etat.perles < palier.cout) return null;
+  assurerMoisPrix();
+  // 🛡️ Anti-farm : plafond MENSUEL par article (tampon 1× · −10 % 3× · −20 % 1× · boisson 1×).
+  const pris = etat.prixMois.achats[palierId] || 0;
+  if (pris >= palier.parMois) return null;
+  etat.prixMois.achats = { ...etat.prixMois.achats, [palierId]: pris + 1 };
   etat.perles -= palier.cout;
   const gain = nouveauGain(palier.type, palier.qte, 'boutique');
   etat.gains = [gain, ...etat.gains];
@@ -741,6 +1030,7 @@ export function utiliserGain(id: string) {
 
 // Remise à zéro complète (bouton preview du hub)
 export function resetBobaQuest() {
+  if (!__DEV__) return;
   etat = JSON.parse(JSON.stringify(DEFAUT));
   emit();
 }

@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { C, F, OMBRE } from '@/constants/charte';
 import { BoutonPrimaire, BoutonGhost, Message } from '@/components/ui-kit';
+import { IconeApp } from '@/components/icones-app';
 import { memoriserCodeParrain, appliquerParrainEnAttente } from '@/lib/parrainage';
 
 const LIEN_PLAY = 'https://play.google.com/store/apps/details?id=com.bubblestop.client';
@@ -40,7 +41,7 @@ export default function LienParrainage() {
   return (
     <View style={[styles.fond, { paddingTop: insets.top + 24 }]}>
       <View style={styles.carte}>
-        <Text style={styles.emoji}>🤝</Text>
+        <IconeApp nom="coeur" taille={46} />
         <Text style={styles.titre}>Parrainage Bubble Stop</Text>
 
         {etat === 'chargement' && <Text style={styles.texte}>Un instant…</Text>}
@@ -49,7 +50,7 @@ export default function LienParrainage() {
           <>
             <Message type="ok" texte={msg || 'Parrainage enregistré !'} />
             <Text style={styles.texte}>
-              Tes tampons de bienvenue (et ceux de ton parrain) arrivent automatiquement à ta première commande en magasin. 🧋
+              Tes tampons de bienvenue (et ceux de ton parrain) arrivent automatiquement à ta première commande en magasin.
             </Text>
             <BoutonPrimaire titre="Voir ma carte de fidélité" onPress={() => router.replace('/explore')} />
           </>
@@ -72,7 +73,7 @@ export default function LienParrainage() {
             {Platform.OS === 'web' && (
               <>
                 <Text style={styles.astuce}>
-                  💡 Astuce : crée ton compte ici (10 secondes), puis télécharge l'appli et
+                  Astuce : crée ton compte ici (10 secondes), puis télécharge l'appli et
                   connecte-toi — ton parrainage sera déjà enregistré. Si tu installes l'appli
                   d'abord, note ton code : tu le saisiras dans Fidélité → Parrainage.
                 </Text>

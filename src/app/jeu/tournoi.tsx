@@ -12,6 +12,7 @@ import PastilleCollectible from '@/components/jeu/collectibles';
 import {
   cleSemaine, OBJETS, TOURNOI_ETAPES, TOURNOI_RECOMPENSES, trouverCollectible,
 } from '@/components/jeu/economie';
+import { Icone, IconeEmoji } from '@/components/jeu/icones';
 import { BandeauPreview, BoutonJeu, EnTeteJeu, formatNb } from '@/components/jeu/ui-jeu';
 import { etatTournoi, useBobaQuest } from '@/store/jeu';
 
@@ -25,7 +26,7 @@ export default function TournoiScreen() {
   return (
     <View style={[styles.fond, { paddingTop: insets.top + 10 }]}>
       <View style={{ paddingHorizontal: 18 }}>
-        <EnTeteJeu titre="Tournoi 🏆" onRetour={() => router.back()} perles={etat.perles} />
+        <EnTeteJeu titre="Tournoi" onRetour={() => router.back()} perles={etat.perles} />
       </View>
 
       <ScrollView contentContainerStyle={styles.contenu}>
@@ -37,14 +38,15 @@ export default function TournoiScreen() {
           </Text>
           {tournoi.trophees > 0 && (
             <View style={styles.trophees}>
-              <Text style={styles.tropheesTxt}>👑 {tournoi.trophees} titre{tournoi.trophees > 1 ? 's' : ''} de Champion</Text>
+              <Icone nom="couronne" taille={15} />
+              <Text style={styles.tropheesTxt}>{tournoi.trophees} titre{tournoi.trophees > 1 ? 's' : ''} de Champion</Text>
             </View>
           )}
         </View>
 
         {champion && (
           <View style={styles.championCarte}>
-            <Text style={{ fontSize: 40 }}>👑</Text>
+            <Icone nom="couronne" taille={44} />
             <Text style={styles.championTitre}>CHAMPION DE LA SEMAINE !</Text>
             <Text style={styles.championTexte}>Tu as balayé le tournoi. Reviens lundi défendre ton titre.</Text>
           </View>
@@ -70,9 +72,10 @@ export default function TournoiScreen() {
               ]}
             >
               <View style={styles.etapeHaut}>
-                <Text style={styles.etapeNom}>
-                  {faite ? '✅ ' : perdueIci ? '❌ ' : verrouillee ? '🔒 ' : '⚔️ '}{nomEtape}
-                </Text>
+                <View style={styles.etapeNomRang}>
+                  <Icone nom={faite ? 'check' : perdueIci ? 'interdit' : verrouillee ? 'cadenas' : 'epee'} taille={16} />
+                  <Text style={styles.etapeNom}>{nomEtape}</Text>
+                </View>
                 <Text style={styles.puissance}>×{adv.echelle.toFixed(2)}</Text>
               </View>
               <Text style={styles.advNom}>{adv.nom}</Text>
@@ -80,17 +83,22 @@ export default function TournoiScreen() {
                 {adv.ids.map((id) => (
                   <View key={id} style={styles.slot}>
                     <PastilleCollectible id={id} taille={56} />
-                    <Text style={styles.slotNom} numberOfLines={1}>
-                      {trouverCollectible(id)?.nom}{adv.objets[id]?.length ? ` ${adv.objets[id].map((o) => OBJETS[o].emoji).join('')}` : ''}
-                    </Text>
+                    <View style={styles.slotNomRang}>
+                      <Text style={styles.slotNom} numberOfLines={1}>{trouverCollectible(id)?.nom}</Text>
+                      {adv.objets[id]?.map((o) => <IconeEmoji key={o} emoji={OBJETS[o].emoji} taille={12} />)}
+                    </View>
                   </View>
                 ))}
               </View>
-              <Text style={styles.recompense}>
-                🏆 {formatNb(rec.perles)} perles
-                {rec.capsule ? ` + capsule ${rec.capsule === 'doree' ? 'DORÉE 👑' : 'classique 🎁'}` : ''}
-                {i === 2 ? ' + titre de Champion' : ''}
-              </Text>
+              <View style={styles.recompenseRang}>
+                <Icone nom="trophee" taille={15} />
+                <Text style={styles.recompense}>
+                  {formatNb(rec.perles)} perles
+                  {rec.capsule ? ` + capsule ${rec.capsule === 'doree' ? 'DORÉE' : 'classique'}` : ''}
+                  {i === 2 ? ' + titre de Champion' : ''}
+                </Text>
+                {rec.capsule ? <IconeEmoji emoji={rec.capsule === 'doree' ? '👑' : '🎁'} taille={15} /> : null}
+              </View>
               {courante && (
                 <BoutonJeu
                   titre={`Combattre — ${nomEtape} !`}
@@ -98,7 +106,7 @@ export default function TournoiScreen() {
                   style={{ backgroundColor: i === 2 ? '#D2588A' : C.vert }}
                 />
               )}
-              {perdueIci && <Text style={styles.elimine}>Éliminé ici — nouveau tournoi lundi 🍀</Text>}
+              {perdueIci && <Text style={styles.elimine}>Éliminé ici — nouveau tournoi lundi</Text>}
             </View>
           );
         })}
@@ -120,6 +128,7 @@ const styles = StyleSheet.create({
   semaine: { fontFamily: F.t800, fontSize: 14, color: C.violetProfond },
   pitch: { fontFamily: F.t600, fontSize: 12.5, color: C.texte2, textAlign: 'center', lineHeight: 18 },
   trophees: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: C.jaunePale, borderRadius: R.pill, paddingVertical: 5, paddingHorizontal: 12,
     borderWidth: 1, borderColor: C.jaune,
   },
@@ -137,6 +146,7 @@ const styles = StyleSheet.create({
   etapeCourante: { borderWidth: 2, borderColor: C.violetClair },
   etapeFinale: { backgroundColor: '#FDF6FB' },
   etapeHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  etapeNomRang: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   etapeNom: { fontFamily: F.t800, fontSize: 15.5, color: C.texte },
   puissance: {
     fontFamily: F.t800, fontSize: 12, color: C.violetProfond,
@@ -147,7 +157,9 @@ const styles = StyleSheet.create({
   equipeRang: { flexDirection: 'row', justifyContent: 'space-around' },
   slot: { alignItems: 'center', gap: 3, width: 92 },
   slotNom: { fontFamily: F.t700, fontSize: 11, color: C.texte },
+  slotNomRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, flexWrap: 'wrap' },
   recompense: { fontFamily: F.t700, fontSize: 12.5, color: C.vertFonce, textAlign: 'center' },
+  recompenseRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, flexWrap: 'wrap' },
   elimine: { fontFamily: F.t700, fontSize: 12.5, color: C.danger, textAlign: 'center' },
   note: { fontFamily: F.t600, fontSize: 12, color: C.texte3, textAlign: 'center' },
 });

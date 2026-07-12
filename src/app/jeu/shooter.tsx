@@ -23,6 +23,7 @@ import {
   Special, tirer,
 } from '@/components/jeu/moteur-shooter';
 import { perlesPourScore, POWERUPS, PowerupId } from '@/components/jeu/economie';
+import { Icone } from '@/components/jeu/icones';
 import { BilleSkia, BullePx, PlateauSkia } from '@/components/jeu/plateau-skia';
 import { BoutonJeu, formatNb, IconePerle } from '@/components/jeu/ui-jeu';
 import {
@@ -94,6 +95,13 @@ export default function ShooterScreen() {
   // instantanément à destination → effet de téléportation).
   const [grilleFigee, setGrilleFigee] = useState<Ligne[] | null>(null);
   const [guide, setGuide] = useState<Point[] | null>(null);
+  // 🏹 effet lance-pierre : pendant la visée, la bille RECULE à l'opposé du tir comme un
+  // élastique tendu (plus le doigt est loin, plus ça tire), puis CLAQUE en avant au lâcher.
+  // `recul` anime la bille (Animated) ; `visee` (état) dessine l'élastique en SVG.
+  const recul = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const etirement = useRef(new Animated.Value(0)).current;
+  const tensionRef = useRef(0); // 0..1 : tension de l'élastique au lâcher → vitesse du tir
+  const [visee, setVisee] = useState<{ a: number; r: number } | null>(null);
   const [volee, setVolee] = useState<Volee | null>(null);
   const [fin, setFin] = useState<Fin | null>(null);
   const [armee, setArmee] = useState<Special | null>(null);
@@ -148,23 +156,40 @@ export default function ShooterScreen() {
   const lanceurPx = { x: offX + lanceur.x * d, y: lanceur.y * d };
   const enPx = (u: Point) => ({ x: offX + u.x * d, y: u.y * d });
 
-  // — visée —
+  // — visée LANCE-PIERRE : on tire la bille vers le BAS, le tir part à l'OPPOSÉ (vers le haut).
+  // Doigt au-dessus du lanceur = pas armé (null) → aucun tir accidentel en touchant le plateau.
   const calculerAngle = useCallback((tx: number, ty: number): number | null => {
     const dx = tx - lanceurPx.x, dy = ty - lanceurPx.y;
-    if (Math.hypot(dx, dy) < 14) return null;
-    let a = Math.atan2(dy, dx);
-    if (a > -0.02 && a < Math.PI / 2) a = ANGLE_MAX;
-    else if (a >= Math.PI / 2 || a < -Math.PI) a = ANGLE_MIN;
+    if (Math.hypot(dx, dy) < 14) return null;      // zone morte autour de la bille
+    if (dy < d * 0.08) return null;                // on n'arme qu'en étirant vers le BAS
+    const a = Math.atan2(-dy, -dx);                // direction du tir = opposé de l'étirement
     return Math.max(ANGLE_MIN, Math.min(ANGLE_MAX, a));
-  }, [lanceurPx.x, lanceurPx.y]);
+  }, [lanceurPx.x, lanceurPx.y, d]);
+
+  // 🏹 détend l'élastique en douceur (visée annulée / doigt trop près)
+  const relacherElastique = useCallback(() => {
+    setVisee(null);
+    tensionRef.current = 0;
+    Animated.spring(recul, { toValue: { x: 0, y: 0 }, friction: 5, useNativeDriver: true }).start();
+    Animated.timing(etirement, { toValue: 0, duration: 110, useNativeDriver: true }).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const majGuide = useCallback((tx: number, ty: number) => {
     const a = calculerAngle(tx, ty);
-    if (a === null) { setGuide(null); return; }
+    if (a === null) { setGuide(null); relacherElastique(); return; }
     const { points } = simulerVol(etatRef.current!.grille, lanceur, a, 0.16);
     setGuide(points);
+    // 🏹 la bille SUIT le doigt (étirement 1:1, plafonné à ~1,5 bille et au bord d'écran)
+    const dist = Math.hypot(tx - lanceurPx.x, ty - lanceurPx.y);
+    const rMax = Math.max(d * 0.6, Math.min(d * 1.5, (dims ? dims.h : 700) - lanceurPx.y - d * 0.55));
+    const r = Math.min(rMax, dist);
+    recul.setValue({ x: -Math.cos(a) * r, y: -Math.sin(a) * r });
+    etirement.setValue(Math.min(1, r / rMax));
+    tensionRef.current = Math.min(1, r / rMax);
+    setVisee({ a, r });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calculerAngle]);
+  }, [calculerAngle, d, lanceurPx.x, lanceurPx.y, dims]);
 
   // — tir —
   const feu = useCallback((angle: number) => {
@@ -175,6 +200,18 @@ export default function ShooterScreen() {
     setArmee(null);
     setPhase('anim');
     setGuide(null);
+    // 🏹 l'élastique CLAQUE proportionnellement à la tension au lâcher
+    const tension = Math.max(0.25, Math.min(1, tensionRef.current));
+    tensionRef.current = 0;
+    setVisee(null);
+    Animated.sequence([
+      Animated.timing(recul, {
+        toValue: { x: Math.cos(angle) * d * (0.1 + 0.16 * tension), y: Math.sin(angle) * d * (0.1 + 0.16 * tension) },
+        duration: 70, easing: Easing.out(Easing.quad), useNativeDriver: true,
+      }),
+      Animated.spring(recul, { toValue: { x: 0, y: 0 }, friction: 4, useNativeDriver: true }),
+    ]).start();
+    Animated.timing(etirement, { toValue: 0, duration: 90, useNativeDriver: true }).start();
 
     const couleurTiree = special === 'bombe'
       ? '#2A1D46'
@@ -197,7 +234,8 @@ export default function ShooterScreen() {
     // (les rebonds sont des segments), enchaînées → glissé fluide et VISIBLE.
     const tl = (p: Point) => ({ x: p.x - d * 0.47, y: p.y - d * 0.47 }); // centre → coin
     const pts = res.trajectoire.map(enPx);
-    const vitesse = 26 * d; // px/s (assez lent pour bien voir la bille filer)
+    // 🏹 la VITESSE dépend de la tension : à peine tendu → tir doux, à fond → boulet
+    const vitesse = (11 + 21 * tension) * d; // px/s : ~16·d relâché doux → ~32·d à pleine tension
     projPos.setValue(tl(pts[0]));
     setProj({ couleur: couleurTiree, special });
     const segments = [];
@@ -318,13 +356,19 @@ export default function ShooterScreen() {
   // — gestes (PanResponder créé UNE fois, fonctions à jour via refs) —
   const majGuideRef = useRef(majGuide); majGuideRef.current = majGuide;
   const feuRef = useRef(feu); feuRef.current = feu;
+  const relacherRef = useRef(relacherElastique); relacherRef.current = relacherElastique;
   const calculerAngleRef = useRef(calculerAngle); calculerAngleRef.current = calculerAngle;
   const dimsRef = useRef(dims); dimsRef.current = dims;
   const dRef = useRef(d); dRef.current = d;
+  const lanceurPxRef = useRef(lanceurPx); lanceurPxRef.current = lanceurPx;
   const dansZoneJeu = (e: GestureResponderEvent) => {
     if (phaseRef.current !== 'pret' || !dimsRef.current) return false;
-    // seule la bande basse (lanceur + boutons) est réservée aux Pressables
-    return e.nativeEvent.locationY < dimsRef.current.h - dRef.current * 2.4;
+    const { locationX: x, locationY: y } = e.nativeEvent;
+    // plateau + zone haute : libres (le glissé peut y démarrer puis descendre armer)
+    if (y < dimsRef.current.h - dRef.current * 2.4) return true;
+    // 🏹 bande du lanceur : la COLONNE CENTRALE arme le lance-pierre ;
+    // les côtés restent aux boutons (perles spéciales à gauche, échange à droite)
+    return Math.abs(x - lanceurPxRef.current.x) < dRef.current * 1.25;
   };
   const panHandlers = useRef(
     PanResponder.create({
@@ -337,8 +381,9 @@ export default function ShooterScreen() {
         setGuide(null);
         const a = calculerAngleRef.current(e.nativeEvent.locationX, e.nativeEvent.locationY);
         if (a !== null) feuRef.current(a);
+        else relacherRef.current(); // 🏹 pas de tir → l'élastique se détend
       },
-      onPanResponderTerminate: () => setGuide(null),
+      onPanResponderTerminate: () => { setGuide(null); relacherRef.current(); },
     }),
   ).current;
 
@@ -408,7 +453,10 @@ export default function ShooterScreen() {
         <View style={{ flex: 1, alignItems: 'center' }}>
           {aventure ? (
             <>
-              <Text style={styles.titreNiveau}>Niveau {niveau}{params?.boss ? ' 👑' : ''}</Text>
+              <View style={styles.titreNiveauRang}>
+                <Text style={styles.titreNiveau}>Niveau {niveau}</Text>
+                {params?.boss && <Icone nom="couronne" taille={18} />}
+              </View>
               <Text style={styles.scorePetit}>{formatNb(etat.score)} pts</Text>
             </>
           ) : (
@@ -448,10 +496,27 @@ export default function ShooterScreen() {
             <Text style={styles.capsulesLib}>à libérer</Text>
           </View>
         )}
-        {aventure && etat.objectif.type !== 'capsules' && etat.objectif.type !== 'score' && (
+        {aventure && etat.objectif.type === 'boss' && (() => {
+          const pv = objectifCible(etat.objectif);
+          const restant = Math.max(0, pv - etat.objProgres);
+          const pct = Math.round((restant / pv) * 100);
+          return (
+            <View style={styles.bossPill}>
+              <Icone nom="boss" taille={26} />
+              <View style={{ flex: 1, gap: 3 }}>
+                <View style={styles.bossHpFond}>
+                  <View style={[styles.bossHpPlein, { width: `${pct}%` }]} />
+                </View>
+                <Text style={styles.bossHpTxt}>Boss — {restant}/{pv} PV</Text>
+              </View>
+            </View>
+          );
+        })()}
+        {aventure && etat.objectif.type !== 'capsules' && etat.objectif.type !== 'score' && etat.objectif.type !== 'boss' && (
           <View style={styles.objectifPill}>
+            <Icone nom="cible" taille={15} />
             <Text style={styles.objectifTxt} numberOfLines={1}>
-              🎯 {objectifLabel(etat.objectif, (c) => NOMS_COULEUR[c])}
+              {objectifLabel(etat.objectif, (c) => NOMS_COULEUR[c])}
             </Text>
             {(etat.objectif.type === 'tomber' || etat.objectif.type === 'couleur') && (
               <>
@@ -472,7 +537,8 @@ export default function ShooterScreen() {
         )}
         {multChaine >= 2 && (
           <View style={styles.chainePill}>
-            <Text style={styles.chainePillTxt}>🔥 Chaîne ×{multChaine}</Text>
+            <Icone nom="flamme" taille={13} />
+            <Text style={styles.chainePillTxt}>Chaîne ×{multChaine}</Text>
           </View>
         )}
         {etat.tirsParDescente > 0 && (
@@ -531,14 +597,7 @@ export default function ShooterScreen() {
                 {proj.special === 'arc' ? (
                   <PerleArc taille={d * 0.94} />
                 ) : proj.special === 'bombe' ? (
-                  <View
-                    style={[styles.projectile, {
-                      width: d * 0.94, height: d * 0.94, borderRadius: d * 0.47,
-                      backgroundColor: proj.couleur, alignItems: 'center', justifyContent: 'center',
-                    }]}
-                  >
-                    <Text style={{ fontSize: d * 0.4, textAlign: 'center', lineHeight: d * 0.9 }}>✨</Text>
-                  </View>
+                  <View style={styles.projectile}><PictoPowerup id="bombe" taille={d * 0.94} /></View>
                 ) : (
                   <BilleSkia taille={d * 0.94} hex={proj.couleur} glow />
                 )}
@@ -587,24 +646,41 @@ export default function ShooterScreen() {
               </Animated.Text>
             ))}
 
-            {/* === Lanceur === */}
-            {armee === 'arc' ? (
-              <View pointerEvents="none" style={{ position: 'absolute', left: lanceurPx.x - d * 0.55, top: lanceurPx.y - d * 0.55, ...OMBRE }}>
+            {/* === Lanceur (lance-pierre) === */}
+            {/* 🏹 l'élastique : deux brins tendus des plots vers la bille reculée */}
+            {visee && (() => {
+              const bx = lanceurPx.x - Math.cos(visee.a) * visee.r;
+              const by = lanceurPx.y - Math.sin(visee.a) * visee.r;
+              const ax1 = lanceurPx.x - d * 0.78, ax2 = lanceurPx.x + d * 0.78;
+              const ay = lanceurPx.y + d * 0.14;
+              return (
+                <Svg pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0 }} width={dims.w} height={dims.h}>
+                  <Line x1={ax1} y1={ay} x2={bx} y2={by} stroke="#B9A5DE" strokeWidth={3.2} strokeLinecap="round" />
+                  <Line x1={ax2} y1={ay} x2={bx} y2={by} stroke="#B9A5DE" strokeWidth={3.2} strokeLinecap="round" />
+                  <Circle cx={ax1} cy={ay} r={3.6} fill="#8A76B5" />
+                  <Circle cx={ax2} cy={ay} r={3.6} fill="#8A76B5" />
+                </Svg>
+              );
+            })()}
+            <Animated.View
+              pointerEvents="none"
+              style={{
+                position: 'absolute', left: lanceurPx.x - d * 0.55, top: lanceurPx.y - d * 0.55, ...OMBRE,
+                transform: [
+                  { translateX: recul.x },
+                  { translateY: recul.y },
+                  { scale: etirement.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] }) },
+                ],
+              }}
+            >
+              {armee === 'arc' ? (
                 <PerleArc taille={d * 1.1} />
-              </View>
-            ) : armee === 'bombe' ? (
-              <View pointerEvents="none" style={{
-                position: 'absolute', left: lanceurPx.x - d * 0.55, top: lanceurPx.y - d * 0.55,
-                width: d * 1.1, height: d * 1.1, borderRadius: d * 0.55,
-                backgroundColor: '#2A1D46', alignItems: 'center', justifyContent: 'center', ...OMBRE,
-              }}>
-                <Text style={{ fontSize: d * 0.45 }}>✨</Text>
-              </View>
-            ) : (
-              <View pointerEvents="none" style={{ position: 'absolute', left: lanceurPx.x - d * 0.55, top: lanceurPx.y - d * 0.55, ...OMBRE }}>
+              ) : armee === 'bombe' ? (
+                <PictoPowerup id="bombe" taille={d * 1.1} />
+              ) : (
                 <BilleSkia taille={d * 1.1} hex={COULEURS[etat.couleurCourante]} glow />
-              </View>
-            )}
+              )}
+            </Animated.View>
             <Svg
               pointerEvents="none" width={26} height={14}
               style={{ position: 'absolute', left: lanceurPx.x - 13, top: lanceurPx.y + d * 0.62 }}
@@ -639,7 +715,7 @@ export default function ShooterScreen() {
             </Pressable>
 
             <Text style={[styles.astuce, { top: lanceurPx.y + d * 1.1 }]}>
-              {armee ? `${POWERUPS[armee].nom} armée — glisse et relâche !` : 'Glisse pour viser, relâche pour tirer'}
+              {armee ? `${POWERUPS[armee].nom} armée — tire vers le bas et relâche !` : 'Tire la bille vers le bas… et relâche !'}
             </Text>
           </>
         )}
@@ -652,7 +728,7 @@ export default function ShooterScreen() {
                 <>
                   <View style={{ flexDirection: 'row', gap: 6 }}>
                     {[1, 2, 3].map((i) => (
-                      <Text key={i} style={{ fontSize: 38, opacity: i <= fin.etoiles ? 1 : 0.22 }}>⭐</Text>
+                      <View key={i} style={{ opacity: i <= fin.etoiles ? 1 : 0.22 }}><Icone nom="etoile" taille={38} /></View>
                     ))}
                   </View>
                   <Text style={styles.finTitre}>Niveau {niveau} réussi !</Text>
@@ -663,9 +739,11 @@ export default function ShooterScreen() {
                     </Text>
                   </View>
                   {fin.capsule && (
-                    <Text style={styles.finCapsules}>
-                      🎁 +1 capsule {fin.capsule === 'doree' ? 'DORÉE 👑' : 'classique'} — ouvre-la vite !
-                    </Text>
+                    <View style={styles.finCapsulesRang}>
+                      <Icone nom="cadeau" taille={15} />
+                      <Text style={styles.finCapsules}>+1 capsule {fin.capsule === 'doree' ? 'DORÉE' : 'classique'} — ouvre-la vite !</Text>
+                      {fin.capsule === 'doree' && <Icone nom="couronne" taille={15} />}
+                    </View>
                   )}
                   {!fin.premiere && <Text style={styles.finNote}>Niveau déjà réussi : perles réduites, pas de capsule.</Text>}
                   <BoutonJeu titre="Niveau suivant →" onPress={niveauSuivant} style={{ alignSelf: 'stretch', backgroundColor: C.vert }} />
@@ -676,13 +754,13 @@ export default function ShooterScreen() {
               )}
               {fin.type === 'defaite' && (
                 <>
-                  <Text style={{ fontSize: 40 }}>😵‍💫</Text>
+                  <Icone nom="triste" taille={42} />
                   <Text style={styles.finTitre}>
                     {fin.raison === 'tirs' ? 'Plus de tirs !' : 'Le plateau a débordé !'}
                   </Text>
                   <Text style={styles.finNote}>
                     Astuce : coupe les perles qui RETIENNENT la capsule — et pense aux
-                    perles spéciales 💣🌈.
+                    perles spéciales (Bombe et Arc-en-ciel).
                   </Text>
                   <BoutonJeu titre="Réessayer" onPress={reinit} style={{ alignSelf: 'stretch' }} />
                   <Pressable onPress={versParcours} hitSlop={6}>
@@ -692,7 +770,7 @@ export default function ShooterScreen() {
               )}
               {fin.type === 'infini' && (
                 <>
-                  <Text style={{ fontSize: 40 }}>{fin.record ? '🏆' : '🧋'}</Text>
+                  <Icone nom={fin.record ? 'trophee' : 'boba'} taille={42} />
                   <Text style={styles.finTitre}>{fin.record ? 'Nouveau record !' : 'Partie terminée !'}</Text>
                   <Text style={styles.finScore}>{formatNb(etat.score)} points</Text>
                   <View style={styles.finLigne}>
@@ -848,6 +926,7 @@ const styles = StyleSheet.create({
   },
   score: { fontFamily: F.titre, fontSize: 30, color: C.violet },
   titreNiveau: { fontFamily: F.titre, fontSize: 23, color: C.violet },
+  titreNiveauRang: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   scorePetit: { fontFamily: F.t700, fontSize: 12.5, color: C.texte2, marginTop: -1 },
   sousScore: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: -2 },
   sousScoreTxt: { fontFamily: F.t700, fontSize: 12, color: C.texte2 },
@@ -881,7 +960,17 @@ const styles = StyleSheet.create({
   },
   objBarrePlein: { height: 7, borderRadius: 4, backgroundColor: C.jaune },
   objCompte: { fontFamily: F.t800, fontSize: 11.5, color: '#FFE7A6' },
+  bossPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 9,
+    backgroundColor: '#3A2036', borderRadius: 999, paddingVertical: 5, paddingHorizontal: 12,
+    maxWidth: '86%', minWidth: 200,
+  },
+  bossFace: { fontSize: 22 },
+  bossHpFond: { height: 9, borderRadius: 5, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.18)' },
+  bossHpPlein: { height: 9, borderRadius: 5, backgroundColor: '#E8556A' },
+  bossHpTxt: { fontFamily: F.t800, fontSize: 11, color: '#FFD3DA' },
   chainePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: '#FFF3D6', borderRadius: 999, paddingVertical: 4, paddingHorizontal: 11,
     borderWidth: 1, borderColor: C.jaune,
   },
@@ -934,6 +1023,7 @@ const styles = StyleSheet.create({
   },
   finPerles: { fontFamily: F.t800, fontSize: 14.5, color: C.vertFonce },
   finCapsules: { fontFamily: F.t700, fontSize: 13.5, color: '#9A6B00', textAlign: 'center' },
+  finCapsulesRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, flexWrap: 'wrap' },
   finNote: { fontFamily: F.t400, fontSize: 12.5, color: C.texte2, textAlign: 'center', lineHeight: 18 },
   finRetour: { fontFamily: F.t700, fontSize: 14, color: C.texte2, padding: 6 },
 

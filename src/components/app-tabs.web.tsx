@@ -82,6 +82,11 @@ export default function AppTabs() {
         name="jeu"
         options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
+      {/* 💳 Carte cadeau (/carte-cadeau) — route sans onglet (miroir du natif) */}
+      <Tabs.Screen
+        name="carte-cadeau"
+        options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
     </Tabs>
   );
 }

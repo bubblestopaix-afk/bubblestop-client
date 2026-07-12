@@ -16,16 +16,55 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { enregistrerPush } from '@/lib/push';
 import { reclamerJetonEnAttente } from '@/lib/carte-temp';
+import { memoriserCodeParrain } from '@/lib/parrainage';
 import { lireCommandeMagasins, ecrireCommandeMagasin } from '@/lib/app-config';
 import { offreEnCours, offreProgrammee, resumeRecurrence } from '@/lib/offres';
 import { useCatalogueCloud } from '@/data/catalogue-cloud';
 import { GoogleLogo } from '@/components/google-logo';
-import { MAGASINS, MagasinId } from '@/store/magasin';
+import { MAGASINS, MagasinId, getMagasin, setMagasin } from '@/store/magasin';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import {
   Carte, LigneMenu, ChampTexte, Message, BoutonPrimaire, BoutonGhost, TitreSection,
 } from '@/components/ui-kit';
 import PictoOffre, { FOND_PICTO } from '@/components/pictos-offres';
+
+// === Choix de la boutique (Aix / Lyon / Toulouse) ===
+// Affiché à l'INSCRIPTION et modifiable dans « Mes informations » : c'est le client qui
+// choisit sa ville — avant, profils.magasin héritait de la caisse qui traitait son tampon
+// de bienvenue (un client Lyon se retrouvait « Toulouse », vécu 12/07).
+function ChoixBoutique({ valeur, onChange, label = 'Ta boutique' }: {
+  valeur: string | null; onChange: (id: MagasinId) => void; label?: string;
+}) {
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={stylesBoutique.label}>{label}</Text>
+      <View style={stylesBoutique.rangee}>
+        {MAGASINS.map((m) => (
+          <Pressable
+            key={m.id}
+            style={[stylesBoutique.chip, valeur === m.id && stylesBoutique.chipOn]}
+            onPress={() => onChange(m.id)}
+          >
+            <Text style={[stylesBoutique.chipTxt, valeur === m.id && stylesBoutique.chipTxtOn]}>
+              {m.nom}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+const stylesBoutique = StyleSheet.create({
+  label: { fontFamily: F.t700, fontSize: 13, color: C.violet },
+  rangee: { flexDirection: 'row', gap: 8 },
+  chip: {
+    flex: 1, paddingVertical: 10, borderRadius: R.pill, alignItems: 'center',
+    backgroundColor: C.lavande, borderWidth: 1.5, borderColor: 'transparent',
+  },
+  chipOn: { backgroundColor: C.vert, borderColor: C.vert },
+  chipTxt: { fontFamily: F.t700, fontSize: 13.5, color: C.violetProfond },
+  chipTxtOn: { color: C.violetProfond },
+});
 
 const URL_CONFIDENTIALITE = 'https://commande.bubblestop.fr/confidentialite';
 const EMAIL_CONTACT = 'contact@bubblestop.fr';
@@ -183,6 +222,10 @@ export default function CompteScreen() {
   // Formulaire (reset-email = demande du code, reset-code = saisie code + nouveau mdp,
   // confirmation = code de confirmation d'inscription)
   const [mode, setMode] = useState<'connexion' | 'inscription' | 'reset-email' | 'reset-code' | 'confirmation'>('connexion');
+  // Code parrain saisi À L'INSCRIPTION (10/07, optionnel) : mémorisé via la MÊME mécanique
+  // que le lien/QR /p (parrain.codeEnAttente) → appliqué automatiquement par
+  // appliquerParrainEnAttente() (_layout) dès la 1ère session (après la confirmation email).
+  const [codeParrain, setCodeParrain] = useState('');
   const [nom, setNom] = useState('');
   const [email, setEmail] = useState('');
   const [mdp, setMdp] = useState('');
@@ -208,6 +251,8 @@ export default function CompteScreen() {
   const [naissanceVerrou, setNaissanceVerrou] = useState(false); // true = déjà enregistrée → non modifiable
   const [prenomSurTicket, setPrenomSurTicket] = useState(false);
   const [magasinClient, setMagasinClient] = useState<string | null>(null);
+  // Boutique choisie à l'inscription (défaut = choix local de l'app, ex. onglet Commander)
+  const [magasinInscription, setMagasinInscription] = useState<MagasinId>(getMagasin());
   const [infosOk, setInfosOk] = useState(false);
   const [estAdmin, setEstAdmin] = useState(false);
   // Section dépliée : null | 'profil' | 'email' | 'email-code' | 'mdp' | 'pin'
@@ -250,7 +295,7 @@ export default function CompteScreen() {
   const [offrePushAuto, setOffrePushAuto] = useState(false);
   // Contenu STRUCTURÉ (remise appliquée AUTOMATIQUEMENT par la caisse, ≥ POS 0.28.138) :
   // type −% (sur les lignes ciblées) ou −€ (par boisson ciblée) + catégories cibles.
-  const [offreRemiseType, setOffreRemiseType] = useState<'' | 'pourcent' | 'montant'>('');
+  const [offreRemiseType, setOffreRemiseType] = useState<'' | 'pourcent' | 'montant' | 'tampons'>('');
   const [offreRemiseValeur, setOffreRemiseValeur] = useState('');
   const [offreCibleCats, setOffreCibleCats] = useState<string[]>([]);
   const { categories: catsCatalogue } = useCatalogueCloud(); // catégories du catalogue POS (fruit-tea…)
@@ -324,6 +369,10 @@ export default function CompteScreen() {
       remiseValeur = Number(String(offreRemiseValeur).trim().replace(',', '.'));
       if (!(remiseValeur > 0)) { setOffreEtat('Valeur de remise invalide (ex : 30 ou 1,50).'); return; }
       if (offreRemiseType === 'pourcent' && remiseValeur > 100) { setOffreEtat('Un pourcentage ne peut pas dépasser 100.'); return; }
+      if (offreRemiseType === 'tampons') {
+        remiseValeur = Math.round(remiseValeur);
+        if (remiseValeur < 2 || remiseValeur > 5) { setOffreEtat('Tampons : multiplicateur entre 2 et 5 (ex : 2 = tampons ×2).'); return; }
+      }
     }
     setOffreEtat('Publication…');
     try {
@@ -337,7 +386,8 @@ export default function CompteScreen() {
           push_auto: offrePushAuto,
           remise_type: offreRemiseType || null,
           remise_valeur: remiseValeur,
-          cible_categories: offreRemiseType && offreCibleCats.length ? offreCibleCats : null,
+          // 'tampons' s'applique à TOUTE la commande → jamais de catégories ciblées
+          cible_categories: offreRemiseType && offreRemiseType !== 'tampons' && offreCibleCats.length ? offreCibleCats : null,
         })
         .select('id').maybeSingle();
       if (error) throw error;
@@ -417,6 +467,8 @@ export default function CompteScreen() {
       nom: prenom.trim() || null,
       prenom_sur_ticket: prenomSurTicket,
     };
+    // Boutique : choisie/modifiée librement par le client (offres et infos locales)
+    if (magasinClient) maj.magasin = magasinClient;
     // Date de naissance : enregistrée UNE seule fois, ensuite non modifiable
     if (!naissanceVerrou) maj.date_naissance = naissanceIso;
 
@@ -427,6 +479,8 @@ export default function CompteScreen() {
         return;
       }
       if (!naissanceVerrou && naissanceIso) setNaissanceVerrou(true); // verrouille après 1er enregistrement
+      // L'app locale suit la boutique du profil (onglet Commander, catalogue, horaires)
+      if (magasinClient && MAGASINS.some((m) => m.id === magasinClient)) setMagasin(magasinClient as MagasinId);
       setInfosOk(true);
       setTimeout(() => setInfosOk(false), 2000);
     };
@@ -693,6 +747,11 @@ export default function CompteScreen() {
     setEnCours(true);
     try {
       if (mode === 'inscription') {
+        // Code parrain (optionnel) : mémorisé AVANT la création du compte — il sera
+        // appliqué tout seul à la 1ère session (best effort, jamais bloquant).
+        if (codeParrain.replace(/\D/g, '').length >= 6) {
+          try { await memoriserCodeParrain(codeParrain); } catch (e) { /* best effort */ }
+        }
         // 1. Création du compte auth
         const { data, error } = await supabase.auth.signUp({ email: mail, password: mdp });
         if (error) throw error;
@@ -713,8 +772,10 @@ export default function CompteScreen() {
             nom: nom.trim() || null,
             email: mail,
             date_naissance: naissanceIso,
+            magasin: magasinInscription, // boutique CHOISIE par le client (fix « Lyon → Toulouse »)
           });
           if (errProfil) throw errProfil;
+          setMagasin(magasinInscription);
         } else {
           // Confirmation email activée : un code a été envoyé, on le demande ici
           setMode('confirmation');
@@ -761,7 +822,9 @@ export default function CompteScreen() {
           nom: nom.trim() || null,
           email: mail,
           date_naissance: naissanceVersIso(dateNaissance),
+          magasin: magasinInscription, // boutique CHOISIE par le client
         });
+        setMagasin(magasinInscription);
       }
       setCodeReset('');
       setMode('connexion'); // la session est active → l'écran compte s'affiche
@@ -936,6 +999,9 @@ export default function CompteScreen() {
                     thumbColor="#fff"
                   />
                 </View>
+                {/* Boutique : le client choisit SA ville (avant : héritée de la caisse qui
+                    traitait son bonus de bienvenue → clients Lyon marqués « Toulouse ») */}
+                <ChoixBoutique valeur={magasinClient} onChange={(id) => setMagasinClient(id)} label="Ma boutique" />
                 <BoutonPrimaire titre={infosOk ? '✓ Enregistré' : 'Enregistrer'} onPress={enregistrerInfos} />
               </View>
             )}
@@ -1200,8 +1266,8 @@ export default function CompteScreen() {
                     (caisse + borne, ligne dédiée sur le ticket). Sans réglage, l'offre est
                     purement informative et l'employé applique la remise à la main.
                   </Text>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    {([['', 'Aucune'], ['pourcent', '− %'], ['montant', '− € / boisson']] as ['' | 'pourcent' | 'montant', string][]).map(([t, nom]) => (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {([['', 'Aucune'], ['pourcent', '− %'], ['montant', '− € / boisson'], ['tampons', '🎟️ Tampons ×N']] as ['' | 'pourcent' | 'montant' | 'tampons', string][]).map(([t, nom]) => (
                       <Pressable
                         key={t || 'aucune'}
                         style={[styles.progJour, offreRemiseType === t && styles.progJourActif]}
@@ -1210,29 +1276,40 @@ export default function CompteScreen() {
                       </Pressable>
                     ))}
                   </View>
+                  {offreRemiseType === 'tampons' && (
+                    <Text style={styles.progAide}>
+                      🎟️ Chaque boisson payée crédite N tampons (borne + caisse, automatique).
+                      Le bonus se cumule sur la carte pour la prochaine visite — les boissons
+                      offertes n'en gagnent pas.
+                    </Text>
+                  )}
                   {offreRemiseType !== '' && (
                     <>
                       <ChampTexte
                         value={offreRemiseValeur}
                         onChangeText={setOffreRemiseValeur}
-                        placeholder={offreRemiseType === 'pourcent' ? 'Ex : 30 (= −30 %)' : 'Ex : 1,50 (= −1,50 € par boisson)'}
-                        keyboardType="decimal-pad"
+                        placeholder={offreRemiseType === 'pourcent' ? 'Ex : 30 (= −30 %)' : offreRemiseType === 'tampons' ? 'Ex : 2 (= tampons ×2)' : 'Ex : 1,50 (= −1,50 € par boisson)'}
+                        keyboardType={offreRemiseType === 'tampons' ? 'number-pad' : 'decimal-pad'}
                         maxLength={6}
                       />
-                      <Text style={styles.progAide}>Catégories concernées (rien de coché = toute la carte) :</Text>
-                      <View style={styles.msgCaisseMags}>
-                        {catsCatalogue.map((c: any) => (
-                          <Pressable
-                            key={c.id}
-                            style={[styles.msgCaisseChip, offreCibleCats.includes(c.id) && styles.msgCaisseChipActif]}
-                            onPress={() => setOffreCibleCats((prev) =>
-                              prev.includes(c.id) ? prev.filter((x) => x !== c.id) : [...prev, c.id])}>
-                            <Text style={[styles.msgCaisseChipTxt, offreCibleCats.includes(c.id) && styles.msgCaisseChipTxtActif]}>
-                              {c.nom}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
+                      {offreRemiseType !== 'tampons' && (
+                        <>
+                          <Text style={styles.progAide}>Catégories concernées (rien de coché = toute la carte) :</Text>
+                          <View style={styles.msgCaisseMags}>
+                            {catsCatalogue.map((c: any) => (
+                              <Pressable
+                                key={c.id}
+                                style={[styles.msgCaisseChip, offreCibleCats.includes(c.id) && styles.msgCaisseChipActif]}
+                                onPress={() => setOffreCibleCats((prev) =>
+                                  prev.includes(c.id) ? prev.filter((x) => x !== c.id) : [...prev, c.id])}>
+                                <Text style={[styles.msgCaisseChipTxt, offreCibleCats.includes(c.id) && styles.msgCaisseChipTxtActif]}>
+                                  {c.nom}
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                        </>
+                      )}
                     </>
                   )}
                 </View>
@@ -1256,7 +1333,12 @@ export default function CompteScreen() {
                           ⏰ {resumeRecurrence(o)}{o.push_auto ? ' · 📣 push auto' : ''}
                         </Text>
                       )}
-                      {o.remise_type && Number(o.remise_valeur) > 0 && (
+                      {o.remise_type === 'tampons' && Number(o.remise_valeur) >= 2 && (
+                        <Text style={styles.offreLigneSous} numberOfLines={1}>
+                          🎟️ Tampons ×{Math.round(Number(o.remise_valeur))} sur toute la commande · auto borne + caisse
+                        </Text>
+                      )}
+                      {(o.remise_type === 'pourcent' || o.remise_type === 'montant') && Number(o.remise_valeur) > 0 && (
                         <Text style={styles.offreLigneSous} numberOfLines={1}>
                           💶 {o.remise_type === 'pourcent'
                             ? `−${o.remise_valeur} %`
@@ -1465,6 +1547,24 @@ export default function CompteScreen() {
                   onSubmitEditing={() => Keyboard.dismiss()}
                 />
                 <Text style={styles.reglesMdp}>🎂 Une grande boisson (taille L) offerte le jour de ton anniversaire. Non modifiable une fois enregistrée.</Text>
+                <ChampTexte
+                  value={codeParrain}
+                  onChangeText={(v) => setCodeParrain(v.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="Code parrain (optionnel)"
+                  keyboardType="number-pad"
+                  maxLength={10}
+                  returnKeyType="done"
+                  onSubmitEditing={() => Keyboard.dismiss()}
+                />
+                <Text style={styles.aideChamp}>
+                  🤝 Un ami t'a parrainé ? Entre son code (= son numéro de fidélité) : vous serez récompensés en tampons après ta première commande.
+                </Text>
+                {/* Boutique du client : choisie PAR LE CLIENT (modifiable ensuite dans Mes informations) */}
+                <ChoixBoutique valeur={magasinInscription} onChange={setMagasinInscription} />
+                <Text style={styles.aideChamp}>
+                  📍 Ta boutique habituelle — pour tes offres et infos locales. Modifiable à tout
+                  moment, et ta carte de fidélité marche dans TOUTES les boutiques Bubble Stop.
+                </Text>
               </>
             )}
             <ChampTexte

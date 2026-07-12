@@ -12,6 +12,7 @@ import {
   Collectible, COLLECTIBLES, collectiblesDuSet, DOUBLON_PERLES, effetBuddy,
   Gain, RARETES, RECOMPENSE_COLLECTION, SETS, SetId,
 } from '@/components/jeu/economie';
+import { Icone, IconeEmoji } from '@/components/jeu/icones';
 import {
   BandeauPreview, BoutonJeu, ChipRarete, EnTeteJeu, formatNb,
 } from '@/components/jeu/ui-jeu';
@@ -62,7 +63,7 @@ export default function CollectionScreen() {
           return (
             <View key={setId} style={styles.setCarte}>
               <View style={styles.setHaut}>
-                <Text style={styles.setEmoji}>{set.emoji}</Text>
+                <IconeEmoji emoji={set.emoji} taille={28} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.setNom}>{set.nom}</Text>
                   <Text style={styles.setProg}>{trouves}/6 · récompense : {set.recompense.label}</Text>
@@ -93,14 +94,15 @@ export default function CollectionScreen() {
 
               {estComplet && !reclame && (
                 <BoutonJeu
-                  titre={`Set complet ! Réclamer : ${set.recompense.label} 🎉`}
+                  titre={`Set complet ! Réclamer : ${set.recompense.label}`}
                   onPress={() => { const g = reclamerSet(setId); if (g) setCelebration(g); }}
                   style={{ backgroundColor: C.vert }}
                 />
               )}
               {reclame && (
                 <View style={styles.reclame}>
-                  <Text style={styles.reclameTxt}>✓ Récompense du set récupérée</Text>
+                  <Icone nom="check" taille={15} />
+                  <Text style={styles.reclameTxt}>Récompense du set récupérée</Text>
                 </View>
               )}
             </View>
@@ -110,7 +112,7 @@ export default function CollectionScreen() {
         {/* Collection complète */}
         {complete && !etat.collectionReclamee && (
           <View style={[styles.setCarte, { borderWidth: 2, borderColor: '#F3A0BD' }]}>
-            <Text style={styles.legendTitre}>👑 COLLECTION COMPLÈTE !</Text>
+            <View style={styles.legendTitreRang}><Icone nom="couronne" taille={20} /><Text style={styles.legendTitre}>COLLECTION COMPLÈTE !</Text></View>
             <BoutonJeu
               titre={`Réclamer : ${RECOMPENSE_COLLECTION.label}`}
               onPress={() => { const g = reclamerCollection(); if (g) setCelebration(g); }}
@@ -120,7 +122,8 @@ export default function CollectionScreen() {
         )}
         {etat.collectionReclamee && (
           <View style={styles.reclame}>
-            <Text style={styles.reclameTxt}>👑 Bubble Legend — récompense ultime récupérée !</Text>
+            <Icone nom="couronne" taille={15} />
+            <Text style={styles.reclameTxt}>Bubble Legend — récompense ultime récupérée !</Text>
           </View>
         )}
 
@@ -137,8 +140,9 @@ export default function CollectionScreen() {
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <ChipRarete nom={RARETES[fiche.rarete].nom} couleur={RARETES[fiche.rarete].couleur} />
                 <View style={[styles.chipSet, { backgroundColor: SETS[fiche.set].fond }]}>
+                  <IconeEmoji emoji={SETS[fiche.set].emoji} taille={14} />
                   <Text style={[styles.chipSetTxt, { color: SETS[fiche.set].couleur }]}>
-                    {SETS[fiche.set].emoji} {SETS[fiche.set].nom}
+                    {SETS[fiche.set].nom}
                   </Text>
                 </View>
               </View>
@@ -151,9 +155,12 @@ export default function CollectionScreen() {
                 style={[styles.buddyBtn, etat.buddyId === fiche.id && styles.buddyBtnActif]}
                 onPress={() => definirBuddy(etat.buddyId === fiche.id ? null : fiche.id)}
               >
-                <Text style={[styles.buddyBtnTxt, etat.buddyId === fiche.id && { color: C.vertFonce }]}>
-                  {etat.buddyId === fiche.id ? '★ Copain de tir actuel — retirer' : '⭐ En faire mon copain de tir'}
-                </Text>
+                <View style={styles.buddyBtnRang}>
+                  <Icone nom="etoile" taille={14} />
+                  <Text style={[styles.buddyBtnTxt, etat.buddyId === fiche.id && { color: C.vertFonce }]}>
+                    {etat.buddyId === fiche.id ? 'Copain de tir actuel — retirer' : 'En faire mon copain de tir'}
+                  </Text>
+                </View>
                 <Text style={styles.buddyEffet}>Bonus : {effetBuddy(fiche.set, fiche.rarete).libelle}</Text>
               </Pressable>
               <BoutonJeu titre="Fermer" onPress={() => setFiche(null)} style={{ alignSelf: 'stretch' }} />
@@ -167,7 +174,7 @@ export default function CollectionScreen() {
         {celebration && (
           <View style={styles.modalFond}>
             <View style={styles.ficheCarte}>
-              <Text style={{ fontSize: 46 }}>🎉</Text>
+              <Icone nom="cadeau" taille={46} />
               <Text style={styles.ficheNom}>PRIX GAGNÉ !</Text>
               <Text style={styles.celebLabel}>{celebration.label}</Text>
               <Text style={styles.fichePhrase}>
@@ -212,12 +219,14 @@ const styles = StyleSheet.create({
   badgeNbTxt: { fontFamily: F.t800, fontSize: 10.5, color: '#fff' },
 
   reclame: {
+    flexDirection: 'row', gap: 6, justifyContent: 'center',
     backgroundColor: C.vertPale, borderRadius: 12, paddingVertical: 10,
     alignItems: 'center', borderWidth: 1.5, borderColor: C.vert,
   },
   reclameTxt: { fontFamily: F.t700, fontSize: 13, color: C.vertFonce },
 
   legendTitre: { fontFamily: F.titre, fontSize: 18, color: '#D2588A', textAlign: 'center' },
+  legendTitreRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
 
   modalFond: {
     flex: 1, backgroundColor: 'rgba(42,29,70,0.6)',
@@ -228,7 +237,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', gap: 10, alignSelf: 'stretch', ...OMBRE,
   },
   ficheNom: { fontFamily: F.titre, fontSize: 23, color: C.violet },
-  chipSet: { borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 10 },
+  chipSet: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 10 },
   chipSetTxt: { fontFamily: F.t700, fontSize: 12 },
   fichePhrase: { fontFamily: F.t400, fontSize: 13.5, color: C.texte2, textAlign: 'center', fontStyle: 'italic', lineHeight: 19 },
   ficheInfos: { fontFamily: F.t600, fontSize: 12.5, color: C.texte3 },
@@ -240,6 +249,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: 'transparent',
   },
   buddyBtnActif: { backgroundColor: C.vertPale, borderColor: C.vert },
+  buddyBtnRang: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   buddyBtnTxt: { fontFamily: F.t800, fontSize: 13.5, color: C.violetProfond },
   buddyEffet: { fontFamily: F.t600, fontSize: 12, color: C.texte2 },
 });

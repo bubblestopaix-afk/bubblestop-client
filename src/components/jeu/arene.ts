@@ -10,8 +10,9 @@
 
 // import RELATIF (même dossier) : permet aussi de tester ce module sous Node
 import {
-  agregerEffets, objetsDeSlot,
-  trouverCollectible, type Emplacement, type EffetObjet, type ObjetId, type Rarete, type SetId,
+  agregerEffets, CONSOMMABLES, coutEquipe, multOutsider, objetsDeSlot, PASSIFS,
+  trouverCollectible, type Boss, type BossGimmick, type ConsommableId, type Emplacement,
+  type EffetObjet, type Mutateur, type ObjetId, type Rarete, type SetId,
 } from './economie';
 
 export type CoteCombat = 'a' | 'b';
@@ -34,6 +35,32 @@ export const HINT_ATTAQUE: Record<TypeAttaque, string> = {
   double: 'Frappe deux fois',
   zone: 'Touche TOUTE l\'équipe adverse',
 };
+
+// --- ⭐ Jauge & attaques SIGNATURE + munitions de la spé (la profondeur tactique) ------
+// Chaque action charge la jauge (+1), encaisser un coup aussi (+1). Jauge pleine (3)
+// → l'attaque SIGNATURE du type se débloque : imparable (ne rate jamais), gros effet
+// thématique, remet la jauge à zéro. L'IA la lance dès qu'elle est prête : le joueur
+// VOIT la jauge adverse monter et peut anticiper (bouclier, changement, consommable).
+// L'attaque n°2 (la « spé ») a des MUNITIONS : 3 usages par combat, mais frappe 20 %
+// plus fort (et étourdit plus souvent) — fini le spam, il faut choisir ses moments.
+export const CHARGE_MAX = 3;   // actions/coups encaissés pour débloquer la signature
+export const SPE_USAGES = 3;   // munitions de l'attaque n°2 (par combattant, par combat)
+export const SPE_BONUS = 1.2;  // la spé tape/soigne 20 % plus fort (compense les munitions)
+
+// Dégâts = % des PV MAX de la CIBLE (équitable quel que soit l'écart de stats — l'ulti
+// du petit mord autant que celui du grand), plafonnés par l'ATQ de l'attaquant (×3,5)
+// pour que les boss géants ne fondent pas. Imparable, neutre en type.
+export type SignatureDef = {
+  nom: string; desc: string; pvPct: number;
+  soinPct?: number; etourdit?: boolean; boost?: boolean; perceBouclier?: boolean;
+};
+export const SIGNATURES: Record<SetId, SignatureDef> = {
+  fruit: { nom: 'Tsunami Tropical', desc: 'Imparable · énorme vague qui transperce les boucliers', pvPct: 26, perceBouclier: true },
+  milk: { nom: 'Marée Onctueuse', desc: 'Imparable · dégâts + rend 30 % des PV', pvPct: 18, soinPct: 30 },
+  topping: { nom: 'Avalanche de Perles', desc: 'Imparable · dégâts + étourdit à coup sûr', pvPct: 18, etourdit: true },
+  signature: { nom: 'Sacre Royal', desc: 'Imparable · dégâts + monte en puissance (+40 %)', pvPct: 20, boost: true },
+};
+export const SIG_CAP_ATK = 3.5; // plafond des dégâts d'ulti : ATQ × 3,5
 
 // Précision / critiques (le piment des duels)
 export const PRECISION_BASE = 0.92;    // attaques normales
@@ -103,6 +130,9 @@ export type Combattant = {
   boostTours: number;      // +40 % ATQ tant que > 0
   etourdi: boolean;        // passe sa prochaine action
   reviveDispo: boolean;    // 🧿 Grigri : survivra une fois à 1 PV
+  charge: number;          // ⭐ jauge signature (0..CHARGE_MAX)
+  speRestantes: number;    // 🔋 munitions de l'attaque n°2 (SPE_USAGES par combat)
+  gimmick?: BossGimmick;   // 👹 règle spéciale (boss hebdomadaire uniquement)
 };
 
 export type EtatCombat = {
@@ -111,6 +141,7 @@ export type EtatCombat = {
   round: number;
   fini: boolean;
   vainqueur: CoteCombat | null;
+  mutateur?: Mutateur;   // ⚡ règle spéciale du jour, appliquée à la résolution
 };
 
 // Un événement à animer côté UI (l'état du moteur est déjà à jour).
@@ -130,8 +161,8 @@ export function creerCombattant(id: string, echelle = 1, objets: ObjetId[] = [])
   const fiche = FICHES[id];
   const meta = trouverCollectible(id);
   if (!fiche || !meta) throw new Error(`fiche de combat manquante : ${id}`);
-  // effet agrégé des objets équipés (+ bonus de panoplie) appliqué à la création
-  const eff = agregerEffets(objets);
+  // effet agrégé des objets équipés (+ bonus de panoplie) + PASSIF de la carte
+  const eff = agregerEffets(objets, PASSIFS[id]?.eff);
   const atk = Math.round(fiche.atk * echelle * (1 + (eff.atkPct ?? 0) / 100));
   const vit = fiche.vit + (eff.vit ?? 0);
   const pvMax = Math.round(fiche.pv * echelle * (1 + (eff.pvPct ?? 0) / 100));
@@ -151,22 +182,52 @@ export function creerCombattant(id: string, echelle = 1, objets: ObjetId[] = [])
     boostTours: 0,
     etourdi: false,
     reviveDispo: !!eff.reviveUneFois,
+    charge: 0,
+    speRestantes: SPE_USAGES,
   };
+}
+
+// ⚖️ Applique le bonus outsider (stats × mult selon le coût de l'équipe) à un camp.
+function appliquerOutsider(cs: Combattant[]) {
+  const m = multOutsider(coutEquipe(cs.map((c) => c.id)));
+  if (m === 1) return;
+  for (const c of cs) {
+    c.pvMax = Math.round(c.pvMax * m);
+    c.pv = c.pvMax;
+    c.atk = Math.round(c.atk * m);
+  }
 }
 
 export function creerCombat(
   idsA: string[], idsB: string[], echelleB = 1,
   objetsA: Record<string, ObjetId[]> = {}, objetsB: Record<string, ObjetId[]> = {},
+  mutateur?: Mutateur,
 ): EtatCombat {
+  const a = idsA.map((id) => creerCombattant(id, 1, objetsA[id] ?? []));
+  const b = idsB.map((id) => creerCombattant(id, echelleB, objetsB[id] ?? []));
+  appliquerOutsider(a);
+  appliquerOutsider(b); // même règle des deux côtés (une compo modeste reste dangereuse)
+  return { equipes: { a, b }, actifs: { a: 0, b: 0 }, round: 0, fini: false, vainqueur: null, mutateur };
+}
+
+// 👹 Combat contre le boss hebdomadaire : ton équipe de 3 vs UNE éponge à PV + gimmick.
+export function creerCombatBoss(
+  idsA: string[], boss: Boss, objetsA: Record<string, ObjetId[]> = {}, mutateur?: Mutateur,
+): EtatCombat {
+  const bossC = creerCombattant(boss.combattantId, boss.echelle, []);
+  bossC.pvMax = Math.round(bossC.pvMax * boss.pvBonus);
+  bossC.pv = bossC.pvMax;
+  bossC.nom = boss.nom;
+  bossC.gimmick = boss.gimmick;
+  const a = idsA.map((id) => creerCombattant(id, 1, objetsA[id] ?? []));
+  appliquerOutsider(a); // le bonus outsider s'applique à l'équipe du joueur, pas au boss
   return {
-    equipes: {
-      a: idsA.map((id) => creerCombattant(id, 1, objetsA[id] ?? [])),
-      b: idsB.map((id) => creerCombattant(id, echelleB, objetsB[id] ?? [])),
-    },
+    equipes: { a, b: [bossC] },
     actifs: { a: 0, b: 0 },
     round: 0,
     fini: false,
     vainqueur: null,
+    mutateur,
   };
 }
 
@@ -180,10 +241,14 @@ function adverse(cote: CoteCombat): CoteCombat {
 
 // --- IA (côté b, et côté a pour les replays automatiques) --------------------------------
 
-// Choisit une attaque : achève si possible, se soigne si mal en point,
-// sinon privilégie la plus grosse attaque (zone valorisée par cible vivante).
-export function choisirAttaqueIA(etat: EtatCombat, cote: CoteCombat, rng: Rng): 0 | 1 {
+// Choisit une attaque : signature dès que la jauge est pleine, achève si possible,
+// se soigne si mal en point, sinon privilégie la plus grosse attaque (zone valorisée
+// par cible vivante). Respecte les munitions de la spé (attaque n°2).
+export function choisirAttaqueIA(etat: EtatCombat, cote: CoteCombat, rng: Rng): 0 | 1 | 'signature' {
   const moi = actif(etat, cote);
+  // ⭐ jauge pleine → signature immédiate (lisible : l'adversaire la voit venir)
+  if (moi.charge >= CHARGE_MAX) return 'signature';
+  const speOk = moi.speRestantes > 0;
   const lui = actif(etat, adverse(cote));
   const vivantsAdverses = etat.equipes[adverse(cote)].filter((c) => c.pv > 0).length;
   const mult = multType(moi.set, lui.set);
@@ -196,20 +261,22 @@ export function choisirAttaqueIA(etat: EtatCombat, cote: CoteCombat, rng: Rng): 
   };
   // 1) coup fatal sur l'actif adverse ?
   for (const i of [1, 0] as const) {
+    if (i === 1 && !speOk) continue;
     const a = moi.attaques[i];
     if (estOffensive(a) && a.type !== 'zone' && degatsAttendus(a) * 0.9 >= lui.pv) return i;
   }
   // 2) soin si mal en point
   for (const i of [1, 0] as const) {
+    if (i === 1 && !speOk) continue;
     if (moi.attaques[i].type === 'soin' && moi.pv < moi.pvMax * 0.38 && rng() < 0.7) return i;
   }
   // 3) un peu d'imprévisible
-  if (rng() < 0.2) return rng() < 0.5 ? 0 : 1;
+  if (rng() < 0.2) return rng() < 0.5 || !speOk ? 0 : 1;
   // 4) sinon : la meilleure option
   const s0 = degatsAttendus(moi.attaques[0]) + (moi.attaques[0].type === 'boost' ? moi.atk * 0.8 : 0);
   const s1 = degatsAttendus(moi.attaques[1]) + (moi.attaques[1].type === 'boost' && moi.boostTours === 0 ? moi.atk * 0.9 : 0)
     + (moi.attaques[1].type === 'bouclier' && !moi.bouclier ? moi.atk * 0.7 : 0);
-  return s1 >= s0 ? 1 : 0;
+  return speOk && s1 >= s0 ? 1 : 0;
 }
 
 // --- Résolution d'un round -----------------------------------------------------------------
@@ -229,7 +296,7 @@ function verifierRemplacement(etat: EtatCombat, cote: CoteCombat, evts: EvtComba
   }
 }
 
-function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1, rng: Rng, evts: EvtCombat[]) {
+function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rng: Rng, evts: EvtCombat[]) {
   const moi = actif(etat, cote);
   const indexMoi = etat.actifs[cote];
   const cible = actif(etat, adverse(cote));
@@ -242,44 +309,65 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1, rng: Rng, evts: 
     return;
   }
 
-  const attaque = moi.attaques[choix];
-  evts.push({ t: 'annonce', cote, texte: `${moi.nom} utilise ${attaque.nom} !` });
+  // 👹 gimmick bouclier : le boss lève sa garde un tour sur deux
+  if (moi.gimmick === 'bouclier' && !moi.bouclier && etat.round % 2 === 1) {
+    moi.bouclier = true;
+    evts.push({ t: 'statut', cote, texte: `${moi.nom} lève un bouclier ! 🛡️` });
+  }
 
+  // ⭐ garde-fous : signature sans jauge pleine / spé sans munitions → attaque de base
+  if (choix === 'signature' && moi.charge < CHARGE_MAX) choix = 0;
+  if (choix === 1 && moi.speRestantes <= 0) choix = 0;
+  const estSpe = choix === 1;
+  if (estSpe) moi.speRestantes--;                                      // 🔋 une munition (même si ça rate)
+
+  const mut = etat.mutateur;                                           // ⚡ mutateur du jour
   const boost = moi.boostTours > 0 ? 1.4 : 1;
   const bonusPrecision = (moi.eff.precisionPct ?? 0) / 100;             // 🎯
-  const chanceCrit = CHANCE_CRITIQUE + (moi.eff.critPct ?? 0) / 100;    // 🍀
+  const chanceCrit = (CHANCE_CRITIQUE + (moi.eff.critPct ?? 0) / 100) * (mut?.critChanceX2 ? 2 : 1); // 🍀 💥
 
-  // Inflige des dégâts à UNE cible — précision, critique, bouclier, effets d'objets.
-  // `estZone` active la réduction Isotherme. Retourne true si la cible est touchée.
+  // Inflige des dégâts à UNE cible — précision, critique, bouclier, effets d'objets, mutateur.
+  // `estZone` active la réduction Isotherme ; `perceForce` = la signature transperce.
+  // Retourne true si la cible est touchée. Un coup encaissé charge la jauge de la cible (+1).
   const frapper = (qui: Combattant, indexQui: number, puissance: number, precisionBase: number, estZone = false): boolean => {
-    if (rng() > Math.min(1, precisionBase + bonusPrecision)) {
+    if (!mut?.precisionParfaite && rng() > Math.min(1, precisionBase + bonusPrecision)) {
       evts.push({ t: 'statut', cote: adverse(cote), texte: `${qui.nom} esquive l'attaque ! 💨` });
       return false;
     }
     const mult = multType(moi.set, qui.set);
     const crit = rng() < chanceCrit;
     if (crit) evts.push({ t: 'statut', cote, texte: 'Coup critique ! 💥' });
-    let degats = Math.round(moi.atk * puissance * mult * boost * (crit ? 1.5 : 1) * (0.9 + rng() * 0.2));
-    // 🧊 Isotherme / panoplie Givré : réduit les dégâts de ZONE subis
+    let degats = Math.round(moi.atk * puissance * mult * boost * (crit ? 1.5 : 1) * (0.9 + rng() * 0.2) * (mut?.degatsMult ?? 1));
+    // 👹 gimmick : le boss « insensible à la zone » ne prend aucun dégât de zone
+    if (estZone && qui.gimmick === 'zone-immune') {
+      degats = 0;
+      evts.push({ t: 'statut', cote: adverse(cote), texte: `${qui.nom} est insensible aux attaques de zone ! 🛡️` });
+    }
+    // 🌊 Tempête : les dégâts de ZONE sont renforcés par le mutateur…
+    if (estZone && mut?.zoneMult) degats = Math.round(degats * mut.zoneMult);
+    // 🧊 …puis réduits par l'Isotherme / panoplie Givré de la cible
     if (estZone && qui.eff.reducZonePct) degats = Math.ceil(degats * (1 - qui.eff.reducZonePct / 100));
-    if (qui.bouclier && !moi.eff.perceBouclier) {
+    const boucAgit = qui.bouclier && !mut?.sansBouclier;               // 🛡️ mutateur peut désactiver les boucliers
+    const perce = moi.eff.perceBouclier;
+    if (boucAgit && !perce) {
       degats = Math.ceil(degats / 2);
       qui.bouclier = false;
       evts.push({ t: 'statut', cote: adverse(cote), texte: `Le bouclier de ${qui.nom} encaisse la moitié !` });
-    } else if (qui.bouclier && moi.eff.perceBouclier) {
+    } else if (boucAgit && perce) {
       evts.push({ t: 'statut', cote, texte: `${moi.nom} transperce le bouclier ! ⚡` });
     }
     const avant = qui.pv;
     const inflige = Math.min(avant, degats);
     qui.pv = Math.max(0, avant - degats);
+    if (inflige > 0) qui.charge = Math.min(CHARGE_MAX, qui.charge + 1); // ⭐ encaisser charge la jauge
     let revive = false;
     if (qui.pv <= 0 && qui.reviveDispo) { qui.pv = 1; qui.reviveDispo = false; revive = true; } // 🧿 Grigri
     evts.push({ t: 'degats', cote: adverse(cote), index: indexQui, valeur: degats, efficace: mult, pvApres: qui.pv });
     if (revive) evts.push({ t: 'statut', cote: adverse(cote), texte: `${qui.nom} tient bon à 1 PV ! 🧿` });
     else if (qui.pv <= 0) evts.push({ t: 'ko', cote: adverse(cote), index: indexQui, nom: qui.nom });
-    // 🩸 vol de vie de l'attaquant (Caramel / panoplie Sucré)
+    // 🩸 vol de vie de l'attaquant (Caramel / panoplie Sucré) — modulé par le mutateur de soin
     if (inflige > 0 && moi.eff.volDeViePct && moi.pv > 0) {
-      const soin = Math.round(inflige * moi.eff.volDeViePct / 100);
+      const soin = Math.round(inflige * moi.eff.volDeViePct / 100 * (mut?.soinMult ?? 1));
       if (soin > 0) { moi.pv = Math.min(moi.pvMax, moi.pv + soin); evts.push({ t: 'soin', cote, index: indexMoi, valeur: soin, pvApres: moi.pv }); }
     }
     // 🌵 épines : la cible renvoie une partie des dégâts à l'attaquant
@@ -294,51 +382,103 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1, rng: Rng, evts: 
     return true;
   };
 
-  switch (attaque.type) {
-    case 'degats':
-      frapper(cible, indexCible, attaque.puissance, attaque.puissance >= 1.3 ? PRECISION_LOURDE : PRECISION_BASE);
-      break;
-    case 'double':
-      frapper(cible, indexCible, attaque.puissance, PRECISION_BASE);
-      if (cible.pv > 0) frapper(cible, indexCible, attaque.puissance, PRECISION_BASE);
-      break;
-    case 'etourdit': {
-      const touche = frapper(cible, indexCible, attaque.puissance, PRECISION_BASE);
-      if (touche && cible.pv > 0 && rng() < 0.55) {
-        if (cible.eff.immuniteEtourdi) evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} est insensible à l'étourdissement ! ❄️` });
-        else { cible.etourdi = true; evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} est étourdi ! 💫` }); }
-      }
-      break;
+  if (choix === 'signature') {
+    // ⭐ ATTAQUE SIGNATURE : imparable, dégâts FIXES = % des PV max de la cible
+    // (plafonnés à ATQ × SIG_CAP_ATK), neutre en type. Le bouclier encaisse la
+    // moitié (contre-jeu assumé), sauf face au perce-bouclier fruité.
+    const sig = SIGNATURES[moi.set];
+    moi.charge = 0;
+    evts.push({ t: 'annonce', cote, texte: `⭐ ${moi.nom} déchaîne ${sig.nom} !` });
+    let degatsSig = Math.min(Math.round(cible.pvMax * sig.pvPct / 100), Math.round(moi.atk * SIG_CAP_ATK));
+    const boucSig = cible.bouclier && !mut?.sansBouclier;
+    if (boucSig && !(sig.perceBouclier || moi.eff.perceBouclier)) {
+      degatsSig = Math.ceil(degatsSig / 2);
+      cible.bouclier = false;
+      evts.push({ t: 'statut', cote: adverse(cote), texte: `Le bouclier de ${cible.nom} encaisse la moitié !` });
+    } else if (boucSig) {
+      evts.push({ t: 'statut', cote, texte: `${moi.nom} transperce le bouclier ! ⚡` });
     }
-    case 'zone': {
-      // 🌊 la vague balaie TOUTE l'équipe adverse (chaque cible esquive/encaisse)
-      const equipeAdverse = etat.equipes[adverse(cote)];
-      for (let i = 0; i < equipeAdverse.length; i++) {
-        const c = equipeAdverse[i];
-        if (c.pv > 0) frapper(c, i, attaque.puissance, PRECISION_ZONE, true);
-      }
-      break;
+    const avantSig = cible.pv;
+    cible.pv = Math.max(0, cible.pv - degatsSig);
+    // 💪 comeback : ENCAISSER une signature charge FORT ta propre jauge (+2)
+    if (degatsSig > 0 && cible.pv > 0) cible.charge = Math.min(CHARGE_MAX, cible.charge + 2);
+    let reviveSig = false;
+    if (cible.pv <= 0 && cible.reviveDispo) { cible.pv = 1; cible.reviveDispo = false; reviveSig = true; } // 🧿 Grigri
+    evts.push({ t: 'degats', cote: adverse(cote), index: indexCible, valeur: Math.min(avantSig, degatsSig), efficace: 1, pvApres: cible.pv });
+    if (reviveSig) evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} tient bon à 1 PV ! 🧿` });
+    else if (cible.pv <= 0) evts.push({ t: 'ko', cote: adverse(cote), index: indexCible, nom: cible.nom });
+    if (sig.soinPct && moi.pv > 0 && moi.pv < moi.pvMax) {
+      const g = Math.round(moi.pvMax * sig.soinPct / 100 * (mut?.soinMult ?? 1));
+      moi.pv = Math.min(moi.pvMax, moi.pv + g);
+      evts.push({ t: 'soin', cote, index: indexMoi, valeur: g, pvApres: moi.pv });
     }
-    case 'soin': {
-      const gain = Math.round(moi.atk * attaque.puissance);
-      moi.pv = Math.min(moi.pvMax, moi.pv + gain);
-      evts.push({ t: 'soin', cote, index: indexMoi, valeur: gain, pvApres: moi.pv });
-      break;
+    if (sig.etourdit && cible.pv > 0) {
+      if (cible.eff.immuniteEtourdi) evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} est insensible à l'étourdissement ! ❄️` });
+      else { cible.etourdi = true; evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} est étourdi ! 💫` }); }
     }
-    case 'bouclier':
-      moi.bouclier = true;
-      evts.push({ t: 'statut', cote, texte: `${moi.nom} se protège ! 🛡️` });
-      break;
-    case 'boost':
+    if (sig.boost) {
       moi.boostTours = 3; // décrémenté à la fin de CETTE action → effectif 2 tours
       evts.push({ t: 'statut', cote, texte: `${moi.nom} monte en puissance ! (+40 % ATQ) 💪` });
-      break;
+    }
+  } else {
+    const attaque = moi.attaques[choix];
+    const bonus = estSpe ? SPE_BONUS : 1; // 🔋 la spé frappe/soigne plus fort
+    evts.push({ t: 'annonce', cote, texte: `${moi.nom} utilise ${attaque.nom} !` });
+
+    switch (attaque.type) {
+      case 'degats':
+        frapper(cible, indexCible, attaque.puissance * bonus, attaque.puissance >= 1.3 ? PRECISION_LOURDE : PRECISION_BASE);
+        break;
+      case 'double':
+        frapper(cible, indexCible, attaque.puissance * bonus, PRECISION_BASE);
+        if (cible.pv > 0) frapper(cible, indexCible, attaque.puissance * bonus, PRECISION_BASE);
+        break;
+      case 'etourdit': {
+        const touche = frapper(cible, indexCible, attaque.puissance * bonus, PRECISION_BASE);
+        if (touche && cible.pv > 0 && rng() < (estSpe ? 0.7 : 0.55)) {
+          if (cible.eff.immuniteEtourdi) evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} est insensible à l'étourdissement ! ❄️` });
+          else { cible.etourdi = true; evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} est étourdi ! 💫` }); }
+        }
+        break;
+      }
+      case 'zone': {
+        // 🌊 la vague balaie TOUTE l'équipe adverse (chaque cible esquive/encaisse)
+        const equipeAdverse = etat.equipes[adverse(cote)];
+        for (let i = 0; i < equipeAdverse.length; i++) {
+          const c = equipeAdverse[i];
+          if (c.pv > 0) frapper(c, i, attaque.puissance * bonus, PRECISION_ZONE, true);
+        }
+        break;
+      }
+      case 'soin': {
+        const gain = Math.round(moi.atk * attaque.puissance * bonus * (mut?.soinMult ?? 1));
+        moi.pv = Math.min(moi.pvMax, moi.pv + gain);
+        evts.push({ t: 'soin', cote, index: indexMoi, valeur: gain, pvApres: moi.pv });
+        break;
+      }
+      case 'bouclier':
+        moi.bouclier = true;
+        evts.push({ t: 'statut', cote, texte: `${moi.nom} se protège ! 🛡️` });
+        break;
+      case 'boost':
+        moi.boostTours = 3; // décrémenté à la fin de CETTE action → effectif 2 tours
+        evts.push({ t: 'statut', cote, texte: `${moi.nom} monte en puissance ! (+40 % ATQ) 💪` });
+        break;
+    }
   }
   if (moi.boostTours > 0) moi.boostTours--;
 
   // 🍯 régénération par tour (Nappé / panoplie Sucré) — appliquée après l'action
   if (moi.eff.soinTour && moi.pv > 0 && moi.pv < moi.pvMax) {
-    const soin = moi.eff.soinTour;
+    const soin = Math.round(moi.eff.soinTour * (mut?.soinMult ?? 1));
+    moi.pv = Math.min(moi.pvMax, moi.pv + soin);
+    evts.push({ t: 'soin', cote, index: indexMoi, valeur: soin, pvApres: moi.pv });
+  }
+
+  // 👹 gimmick regen : le boss se soigne à la fin de SON tour (sauté s'il était étourdi,
+  // car un boss étourdi sort de agir() avant d'arriver ici).
+  if (moi.gimmick === 'regen' && moi.pv > 0 && moi.pv < moi.pvMax) {
+    const soin = Math.round(moi.pvMax * 0.08);
     moi.pv = Math.min(moi.pvMax, moi.pv + soin);
     evts.push({ t: 'soin', cote, index: indexMoi, valeur: soin, pvApres: moi.pv });
   }
@@ -348,13 +488,56 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1, rng: Rng, evts: 
   verifierRemplacement(etat, cote, evts);
 }
 
+// Action du joueur : attaque (0|1), signature (jauge pleine), changement actif, OU consommable.
+export type ActionJoueur = 0 | 1 | 'signature' | { changer: number } | { objet: ConsommableId };
+
 // Joue un round complet : les deux camps agissent dans l'ordre de VIT.
-// `choixA` = attaque du joueur ; le camp b joue à l'IA (ou `choixB` si fourni).
-export function jouerRound(etat: EtatCombat, choixA: 0 | 1, rng: Rng = Math.random, choixB?: 0 | 1): EvtCombat[] {
+// `choixA` = attaque du joueur (ou changement) ; le camp b joue à l'IA (ou `choixB`).
+export function jouerRound(etat: EtatCombat, choixA: ActionJoueur, rng: Rng = Math.random, choixB?: 0 | 1 | 'signature'): EvtCombat[] {
   if (etat.fini) return [];
   const evts: EvtCombat[] = [];
   etat.round++;
   const cb = choixB ?? choisirAttaqueIA(etat, 'b', rng);
+
+  // 🔄 Changement actif / 🎒 consommable : le joueur PAIE son tour, puis b frappe.
+  if (typeof choixA === 'object') {
+    if ('changer' in choixA) {
+      const idx = choixA.changer;
+      const eq = etat.equipes.a;
+      if (idx !== etat.actifs.a && eq[idx] && eq[idx].pv > 0) {
+        etat.actifs.a = idx;
+        evts.push({ t: 'entree', cote: 'a', index: idx, nom: eq[idx].nom });
+      }
+    } else {
+      // 🎒 consommable joué sur l'actif (ou dégâts directs à l'adversaire)
+      const conso = CONSOMMABLES[choixA.objet];
+      const moi = actif(etat, 'a');
+      const idxMoi = etat.actifs.a;
+      if (conso) {
+        const e = conso.effet;
+        evts.push({ t: 'annonce', cote: 'a', texte: `${moi.nom} utilise ${conso.nom} !` });
+        if (e.soinPct) {
+          const g = Math.round(moi.pvMax * e.soinPct / 100);
+          moi.pv = Math.min(moi.pvMax, moi.pv + g);
+          evts.push({ t: 'soin', cote: 'a', index: idxMoi, valeur: g, pvApres: moi.pv });
+        }
+        if (e.retireEtourdi && moi.etourdi) { moi.etourdi = false; evts.push({ t: 'statut', cote: 'a', texte: `${moi.nom} retrouve ses esprits ! 🌿` }); }
+        if (e.boost) { moi.boostTours = 2; evts.push({ t: 'statut', cote: 'a', texte: `${moi.nom} déborde d'énergie ! (+40 % ATQ) ⚡` }); }
+        if (e.bouclier) { moi.bouclier = true; evts.push({ t: 'statut', cote: 'a', texte: `${moi.nom} se protège ! 🛡️` }); }
+        if (e.degatsEnnemi) {
+          const cible = actif(etat, 'b');
+          const idxCible = etat.actifs.b;
+          cible.pv = Math.max(0, cible.pv - e.degatsEnnemi);
+          evts.push({ t: 'degats', cote: 'b', index: idxCible, valeur: e.degatsEnnemi, efficace: 1, pvApres: cible.pv });
+          if (cible.pv <= 0) evts.push({ t: 'ko', cote: 'b', index: idxCible, nom: cible.nom });
+          verifierRemplacement(etat, 'b', evts);
+        }
+      }
+    }
+    if (!etat.fini) agir(etat, 'b', cb, rng, evts);
+    return evts;
+  }
+
   // ⏳ Sablier / panoplie Sucré : agit en premier au 1er round (gros bonus de VIT ponctuel)
   const vitBonus = (c: Combattant) => (etat.round === 1 && c.eff.agitPremier ? 1000 : 0);
   const ca = actif(etat, 'a'); const cbt = actif(etat, 'b');
@@ -452,6 +635,14 @@ export function equipeSam(jour: string): string[] {
   return equipeAleatoire([...IDS_PAR_RARETE.commun, ...IDS_PAR_RARETE.rare, ...IDS_PAR_RARETE.epique], rng);
 }
 
+// 🤝 Défis asynchrones (preview) : des « amis » simulés qui t'ont défié. Chacun a une
+// équipe STABLE (déterminée par son nom) — en version finale, ce seront de vrais comptes.
+export const AMIS_DEMO = ['Léa', 'Maxou', 'Nina', 'Tibo', 'Jade', 'Roro'];
+export function equipeAmi(nom: string): string[] {
+  const rng = rngGraine(graineTexte(nom, 4242));
+  return equipeAleatoire([...IDS_PAR_RARETE.commun, ...IDS_PAR_RARETE.rare, ...IDS_PAR_RARETE.epique], rng);
+}
+
 // --- 🏆 Tournoi hebdomadaire (3 étapes, mêmes champions pour tout le monde) ---------------
 
 export const NOMS_CHAMPIONS = [
@@ -486,9 +677,9 @@ export function adversaireTournoi(semaine: string, etape: number): Adversaire {
 
 // Récompenses de l'Arène (équilibrage « Normal »)
 export function recompenseRang(rang: number): { perles: number; capsule: 'classique' | 'doree' | null } {
-  const perles = Math.min(120 + rang * 30, 450);
+  const perles = Math.min(200 + rang * 45, 700);
   const capsule = rang % 10 === 0 ? 'doree' : rang % 5 === 0 ? 'classique' : null;
   return { perles, capsule };
 }
-export const PERLES_DEFAITE_ARENE = 20;
+export const PERLES_DEFAITE_ARENE = 45;
 export const MISES_DUEL_PAR_JOUR = 3;

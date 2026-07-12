@@ -10,48 +10,61 @@ import Svg, { Line } from 'react-native-svg';
 
 import { C, F, R, OMBRE } from '@/constants/charte';
 import {
-  adversairePNJ, adversaireTournoi, Combattant, CoteCombat, creerCombat,
-  equipeSam, EtatCombat, EvtCombat, HINT_ATTAQUE, jouerRound, multType,
+  adversairePNJ, adversaireTournoi, Combattant, CoteCombat, creerCombat, creerCombatBoss,
+  CHARGE_MAX, equipeSam, equipeAmi, EtatCombat, EvtCombat, HINT_ATTAQUE, jouerRound, multType, SIGNATURES, SPE_USAGES,
 } from '@/components/jeu/arene';
 import PastilleCollectible from '@/components/jeu/collectibles';
+import { BurstSkia } from '@/components/jeu/combat-skia';
+import { Icone, IconeEmoji, IconeType } from '@/components/jeu/icones';
 import {
-  cleJour, cleSemaine, OBJETS, RARETES, SETS, TOURNOI_ETAPES, trouverCollectible,
+  bossDeLaSemaine, cleJour, cleSemaine, CONSOMMABLES, CONSOMMABLE_IDS, ConsommableId,
+  mutateurDuJour, OBJETS, RARETES, TOURNOI_ETAPES, trouverCollectible,
 } from '@/components/jeu/economie';
 import { BoutonJeu, formatNb, IconePerle } from '@/components/jeu/ui-jeu';
 import {
-  defaiteArene, defaiteTournoi, objetsEquipe, resoudreDuelAmi, useBobaQuest,
-  victoireArene, victoireTournoi,
+  defaiteArene, defaiteTournoi, objetsEquipe, resoudreDefiAmi, resoudreDuelAmi, useBobaQuest,
+  utiliserConsommable, victoireArene, victoireBoss, victoireTournoi,
 } from '@/store/jeu';
 
 const delai = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 type Recap =
-  | { type: 'pnj'; gagne: boolean; perles: number; capsule: 'classique' | 'doree' | null; rang: number }
+  | { type: 'pnj'; gagne: boolean; perles: number; capsule: 'classique' | 'doree' | null; rang: number; pc: number }
   | { type: 'tournoi'; gagne: boolean; perles: number; capsule: 'classique' | 'doree' | null; etape: number; champion: boolean }
+  | { type: 'boss'; gagne: boolean; perles: number; capsules: number; eclats: number; deja: boolean }
+  | { type: 'defi'; gagne: boolean; ami: string; perles: number }
   | { type: 'ami'; gagne: boolean; amical: boolean; miseId?: string; gainId?: string; nouveau?: boolean };
 
 export default function DuelScreen() {
   const insets = useSafeAreaInsets();
   const jeu = useBobaQuest();
-  const params = useLocalSearchParams<{ mode?: string; rang?: string; etape?: string; amical?: string; mise?: string; gain?: string }>();
-  const mode = params.mode === 'pnj' ? 'pnj' : params.mode === 'tournoi' ? 'tournoi' : 'ami';
+  const params = useLocalSearchParams<{ mode?: string; rang?: string; etape?: string; amical?: string; mise?: string; gain?: string; ami?: string }>();
+  const mode = params.mode === 'pnj' ? 'pnj' : params.mode === 'tournoi' ? 'tournoi' : params.mode === 'boss' ? 'boss' : params.mode === 'defi' ? 'defi' : 'ami';
   const rang = Math.max(1, parseInt(String(params.rang ?? '1'), 10) || 1);
   const etape = Math.min(2, Math.max(0, parseInt(String(params.etape ?? '0'), 10) || 0));
   const amical = params.amical === '1';
   const miseId = params.mise ? String(params.mise) : undefined;
   const gainId = params.gain ? String(params.gain) : undefined;
+  const amiNom = params.ami ? String(params.ami) : 'Un ami';
 
+  const boss = useMemo(() => bossDeLaSemaine(cleSemaine()), []);
   const adversaire = useMemo(
     () => (mode === 'pnj'
       ? adversairePNJ(rang)
       : mode === 'tournoi'
         ? { ...adversaireTournoi(cleSemaine(), etape), nom: `${adversaireTournoi(cleSemaine(), etape).nom} · ${TOURNOI_ETAPES[etape]}` }
-        : { nom: amical ? 'Sam (amical)' : 'Sam — duel misé 😏', ids: equipeSam(cleJour()), echelle: 1, objets: {} }),
-    [mode, rang, etape, amical],
+        : mode === 'boss'
+          ? { nom: boss.nom, ids: [boss.combattantId], echelle: boss.echelle, objets: {} }
+          : mode === 'defi'
+            ? { nom: amiNom, ids: equipeAmi(amiNom), echelle: 1, objets: {} }
+            : { nom: amical ? 'Sam (amical)' : 'Sam — duel misé', ids: equipeSam(cleJour()), echelle: 1, objets: {} }),
+    [mode, rang, etape, amical, boss, amiNom],
   );
 
-  const nouveauCombat = () =>
-    creerCombat(jeu.arene.equipe, adversaire.ids, adversaire.echelle, objetsEquipe(jeu), adversaire.objets);
+  const mutateur = useMemo(() => mutateurDuJour(cleJour()), []);
+  const nouveauCombat = () => (mode === 'boss'
+    ? creerCombatBoss(jeu.arene.equipe, boss, objetsEquipe(jeu), mutateur)
+    : creerCombat(jeu.arene.equipe, adversaire.ids, adversaire.echelle, objetsEquipe(jeu), adversaire.objets, mutateur));
   const combatRef = useRef<EtatCombat | null>(null);
   if (!combatRef.current) combatRef.current = nouveauCombat();
   const combat = combatRef.current;
@@ -71,6 +84,8 @@ export default function DuelScreen() {
   const [journal, setJournal] = useState<string[]>([`${adversaire.nom} veut se battre !`]);
   const [enCours, setEnCours] = useState(false);
   const [flottant, setFlottant] = useState<{ cote: CoteCombat; txt: string; couleur: string; cle: number } | null>(null);
+  const [burst, setBurst] = useState<{ cote: CoteCombat; crit: boolean; cle: number } | null>(null);
+  const [sacVisible, setSacVisible] = useState(false);
   const [recap, setRecap] = useState<Recap | null>(null);
   const crediteRef = useRef(false);
 
@@ -122,10 +137,17 @@ export default function DuelScreen() {
     if (mode === 'pnj') {
       if (gagne) {
         const r = victoireArene(rang);
-        setRecap({ type: 'pnj', gagne, perles: r.perles, capsule: r.capsule, rang });
+        setRecap({ type: 'pnj', gagne, perles: r.perles, capsule: r.capsule, rang, pc: r.pc });
       } else {
         const r = defaiteArene();
-        setRecap({ type: 'pnj', gagne, perles: r.perles, capsule: null, rang });
+        setRecap({ type: 'pnj', gagne, perles: r.perles, capsule: null, rang, pc: r.pc });
+      }
+    } else if (mode === 'boss') {
+      if (gagne) {
+        const r = victoireBoss();
+        setRecap({ type: 'boss', gagne, perles: r.perles, capsules: r.capsules, eclats: r.eclats, deja: r.deja });
+      } else {
+        setRecap({ type: 'boss', gagne, perles: 0, capsules: 0, eclats: 0, deja: false });
       }
     } else if (mode === 'tournoi') {
       if (gagne) {
@@ -135,15 +157,19 @@ export default function DuelScreen() {
         const r = defaiteTournoi();
         setRecap({ type: 'tournoi', gagne, perles: r.perles, capsule: null, etape, champion: false });
       }
+    } else if (mode === 'defi') {
+      const r = resoudreDefiAmi(amiNom, gagne);
+      setRecap({ type: 'defi', gagne, ami: amiNom, perles: r.perles });
     } else if (amical) {
       setRecap({ type: 'ami', gagne, amical: true });
     } else {
       const { nouveau } = resoudreDuelAmi(gagne, miseId, gainId);
       setRecap({ type: 'ami', gagne, amical: false, miseId, gainId, nouveau });
     }
-  }, [mode, rang, etape, amical, miseId, gainId]);
+  }, [mode, rang, etape, amical, miseId, gainId, amiNom]);
 
   const rejouerEvts = async (evts: EvtCombat[]) => {
+    let critFlag = false;
     for (const evt of evts) {
       switch (evt.t) {
         case 'annonce':
@@ -155,12 +181,14 @@ export default function DuelScreen() {
           const surActif = evt.index === afficheRef.current.actifs[evt.cote];
           if (surActif) {
             secouer(evt.cote);
+            setBurst({ cote: evt.cote, crit: critFlag, cle: Date.now() }); // 💥 burst Skia
             setFlottant({ cote: evt.cote, txt: `−${evt.valeur}`, couleur: C.danger, cle: Date.now() });
           } else {
             // dégâts de ZONE sur le banc : visible au journal + points d'équipe
             const nom = combat.equipes[evt.cote][evt.index]?.nom ?? '';
             pousserJournal(`${nom} (banc) encaisse −${evt.valeur} !`);
           }
+          critFlag = false;
           const eff = evt.efficace === 1.5 ? ' C\'est super efficace !' : evt.efficace === 0.75 ? ' Pas très efficace…' : '';
           if (eff && surActif) pousserJournal(eff.trim());
           await delai(surActif ? 700 : 480);
@@ -176,6 +204,7 @@ export default function DuelScreen() {
           setFlottant(null);
           break;
         case 'statut':
+          if (/critique/i.test(evt.texte)) critFlag = true; // le prochain coup est un critique
           pousserJournal(evt.texte);
           await delai(600);
           break;
@@ -197,12 +226,34 @@ export default function DuelScreen() {
     }
   };
 
-  const attaquer = async (choix: 0 | 1) => {
+  const attaquer = async (choix: 0 | 1 | 'signature') => {
     if (enCours || combat.fini) return;
     setEnCours(true);
     const evts = jouerRound(combat, choix);
     await rejouerEvts(evts);
     synchroniser(); // filet de sécurité : affichage = état exact du moteur
+    setEnCours(false);
+  };
+
+  // 🔄 Changement actif : permute un combattant du banc (coûte le tour, l'adversaire frappe)
+  const changer = async (index: number) => {
+    if (enCours || combat.fini) return;
+    setEnCours(true);
+    const evts = jouerRound(combat, { changer: index });
+    await rejouerEvts(evts);
+    synchroniser();
+    setEnCours(false);
+  };
+
+  // 🎒 Consommable : dépense un objet du sac (coûte le tour, l'adversaire frappe)
+  const utiliser = async (id: ConsommableId) => {
+    if (enCours || combat.fini) return;
+    if (!utiliserConsommable(id)) return; // décrémente le sac (persisté)
+    setSacVisible(false);
+    setEnCours(true);
+    const evts = jouerRound(combat, { objet: id });
+    await rejouerEvts(evts);
+    synchroniser();
     setEnCours(false);
   };
 
@@ -219,6 +270,11 @@ export default function DuelScreen() {
   const moi = combat.equipes.a[affiche.actifs.a];
   const lui = combat.equipes.b[affiche.actifs.b];
   const avantage = multType(moi.set, lui.set);
+  const bancActif = combat.equipes.a.some((c, i) => i !== affiche.actifs.a && c.pv > 0) && !combat.fini;
+  const sacDispo = !combat.fini; // 🎒 toujours visible (état vide = découvre la fonctionnalité)
+  const sacObjets = CONSOMMABLE_IDS.filter((id) => (jeu.consommables[id] ?? 0) > 0);
+  const sigPrete = moi.charge >= CHARGE_MAX;
+  const sig = SIGNATURES[moi.set];
 
   return (
     <View style={[styles.fond, { paddingTop: insets.top + 8 }]}>
@@ -234,21 +290,39 @@ export default function DuelScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      {mutateur && (
+        <View style={styles.mutateurBanniere}>
+          <View style={styles.mutateurRang}>
+            <Icone nom="eclair" taille={14} />
+            <IconeEmoji emoji={mutateur.emoji} taille={15} />
+            <Text style={[styles.mutateurTxt, { flexShrink: 1 }]} numberOfLines={2}>{mutateur.nom} — {mutateur.desc}</Text>
+          </View>
+        </View>
+      )}
+
       <View style={styles.zone}>
         {/* === Adversaire === */}
         <CarteCombattant
           key={`b-${affiche.actifs.b}`}
           cote="b" equipe={combat.equipes.b} actifIdx={affiche.actifs.b}
-          pvAffiches={affiche.pv.b} secousse={secousses.b} flottant={flottant} inverse
+          pvAffiches={affiche.pv.b} secousse={secousses.b} flottant={flottant}
+          burst={burst?.cote === 'b' ? burst : null} inverse
         />
 
         {/* === Journal + avantage === */}
         <View style={styles.centre}>
           {avantage !== 1 && !combat.fini && (
             <View style={[styles.avantage, { backgroundColor: avantage === 1.5 ? C.vertPale : C.dangerPale }]}>
-              <Text style={[styles.avantageTxt, { color: avantage === 1.5 ? C.vertFonce : C.danger }]}>
-                {avantage === 1.5 ? `Avantage de type ×1,5 (${SETS[moi.set].emoji} > ${SETS[lui.set].emoji})` : 'Désavantage de type ×0,75'}
-              </Text>
+              {avantage === 1.5 ? (
+                <View style={styles.avantageRow}>
+                  <Text style={[styles.avantageTxt, { color: C.vertFonce }]}>Avantage ×1,5 :</Text>
+                  <IconeType set={moi.set} taille={18} />
+                  <Text style={[styles.avantageTxt, { color: C.vertFonce }]}>bat</Text>
+                  <IconeType set={lui.set} taille={18} />
+                </View>
+              ) : (
+                <Text style={[styles.avantageTxt, { color: C.danger }]}>Désavantage de type ×0,75</Text>
+              )}
             </View>
           )}
           {journal.map((t, i) => (
@@ -261,30 +335,139 @@ export default function DuelScreen() {
           key={`a-${affiche.actifs.a}`}
           cote="a" equipe={combat.equipes.a} actifIdx={affiche.actifs.a}
           pvAffiches={affiche.pv.a} secousse={secousses.a} flottant={flottant}
+          burst={burst?.cote === 'a' ? burst : null}
         />
       </View>
 
-      {/* === Attaques === */}
-      <View style={[styles.attaques, { paddingBottom: insets.bottom + 12 }]}>
-        {moi.attaques.map((a, i) => (
+      {/* === ⭐ Signature : jauge (se remplit en agissant/encaissant) ou bouton prêt === */}
+      {!combat.fini && (
+        sigPrete ? (
           <Pressable
-            key={a.nom}
-            style={[styles.btnAttaque, (enCours || combat.fini) && { opacity: 0.45 }, i === 1 && styles.btnAttaqueSpe]}
-            disabled={enCours || combat.fini}
-            onPress={() => attaquer(i as 0 | 1)}
+            style={[styles.sigPret, enCours && { opacity: 0.45 }]}
+            disabled={enCours}
+            onPress={() => attaquer('signature')}
           >
-            <Text style={[styles.btnAttaqueNom, i === 1 && { color: '#fff' }]}>{a.nom}</Text>
-            <Text style={[styles.btnAttaqueHint, i === 1 && { color: C.lavande }]}>{HINT_ATTAQUE[a.type]}</Text>
+            <Icone nom="eclat" taille={18} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sigPretNom}>{sig.nom} — PRÊT !</Text>
+              <Text style={styles.sigPretHint}>{sig.desc}</Text>
+            </View>
           </Pressable>
-        ))}
+        ) : (
+          <View style={styles.sigJauge}>
+            <Text style={styles.sigJaugeTxt}>Signature</Text>
+            <View style={styles.sigPips}>
+              {Array.from({ length: CHARGE_MAX }, (_, i) => (
+                <View key={i} style={[styles.sigPip, i < moi.charge && styles.sigPipPlein]} />
+              ))}
+            </View>
+            <Text style={styles.sigJaugeHint}>attaque et encaisse pour charger</Text>
+          </View>
+        )
+      )}
+
+      {/* === Attaques === */}
+      <View style={[styles.attaques, { paddingBottom: (bancActif || sacDispo) ? 8 : insets.bottom + 12 }]}>
+        {moi.attaques.map((a, i) => {
+          const spe = i === 1;
+          const epuisee = spe && moi.speRestantes <= 0;
+          return (
+            <Pressable
+              key={a.nom}
+              style={[styles.btnAttaque, (enCours || combat.fini || epuisee) && { opacity: 0.45 }, spe && styles.btnAttaqueSpe]}
+              disabled={enCours || combat.fini || epuisee}
+              onPress={() => attaquer(i as 0 | 1)}
+            >
+              <Text style={[styles.btnAttaqueNom, spe && { color: '#fff' }]}>{a.nom}</Text>
+              <Text style={[styles.btnAttaqueHint, spe && { color: C.lavande }]}>
+                {epuisee ? 'Épuisée pour ce combat' : HINT_ATTAQUE[a.type]}
+              </Text>
+              {spe && (
+                <Text style={styles.btnAttaqueMun}>
+                  {'●'.repeat(moi.speRestantes)}{'○'.repeat(SPE_USAGES - moi.speRestantes)}
+                </Text>
+              )}
+            </Pressable>
+          );
+        })}
       </View>
+
+      {/* === 🔄 Changement actif (banc) + 🎒 Sac === */}
+      {(() => {
+        const banc = combat.equipes.a.map((c, i) => ({ c, i })).filter(({ c, i }) => i !== affiche.actifs.a && c.pv > 0);
+        if (combat.fini || (banc.length === 0 && !sacDispo)) return null;
+        return (
+          <View style={[styles.bancRang, { paddingBottom: insets.bottom + 6 }]}>
+            {banc.length > 0 && <Text style={styles.bancLabel}>Changer :</Text>}
+            {banc.map(({ c, i }) => {
+              const av = multType(c.set, lui.set);
+              return (
+                <Pressable
+                  key={c.id}
+                  style={[styles.bancChip, enCours && { opacity: 0.4 }]}
+                  disabled={enCours}
+                  onPress={() => changer(i)}
+                >
+                  <PastilleCollectible id={c.id} taille={26} />
+                  <Text style={styles.bancChipNom} numberOfLines={1}>{c.nom}</Text>
+                  {av !== 1 && <Text style={[styles.bancAv, { color: av === 1.5 ? C.vertFonce : C.danger }]}>{av === 1.5 ? '▲' : '▼'}</Text>}
+                </Pressable>
+              );
+            })}
+            {sacDispo && (
+              <Pressable style={[styles.sacBtn, enCours && { opacity: 0.4 }]} disabled={enCours} onPress={() => setSacVisible(true)}>
+                <Icone nom="sac" taille={15} />
+                <Text style={styles.sacBtnTxt}>Sac{sacObjets.length ? ` · ${sacObjets.reduce((s, id) => s + (jeu.consommables[id] ?? 0), 0)}` : ''}</Text>
+              </Pressable>
+            )}
+          </View>
+        );
+      })()}
+
+      {/* === 🎒 Sac de consommables === */}
+      <Modal visible={sacVisible} transparent animationType="fade" onRequestClose={() => setSacVisible(false)}>
+        <Pressable style={styles.modalFond} onPress={() => setSacVisible(false)}>
+          <Pressable style={styles.sacCarte} onPress={() => {}}>
+            <View style={styles.modalTitreRang}><Icone nom="sac" taille={22} /><Text style={styles.modalTitre}>Sac de combat</Text></View>
+            {sacObjets.length > 0 ? (
+              <>
+                <Text style={styles.sacAide}>Utiliser un objet coûte ton tour — l'adversaire frappe ensuite.</Text>
+                {sacObjets.map((id) => {
+                  const d = CONSOMMABLES[id];
+                  return (
+                    <Pressable key={id} style={[styles.sacLigne, enCours && { opacity: 0.4 }]} disabled={enCours} onPress={() => utiliser(id)}>
+                      <IconeEmoji emoji={d.emoji} taille={30} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.sacNom}>{d.nom} ×{jeu.consommables[id]}</Text>
+                        <Text style={styles.sacDesc}>{d.desc}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                <Text style={styles.sacAide}>
+                  Ton sac est vide ! Les consommables se jouent en plein combat — soin,
+                  boost, bouclier, anti-étourdissement ou dégâts directs — mais utiliser
+                  un objet coûte ton tour.
+                </Text>
+                <Text style={styles.sacVide}>
+                  Ils s'achètent avec des perles à l'Arène, section « Sac de combat ».
+                </Text>
+              </>
+            )}
+            <BoutonJeu titre="Fermer" onPress={() => setSacVisible(false)} style={{ alignSelf: 'stretch' }} />
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* === Fin === */}
       <Modal visible={!!recap} transparent animationType="fade" onRequestClose={() => {}}>
         {recap && (
           <View style={styles.modalFond}>
             <View style={styles.modalCarte}>
-              <Text style={{ fontSize: 44 }}>{recap.gagne ? '🏆' : '😵‍💫'}</Text>
+              <Icone nom={recap.gagne ? 'trophee' : 'triste'} taille={48} />
               <Text style={styles.modalTitre}>{recap.gagne ? 'VICTOIRE !' : 'Défaite…'}</Text>
 
               {recap.type === 'pnj' && (
@@ -293,10 +476,20 @@ export default function DuelScreen() {
                     <IconePerle taille={18} />
                     <Text style={styles.ligneGainTxt}>+{formatNb(recap.perles)} perles</Text>
                   </View>
+                  {recap.pc !== 0 && (
+                    <View style={styles.gainRang}>
+                      <Icone nom="trophee" taille={15} />
+                      <Text style={[styles.pcGain, { color: recap.pc > 0 ? '#2E7D32' : '#C0455A' }]}>
+                        {recap.pc > 0 ? `+${recap.pc}` : recap.pc} PC de classement
+                      </Text>
+                    </View>
+                  )}
                   {recap.capsule && (
-                    <Text style={styles.capsuleGain}>
-                      🎁 +1 capsule {recap.capsule === 'doree' ? 'DORÉE 👑' : 'classique'} !
-                    </Text>
+                    <View style={styles.gainRang}>
+                      <Icone nom="cadeau" taille={16} />
+                      <Text style={styles.capsuleGain}>+1 capsule {recap.capsule === 'doree' ? 'DORÉE' : 'classique'} !</Text>
+                      {recap.capsule === 'doree' && <Icone nom="couronne" taille={16} />}
+                    </View>
                   )}
                   {recap.gagne
                     ? <Text style={styles.modalTexte}>Rang {recap.rang + 1} débloqué — le prochain Maître t'attend.</Text>
@@ -306,16 +499,22 @@ export default function DuelScreen() {
               {recap.type === 'tournoi' && (
                 <>
                   {recap.champion && (
-                    <Text style={styles.championTxt}>👑 CHAMPION DE LA SEMAINE ! 👑</Text>
+                    <View style={styles.gainRang}>
+                      <Icone nom="couronne" taille={18} />
+                      <Text style={styles.championTxt}>CHAMPION DE LA SEMAINE !</Text>
+                      <Icone nom="couronne" taille={18} />
+                    </View>
                   )}
                   <View style={styles.ligneGain}>
                     <IconePerle taille={18} />
                     <Text style={styles.ligneGainTxt}>+{formatNb(recap.perles)} perles</Text>
                   </View>
                   {recap.capsule && (
-                    <Text style={styles.capsuleGain}>
-                      🎁 +1 capsule {recap.capsule === 'doree' ? 'DORÉE 👑' : 'classique'} !
-                    </Text>
+                    <View style={styles.gainRang}>
+                      <Icone nom="cadeau" taille={16} />
+                      <Text style={styles.capsuleGain}>+1 capsule {recap.capsule === 'doree' ? 'DORÉE' : 'classique'} !</Text>
+                      {recap.capsule === 'doree' && <Icone nom="couronne" taille={16} />}
+                    </View>
                   )}
                   {recap.gagne && !recap.champion && (
                     <BoutonJeu
@@ -331,6 +530,29 @@ export default function DuelScreen() {
                   )}
                 </>
               )}
+              {recap.type === 'boss' && (
+                recap.gagne ? (
+                  recap.deja ? (
+                    <Text style={styles.modalTexte}>Boss déjà vaincu cette semaine — reviens lundi pour le prochain.</Text>
+                  ) : (
+                    <>
+                      <View style={styles.ligneGain}>
+                        <IconePerle taille={18} />
+                        <Text style={styles.ligneGainTxt}>+{formatNb(recap.perles)} perles</Text>
+                      </View>
+                      <View style={styles.gainRang}>
+                        <Icone nom="cadeau" taille={15} />
+                        <Text style={styles.capsuleGain}>+{recap.capsules} capsule ·</Text>
+                        <Icone nom="eclat" taille={14} />
+                        <Text style={styles.capsuleGain}>+{recap.eclats} éclats</Text>
+                      </View>
+                      <Text style={styles.modalTexte}>Boss de la semaine vaincu ! Reviens lundi défier le suivant.</Text>
+                    </>
+                  )
+                ) : (
+                  <Text style={styles.modalTexte}>Le boss est coriace ! Adapte ton équipe à son gimmick et retente.</Text>
+                )
+              )}
               {recap.type === 'ami' && recap.amical && (
                 <Text style={styles.modalTexte}>
                   {recap.gagne ? 'La classe. Sam va demander sa revanche !' : 'Sam jubile. Tu connais le chemin de l\'Aventure…'}
@@ -342,7 +564,7 @@ export default function DuelScreen() {
                     <View style={{ alignItems: 'center', gap: 8 }}>
                       <PastilleCollectible id={recap.gainId} taille={84} />
                       <Text style={styles.capsuleGain}>
-                        Tu remportes {trouverCollectible(recap.gainId)?.nom} !{recap.nouveau ? '  ✨ NOUVEAU !' : ''}
+                        Tu remportes {trouverCollectible(recap.gainId)?.nom} !{recap.nouveau ? '  NOUVEAU !' : ''}
                       </Text>
                     </View>
                   )}
@@ -353,9 +575,24 @@ export default function DuelScreen() {
                   )}
                 </>
               )}
+              {recap.type === 'defi' && (
+                <>
+                  {recap.gagne && (
+                    <View style={styles.ligneGain}>
+                      <IconePerle taille={18} />
+                      <Text style={styles.ligneGainTxt}>+{formatNb(recap.perles)} perles</Text>
+                    </View>
+                  )}
+                  <Text style={styles.modalTexte}>
+                    {recap.gagne
+                      ? `Tu as battu l'équipe de ${recap.ami} ! Défi relevé.`
+                      : `${recap.ami} a bien défendu son équipe… Retente sur un autre défi !`}
+                  </Text>
+                </>
+              )}
 
               <BoutonJeu
-                titre={recap.type === 'tournoi' ? 'Retour au tournoi' : 'Retour à l\'Arène'}
+                titre={recap.type === 'tournoi' ? 'Retour au tournoi' : recap.type === 'defi' ? 'Retour aux défis' : 'Retour à l\'Arène'}
                 onPress={() => router.back()}
                 style={{ alignSelf: 'stretch' }}
               />
@@ -369,10 +606,11 @@ export default function DuelScreen() {
 
 // Carte d'un combattant actif : pastille, nom, chips, barre de PV ANIMÉE
 // (elle glisse à chaque coup), points d'équipe. Tout vient de l'état REJOUÉ.
-function CarteCombattant({ cote, equipe, actifIdx, pvAffiches, secousse, flottant, inverse }: {
+function CarteCombattant({ cote, equipe, actifIdx, pvAffiches, secousse, flottant, burst, inverse }: {
   cote: CoteCombat; equipe: Combattant[]; actifIdx: number; pvAffiches: number[];
   secousse: Animated.Value;
   flottant: { cote: CoteCombat; txt: string; couleur: string; cle: number } | null;
+  burst: { cote: CoteCombat; crit: boolean; cle: number } | null;
   inverse?: boolean;
 }) {
   const c = equipe[actifIdx];
@@ -398,6 +636,11 @@ function CarteCombattant({ cote, equipe, actifIdx, pvAffiches, secousse, flottan
       <View style={{ alignItems: 'center', gap: 4 }}>
         <View style={{ opacity: pv > 0 ? 1 : 0.3 }}>
           <PastilleCollectible id={c.id} taille={86} />
+          {burst && (
+            <View pointerEvents="none" style={{ position: 'absolute', left: 43 - 62, top: 43 - 62 }}>
+              <BurstSkia taille={124} crit={burst.crit} cle={burst.cle} />
+            </View>
+          )}
         </View>
         {flottant && flottant.cote === cote && (
           <Text key={flottant.cle} style={[styles.flottant, { color: flottant.couleur }]}>{flottant.txt}</Text>
@@ -405,8 +648,14 @@ function CarteCombattant({ cote, equipe, actifIdx, pvAffiches, secousse, flottan
       </View>
       <View style={{ flex: 1, gap: 6 }}>
         <View style={styles.nomLigne}>
-          <Text style={styles.nom}>{c.nom}{c.objets.length ? `  ${c.objets.map((o) => OBJETS[o].emoji).join('')}` : ''}</Text>
-          <Text style={styles.chips}>{SETS[c.set].emoji} {meta ? RARETES[meta.rarete].nom : ''}</Text>
+          <View style={styles.nomRang}>
+            <Text style={styles.nom} numberOfLines={1}>{c.nom}</Text>
+            {c.objets.map((o) => <IconeEmoji key={o} emoji={OBJETS[o].emoji} taille={14} />)}
+          </View>
+          <View style={styles.chipsRow}>
+            <IconeType set={c.set} taille={16} />
+            <Text style={styles.chips}>{meta ? RARETES[meta.rarete].nom : ''}</Text>
+          </View>
         </View>
         <View style={styles.pvBarre}>
           <Animated.View
@@ -417,7 +666,18 @@ function CarteCombattant({ cote, equipe, actifIdx, pvAffiches, secousse, flottan
           />
         </View>
         <View style={styles.sousLigne}>
-          <Text style={styles.pvTxt}>{pv}/{c.pvMax} PV{c.bouclier ? '  🛡️' : ''}{c.boostTours > 0 ? '  💪' : ''}{c.etourdi ? '  💫' : ''}</Text>
+          <View style={styles.pvTxtRang}>
+            <Text style={styles.pvTxt}>{pv}/{c.pvMax} PV</Text>
+            {c.bouclier ? <Icone nom="bouclier" taille={13} /> : null}
+            {c.boostTours > 0 ? <Icone nom="boost" taille={13} /> : null}
+            {c.etourdi ? <Icone nom="etourdi" taille={13} /> : null}
+            {/* ⭐ jauge signature — visible des DEUX côtés (on voit venir l'ulti adverse) */}
+            <View style={styles.chargeRang}>
+              {Array.from({ length: CHARGE_MAX }, (_, i) => (
+                <View key={i} style={[styles.chargePip, i < c.charge && styles.chargePipPlein]} />
+              ))}
+            </View>
+          </View>
           <View style={{ flexDirection: 'row', gap: 4 }}>
             {equipe.map((m, i) => (
               <View key={m.id} style={[styles.point, pvAffiches[i] <= 0 && { backgroundColor: C.bord }, i === actifIdx && pvAffiches[i] > 0 && { borderWidth: 1.5, borderColor: C.violetProfond }]} />
@@ -445,8 +705,14 @@ const styles = StyleSheet.create({
     backgroundColor: C.carte, borderRadius: R.carte, padding: 14, ...OMBRE,
   },
   nomLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  nomRang: { flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 1 },
   nom: { fontFamily: F.t800, fontSize: 16.5, color: C.texte },
+  pvTxtRang: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  chargeRang: { flexDirection: 'row', gap: 2.5, marginLeft: 3 },
+  chargePip: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.lavande },
+  chargePipPlein: { backgroundColor: '#F5A93B' },
   chips: { fontFamily: F.t700, fontSize: 11.5, color: C.texte2 },
+  chipsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   pvBarre: { height: 10, borderRadius: 5, backgroundColor: C.lavande, overflow: 'hidden' },
   pvRempli: { height: 10, borderRadius: 5 },
   sousLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -457,6 +723,7 @@ const styles = StyleSheet.create({
   centre: { alignItems: 'center', gap: 6, minHeight: 74, justifyContent: 'center' },
   avantage: { borderRadius: R.pill, paddingVertical: 5, paddingHorizontal: 12 },
   avantageTxt: { fontFamily: F.t800, fontSize: 12 },
+  avantageRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap', justifyContent: 'center' },
   journal: { fontFamily: F.t700, fontSize: 14.5, color: C.texte, textAlign: 'center' },
 
   attaques: { flexDirection: 'row', gap: 12, paddingHorizontal: 18 },
@@ -467,10 +734,60 @@ const styles = StyleSheet.create({
   btnAttaqueSpe: { backgroundColor: C.violet, borderColor: C.violet },
   btnAttaqueNom: { fontFamily: F.t800, fontSize: 14.5, color: C.texte, textAlign: 'center' },
   btnAttaqueHint: { fontFamily: F.t600, fontSize: 11, color: C.texte2, textAlign: 'center' },
+  btnAttaqueMun: { fontFamily: F.t800, fontSize: 10, color: '#FFD166', textAlign: 'center', letterSpacing: 2, marginTop: 1 },
+
+  // ⭐ signature : jauge fine (pas prête) ou gros bouton doré (prête)
+  sigJauge: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: 18, marginBottom: 8, paddingVertical: 7, paddingHorizontal: 12,
+    backgroundColor: C.carte, borderRadius: 12, borderWidth: 1, borderColor: C.bord,
+  },
+  sigJaugeTxt: { fontFamily: F.t800, fontSize: 11.5, color: C.texte2 },
+  sigPips: { flexDirection: 'row', gap: 4 },
+  sigPip: { width: 14, height: 8, borderRadius: 4, backgroundColor: C.lavande },
+  sigPipPlein: { backgroundColor: '#F5A93B' },
+  sigJaugeHint: { flex: 1, fontFamily: F.t600, fontSize: 10.5, color: C.texte3, textAlign: 'right' },
+  sigPret: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginHorizontal: 18, marginBottom: 8, paddingVertical: 10, paddingHorizontal: 14,
+    backgroundColor: '#F5A93B', borderRadius: 14, borderWidth: 2, borderColor: '#E8920F',
+  },
+  sigPretNom: { fontFamily: F.t800, fontSize: 14.5, color: '#4A2B00' },
+  sigPretHint: { fontFamily: F.t700, fontSize: 10.5, color: '#7A4B05' },
+  bancRang: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingTop: 8, flexWrap: 'wrap' },
+  bancLabel: { fontFamily: F.t800, fontSize: 12.5, color: C.texte2 },
+  bancChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.carte,
+    borderRadius: R.pill, paddingVertical: 5, paddingHorizontal: 10, borderWidth: 1.5, borderColor: C.bord,
+  },
+  bancChipNom: { fontFamily: F.t700, fontSize: 12.5, color: C.texte },
+  bancAv: { fontFamily: F.t800, fontSize: 12 },
+  sacBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: C.violet, borderRadius: R.pill, paddingVertical: 6, paddingHorizontal: 14,
+  },
+  sacBtnTxt: { fontFamily: F.t800, fontSize: 12.5, color: '#fff' },
+  sacCarte: { backgroundColor: C.carte, borderRadius: 24, padding: 20, gap: 10, alignSelf: 'stretch', ...OMBRE },
+  sacAide: { fontFamily: F.t600, fontSize: 12, color: C.texte2, textAlign: 'center' },
+  sacVide: { fontFamily: F.t700, fontSize: 12.5, color: C.violet, textAlign: 'center', lineHeight: 18 },
+  sacLigne: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.fond,
+    borderRadius: 14, padding: 12,
+  },
+  sacNom: { fontFamily: F.t800, fontSize: 14, color: C.texte },
+  sacDesc: { fontFamily: F.t600, fontSize: 11.5, color: C.texte2, marginTop: 1 },
+  mutateurBanniere: {
+    marginHorizontal: 18, marginTop: 4, marginBottom: 2, backgroundColor: '#FFF3D6',
+    borderRadius: R.pill, paddingVertical: 7, paddingHorizontal: 14, borderWidth: 1, borderColor: C.jaune,
+  },
+  mutateurTxt: { fontFamily: F.t800, fontSize: 12, color: '#9A6B00', textAlign: 'center' },
+  mutateurRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
 
   modalFond: { flex: 1, backgroundColor: 'rgba(42,29,70,0.65)', alignItems: 'center', justifyContent: 'center', padding: 26 },
   modalCarte: { backgroundColor: C.carte, borderRadius: 24, padding: 24, alignItems: 'center', gap: 12, alignSelf: 'stretch', ...OMBRE },
   modalTitre: { fontFamily: F.titre, fontSize: 24, color: C.violet },
+  modalTitreRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  gainRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap' },
   modalTexte: { fontFamily: F.t400, fontSize: 13.5, color: C.texte2, textAlign: 'center', lineHeight: 20 },
   ligneGain: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -478,5 +795,6 @@ const styles = StyleSheet.create({
   },
   ligneGainTxt: { fontFamily: F.t800, fontSize: 15, color: C.vertFonce },
   capsuleGain: { fontFamily: F.t700, fontSize: 14, color: '#9A6B00', textAlign: 'center' },
+  pcGain: { fontFamily: F.t800, fontSize: 13.5, textAlign: 'center' },
   championTxt: { fontFamily: F.titre, fontSize: 17, color: '#D2588A', textAlign: 'center' },
 });

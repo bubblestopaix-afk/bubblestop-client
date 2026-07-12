@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { supabase } from '@/lib/supabase';
 import { enregistrerPush } from '@/lib/push';
+import { IconeApp } from '@/components/icones-app';
 import { C, F, OMBRE } from '@/constants/charte';
 
 const CLE_SNOOZE = 'rappelNotifs.plusTard';
@@ -57,7 +58,10 @@ export default function RappelNotifs() {
 
   return (
     <View style={styles.carte}>
-      <Text style={styles.titre}>🔔 Ne rate aucune promo !</Text>
+      <View style={styles.titreRang}>
+        <IconeApp nom="cloche" taille={17} />
+        <Text style={styles.titre}>Ne rate aucune promo !</Text>
+      </View>
       <Text style={styles.texte}>
         {etat === 'denied'
           ? 'Les notifications sont désactivées : tu ne reçois ni les offres ni le « commande prête ». Réactive-les dans les réglages.'
@@ -80,6 +84,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.carte, borderRadius: 18, padding: 16, gap: 8,
     borderWidth: 1.5, borderColor: C.vert, ...OMBRE,
   },
+  titreRang: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   titre: { fontFamily: F.t800, fontSize: 14.5, color: C.violetProfond },
   texte: { fontFamily: F.t400, fontSize: 12.5, color: C.texte2, lineHeight: 18 },
   boutons: { flexDirection: 'row', gap: 10, alignItems: 'center' },

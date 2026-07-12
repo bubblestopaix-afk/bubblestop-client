@@ -11,6 +11,7 @@ import Svg, { Circle, G, Path, Text as SvgText } from 'react-native-svg';
 
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { ROULETTE, SegmentRoulette } from '@/components/jeu/economie';
+import { Icone } from '@/components/jeu/icones';
 import { BandeauPreview, BoutonJeu, EnTeteJeu } from '@/components/jeu/ui-jeu';
 import { appliquerRoulette, rouletteDispo, tournerRoulette, useBobaQuest } from '@/store/jeu';
 
@@ -62,7 +63,7 @@ export default function RouletteScreen() {
 
       <ScrollView contentContainerStyle={styles.contenu}>
         <Text style={styles.pitch}>
-          Un tour gratuit chaque mois — et tu gagnes à tous les coups 🎁
+          Un tour gratuit chaque mois — et tu gagnes à tous les coups
         </Text>
 
         {/* === La roue === */}
@@ -85,18 +86,21 @@ export default function RouletteScreen() {
 
         {dispo ? (
           <BoutonJeu
-            titre={enCours ? 'La roue tourne… 🥁' : 'Lancer ma roue du mois !'}
+            titre={enCours ? 'La roue tourne…' : 'Lancer ma roue du mois !'}
             onPress={lancer}
             disabled={enCours}
             style={{ backgroundColor: C.vert }}
           />
         ) : (
           <View style={styles.dejaCarte}>
-            <Text style={styles.dejaTitre}>Roue du mois déjà jouée ✓</Text>
+            <View style={styles.dejaTitreRang}>
+              <Icone nom="check" taille={16} />
+              <Text style={styles.dejaTitre}>Roue du mois déjà jouée</Text>
+            </View>
             {!!etat.dernierGainRoulette && (
               <Text style={styles.dejaGain}>Dernier gain : {etat.dernierGainRoulette}</Text>
             )}
-            <Text style={styles.dejaProchain}>Reviens le {prochain} pour ton prochain tour 🍀</Text>
+            <Text style={styles.dejaProchain}>Reviens le {prochain} pour ton prochain tour</Text>
           </View>
         )}
 
@@ -112,7 +116,7 @@ export default function RouletteScreen() {
         {gain && (
           <View style={styles.modalFond}>
             <View style={styles.gainCarte}>
-              <Text style={{ fontSize: 46 }}>🎉</Text>
+              <Icone nom="cadeau" taille={46} />
               <Text style={styles.gainTitre}>Tu as gagné !</Text>
               <View style={[styles.gainPill, { backgroundColor: gain.couleur }]}>
                 <Text style={[styles.gainPillTxt, TEXTE_SOMBRE.has(gain.id) && { color: '#2A1D46' }]}>
@@ -121,7 +125,7 @@ export default function RouletteScreen() {
               </View>
               <Text style={styles.gainAide}>
                 {gain.type === 'perles'
-                  ? 'Tes perles ont été créditées direct ✨'
+                  ? 'Tes perles ont été créditées direct'
                   : gain.type === 'capsule_doree'
                     ? 'Ta capsule dorée t\'attend dans l\'écran Capsules !'
                     : 'Retrouve ton prix dans « Boutique des prix → Mes prix ».'}
@@ -188,6 +192,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', gap: 6, ...OMBRE,
   },
   dejaTitre: { fontFamily: F.t800, fontSize: 15.5, color: C.texte },
+  dejaTitreRang: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dejaGain: { fontFamily: F.t700, fontSize: 13.5, color: C.vertFonce },
   dejaProchain: { fontFamily: F.t600, fontSize: 13, color: C.texte2 },
 

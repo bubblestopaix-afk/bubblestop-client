@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { reclamerJetonEnAttente } from '@/lib/carte-temp';
 import { appliquerParrainEnAttente } from '@/lib/parrainage';
 import { enregistrerPush } from '@/lib/push';
+import { getMagasin } from '@/store/magasin';
 
 export default function TabLayout() {
   // Polices DA : Paytone One (titres) + Outfit (textes)
@@ -79,6 +80,9 @@ export default function TabLayout() {
             email: session.user.email,
             nom: (session.user.user_metadata as any)?.full_name || null,
             app_utilisee: true,
+            // Boutique par défaut = choix local de l'app (modifiable dans Compte → Mes
+            // informations). Évite qu'une caisse d'une AUTRE ville la fixe à sa place.
+            magasin: getMagasin(),
           });
           setNaissanceUserId(session.user.id);
         } else {

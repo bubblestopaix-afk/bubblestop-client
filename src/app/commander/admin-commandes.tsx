@@ -20,11 +20,11 @@ const LAVANDE = C.lavande;
 // Statuts pilotables par l'admin (dans l'ordre du flux)
 const FLUX = ['en_attente', 'en_preparation', 'prete', 'recuperee'] as const;
 const STATUTS: Record<string, { label: string; court: string; couleur: string }> = {
-  en_attente:     { label: '🕐 Reçue',          court: 'Reçue',  couleur: '#FFD166' },
-  en_preparation: { label: '👩‍🍳 En préparation', court: 'Prépa',  couleur: '#7EC8E3' },
-  prete:          { label: '🛍️ Prête',           court: 'Prête',  couleur: VERT },
-  recuperee:      { label: '✅ Récupérée',       court: 'Récup.', couleur: '#B0B4BA' },
-  annulee:        { label: '✖ Annulée',          court: 'Annul.', couleur: '#E07A8A' },
+  en_attente:     { label: 'Reçue',          court: 'Reçue',  couleur: '#FFD166' },
+  en_preparation: { label: 'En préparation', court: 'Prépa',  couleur: '#7EC8E3' },
+  prete:          { label: 'Prête',          court: 'Prête',  couleur: VERT },
+  recuperee:      { label: 'Récupérée',      court: 'Récup.', couleur: '#B0B4BA' },
+  annulee:        { label: 'Annulée',        court: 'Annul.', couleur: '#E07A8A' },
 };
 const EN_COURS = ['en_attente', 'en_preparation', 'prete'];
 
@@ -108,7 +108,7 @@ export default function AdminCommandesScreen() {
           <Pressable onPress={() => router.back()}>
             <Text style={styles.retour}>‹ Retour</Text>
           </Pressable>
-          <Text style={styles.titre}>🛠️ Toutes les commandes</Text>
+          <Text style={styles.titre}>Toutes les commandes</Text>
 
           {/* Filtres magasin + en cours */}
           <View style={styles.filtres}>
@@ -121,7 +121,7 @@ export default function AdminCommandesScreen() {
               </Pressable>
             ))}
             <Pressable onPress={() => setEnCours((v) => !v)} style={[styles.chip, enCours && styles.chipOn]}>
-              <Text style={[styles.chipTexte, enCours && { color: VIOLET_PROFOND }]}>⏳ En cours</Text>
+              <Text style={[styles.chipTexte, enCours && { color: VIOLET_PROFOND }]}>En cours</Text>
             </Pressable>
           </View>
 
@@ -147,7 +147,7 @@ export default function AdminCommandesScreen() {
 
                 {/* Client */}
                 <Text style={styles.client}>
-                  👤 {cmd.profils?.nom || '(sans nom)'}
+                  {cmd.profils?.nom || '(sans nom)'}
                 </Text>
 
                 <View style={[styles.statut, { backgroundColor: st.couleur }]}>
@@ -156,7 +156,7 @@ export default function AdminCommandesScreen() {
 
                 {cmd.creneau_retrait && (
                   <Text style={styles.creneau}>
-                    🕐 Retrait prévu à{' '}
+                    Retrait prévu à{' '}
                     {new Date(cmd.creneau_retrait).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                   </Text>
                 )}

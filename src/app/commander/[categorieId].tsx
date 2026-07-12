@@ -173,7 +173,7 @@ export default function PersonnalisationScreen() {
                 {(['glace', 'chaud'] as const).map((t) => (
                   <Chip
                     key={t}
-                    label={t === 'glace' ? '🧊 Glacé' : '♨️ Chaud'}
+                    label={t === 'glace' ? 'Glacé' : 'Chaud'}
                     actif={temperature === t}
                     onPress={() => setTemperature(t)}
                   />
@@ -249,7 +249,7 @@ export default function PersonnalisationScreen() {
             <>
               <Text style={styles.section}>Glaçons</Text>
               <View style={styles.ligne}>
-                {([['avec', '🧊 Avec'], ['peu', 'Peu'], ['sans', 'Sans']] as const).map(([id, label]) => (
+                {([['avec', 'Avec'], ['peu', 'Peu'], ['sans', 'Sans']] as const).map(([id, label]) => (
                   <Chip key={id} label={label} actif={glacons === id} onPress={() => setGlacons(id)} />
                 ))}
               </View>

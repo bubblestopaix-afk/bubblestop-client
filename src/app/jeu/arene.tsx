@@ -10,16 +10,21 @@ import { router } from 'expo-router';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { adversairePNJ, equipeSam, MISES_DUEL_PAR_JOUR, recompenseRang } from '@/components/jeu/arene';
 import PastilleCollectible from '@/components/jeu/collectibles';
+import { Icone, IconeEmoji, IconeType } from '@/components/jeu/icones';
 import {
   agregerEffets, CAPSULE_OBJET, cleJour, COLLECTIBLES, ECLATS_FORGE, EffetObjet,
   Emplacement, EMPLACEMENTS, OBJET_IDS, OBJETS, ObjetId, panopliesActives, PANOPLIES,
   PITY_OBJET_EPIQUE, objetsDeSlot, RARETES, TOURNOI_ETAPES, trouverCollectible,
+  TIERS, recompenseSaison, mutateurDuJour, bossDeLaSemaine, BOSS_RECOMPENSE, cleSemaine,
+  passifDe, coutCarte, coutEquipe, BUDGET_EQUIPE, multOutsider, equipeAutoSousBudget,
+  CONSOMMABLES, CONSOMMABLE_IDS,
 } from '@/components/jeu/economie';
 import { BandeauPreview, BoutonJeu, EnTeteJeu, formatNb, IconePerle } from '@/components/jeu/ui-jeu';
 import {
-  acheterObjet, definirEquipe, enregistrerMiseDuel, equiperObjet, etatTournoi,
-  forgerObjet, idsDoublons, idsPossedes, misesRestantesAujourdhui, objetsDe,
-  ouvrirCapsuleObjet, useBobaQuest,
+  acheterConsommable, acheterObjet, bossBattuCetteSemaine, classementActuel, definirEquipe,
+  enregistrerMiseDuel, equiperObjet, etatTournoi, forgerObjet, idsDoublons, idsPossedes,
+  misesRestantesAujourdhui, objetsDe, ouvrirCapsuleObjet, reclamerRecompenseSaison, useBobaQuest,
+  defisEnAttente,
 } from '@/store/jeu';
 
 const ORDRE_RARETE = { legendaire: 0, epique: 1, rare: 2, commun: 3 } as const;
@@ -45,6 +50,23 @@ function resumeEffet(e: EffetObjet): string {
   return p.join(' · ');
 }
 
+// Aperçu texte d'une récompense de fin de saison (par tier)
+function apercuRecompense(tierId: number): string {
+  const r = recompenseSaison(tierId);
+  const p = [`+${r.perles} perles`];
+  if (r.capsules) p.push(`${r.capsules} capsule${r.capsules > 1 ? 's' : ''} 🎁`);
+  if (r.eclats) p.push(`${r.eclats} 🔹 éclats`);
+  if (r.titre) p.push(`titre « ${r.titre} »`);
+  return p.join('  ·  ');
+}
+function apercuGain(r: { perles: number; capsules: number; eclats: number; titre: string | null }): string {
+  const p = [`+${r.perles} perles`];
+  if (r.capsules) p.push(`${r.capsules} capsule${r.capsules > 1 ? 's' : ''}`);
+  if (r.eclats) p.push(`${r.eclats} éclats`);
+  if (r.titre) p.push(`titre « ${r.titre} »`);
+  return p.join(' · ');
+}
+
 export default function AreneScreen() {
   const insets = useSafeAreaInsets();
   const etat = useBobaQuest();
@@ -59,18 +81,23 @@ export default function AreneScreen() {
   const [samMise, setSamMise] = useState<string | null>(null);
   const [objetPour, setObjetPour] = useState<string | null>(null); // membre en cours d'équipement
   const [atelierVisible, setAtelierVisible] = useState(false);
-  const [atelierTab, setAtelierTab] = useState<'boutique' | 'capsule' | 'forge'>('boutique');
+  const [atelierTab, setAtelierTab] = useState<'boutique' | 'capsule' | 'forge' | 'conso'>('boutique');
   const [revele, setRevele] = useState<{ objet: ObjetId; doublon: boolean; eclats: number } | null>(null);
+  const [ligueVisible, setLigueVisible] = useState(false);
+  const [gainSaison, setGainSaison] = useState<string | null>(null); // confirmation de réclamation
   const tournoi = etatTournoi(etat);
+  const cl = classementActuel(etat);
+  const mutateur = mutateurDuJour(cleJour());
+  const boss = bossDeLaSemaine(cleSemaine());
+  const bossBattu = bossBattuCetteSemaine(etat);
+  const nbDefis = defisEnAttente(etat).length;
 
-  // équipe auto-réparée : 3 possédés, les plus rares d'abord
+  // équipe auto-réparée : 3 possédés qui tiennent SOUS le budget de rareté
   useEffect(() => {
-    const valide = etat.arene.equipe.length === 3 && etat.arene.equipe.every((id) => possedes.includes(id));
-    if (!valide && possedes.length >= 3) {
-      const tri = [...possedes].sort((a, b) =>
-        ORDRE_RARETE[trouverCollectible(a)!.rarete] - ORDRE_RARETE[trouverCollectible(b)!.rarete]);
-      definirEquipe(tri.slice(0, 3));
-    }
+    const valide = etat.arene.equipe.length === 3
+      && etat.arene.equipe.every((id) => possedes.includes(id))
+      && coutEquipe(etat.arene.equipe) <= BUDGET_EQUIPE;
+    if (!valide && possedes.length >= 3) definirEquipe(equipeAutoSousBudget(possedes));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [possedes.length]);
 
@@ -105,7 +132,7 @@ export default function AreneScreen() {
         </View>
         <View style={{ flex: 1, justifyContent: 'center', padding: 24 }}>
           <View style={styles.verrou}>
-            <Text style={{ fontSize: 40 }}>⚔️</Text>
+            <Icone nom="epee" taille={46} />
             <Text style={styles.verrouTitre}>Il te faut 3 combattants !</Text>
             <Text style={styles.verrouTexte}>
               Chaque collectible de ton album sait se battre. Trouve-en au moins 3
@@ -125,6 +152,44 @@ export default function AreneScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.contenu}>
+        {/* === 🏆 Classement (ligue + saison) === */}
+        <Pressable style={[styles.rangCarte, { borderColor: cl.tier.couleur }]} onPress={() => setLigueVisible(true)}>
+          <View style={styles.rangHaut}>
+            <IconeEmoji emoji={cl.tier.emoji} taille={38} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rangNom, { color: cl.tier.couleur }]}>{cl.tier.nom}</Text>
+              <Text style={styles.rangSaison}>Saison {cl.saison} · finit dans {cl.joursRestants} j</Text>
+            </View>
+            <View style={styles.rangPcBoite}>
+              <Text style={styles.rangPc}>{cl.pc}</Text>
+              <Text style={styles.rangPcLib}>PC</Text>
+            </View>
+          </View>
+          <View style={styles.rangBarreFond}>
+            <View style={[styles.rangBarrePlein, { width: `${Math.round(cl.progression * 100)}%`, backgroundColor: cl.tier.couleur }]} />
+          </View>
+          <Text style={styles.rangSous}>
+            {cl.suivant ? `Plus que ${cl.suivant.seuil - cl.pc} PC → ${cl.suivant.emoji} ${cl.suivant.nom}` : '👑 Tier maximal atteint !'}
+            {'   ·   Voir la ligue ›'}
+          </Text>
+          {cl.recompenseEnAttente && (
+            <View style={styles.rangRecompenseBadge}>
+              <Text style={styles.rangRecompenseTxt}>🎁 Récompense de saison à réclamer !</Text>
+            </View>
+          )}
+        </Pressable>
+
+        {/* === Mutateur du jour === */}
+        <View style={styles.mutBanniere}>
+          <View style={styles.mutTitreRang}>
+            <Icone nom="eclair" taille={16} />
+            <Text style={styles.mutTitre}>Règle du jour :</Text>
+            <IconeEmoji emoji={mutateur.emoji} taille={18} />
+            <Text style={styles.mutTitre}>{mutateur.nom}</Text>
+          </View>
+          <Text style={styles.mutDesc}>{mutateur.desc} — s'applique à TOUS les combats aujourd'hui.</Text>
+        </View>
+
         {/* === Mon équipe === */}
         <View style={styles.carte}>
           <View style={styles.carteHaut}>
@@ -139,15 +204,26 @@ export default function AreneScreen() {
               </Pressable>
             ))}
           </View>
-          <Text style={styles.aide}>
-            Touche l'équipe pour la modifier · 🍓 bat 🧋 bat ✨ bat 🍓 · 👑 neutre
-          </Text>
+          <Text style={styles.aide}>Touche une carte pour changer d'équipe</Text>
+          <View style={styles.typeCarte}>
+            <View style={styles.typeLegende}>
+              <View style={styles.typeChip}><IconeType set="fruit" taille={26} /><Text style={styles.typeNom}>Fruité</Text></View>
+              <Text style={styles.typeBat}>bat</Text>
+              <View style={styles.typeChip}><IconeType set="milk" taille={26} /><Text style={styles.typeNom}>Milk</Text></View>
+              <Text style={styles.typeBat}>bat</Text>
+              <View style={styles.typeChip}><IconeType set="topping" taille={26} /><Text style={styles.typeNom}>Topping</Text></View>
+            </View>
+            <View style={styles.typeSign}>
+              <IconeType set="signature" taille={20} />
+              <Text style={styles.typeSignTxt}>Le cycle boucle (Topping rebat Fruité) · Signature : neutre</Text>
+            </View>
+          </View>
         </View>
 
         {/* === Le Maître du rang === */}
         <View style={[styles.carte, styles.cartePnj]}>
           <View style={styles.carteHaut}>
-            <Text style={styles.carteTitre}>⚔️ {adversaire.nom}</Text>
+            <View style={styles.titreIcone}><Icone nom="epee" taille={18} /><Text style={styles.carteTitre}>{adversaire.nom}</Text></View>
             <View style={styles.puissance}><Text style={styles.puissanceTxt}>×{adversaire.echelle.toFixed(2)}</Text></View>
           </View>
           <View style={styles.equipeRang}>
@@ -158,10 +234,14 @@ export default function AreneScreen() {
               </View>
             ))}
           </View>
-          <Text style={styles.recompense}>
-            🏆 {formatNb(recompense.perles)} perles
-            {recompense.capsule ? ` + capsule ${recompense.capsule === 'doree' ? 'DORÉE 👑' : 'classique 🎁'}` : ''}
-          </Text>
+          <View style={styles.recompenseRang}>
+            <Icone nom="trophee" taille={16} />
+            <Text style={styles.recompense}>
+              {formatNb(recompense.perles)} perles
+              {recompense.capsule ? ` + capsule ${recompense.capsule === 'doree' ? 'DORÉE' : 'classique'}` : ''}
+            </Text>
+            {recompense.capsule ? <IconeEmoji emoji={recompense.capsule === 'doree' ? '👑' : '🎁'} taille={16} /> : null}
+          </View>
           <BoutonJeu
             titre={`Combattre — Rang ${etat.arene.rang} !`}
             onPress={() => router.push(`/jeu/duel?mode=pnj&rang=${etat.arene.rang}` as any)}
@@ -172,8 +252,10 @@ export default function AreneScreen() {
         {/* === 🏆 Tournoi de la semaine === */}
         <Pressable style={[styles.carte, styles.carteTournoi]} onPress={() => router.push('/jeu/tournoi' as any)}>
           <View style={styles.carteHaut}>
-            <Text style={styles.carteTitre}>🏆 Tournoi de la semaine</Text>
-            {tournoi.trophees > 0 && <Text style={styles.tropheesMini}>👑 ×{tournoi.trophees}</Text>}
+            <View style={styles.titreIcone}><Icone nom="trophee" taille={18} /><Text style={styles.carteTitre}>Tournoi de la semaine</Text></View>
+            {tournoi.trophees > 0 && (
+              <View style={styles.tropheesMiniRang}><Icone nom="couronne" taille={14} /><Text style={styles.tropheesMini}>×{tournoi.trophees}</Text></View>
+            )}
           </View>
           <Text style={styles.tournoiEtat}>
             {tournoi.etape >= 3
@@ -185,11 +267,34 @@ export default function AreneScreen() {
           <Text style={styles.tournoiOuvrir}>Ouvrir le tournoi ›</Text>
         </Pressable>
 
+        {/* === 👹 Boss de la semaine === */}
+        <View style={[styles.bossCarte, bossBattu && { opacity: 0.75 }]}>
+          <View style={styles.bossHaut}>
+            <PastilleCollectible id={boss.combattantId} taille={54} />
+            <View style={{ flex: 1 }}>
+              <View style={styles.titreIcone}><IconeEmoji emoji={boss.emoji} taille={22} /><Text style={styles.bossNom}>{boss.nom}</Text></View>
+              <Text style={styles.bossGimmick}>{boss.gimmickDesc}</Text>
+            </View>
+          </View>
+          <Text style={styles.bossIndice}>{boss.indice}</Text>
+          <View style={styles.bossRecompRang}>
+            <Icone nom="trophee" taille={14} />
+            <Text style={styles.bossRecomp}>{formatNb(BOSS_RECOMPENSE.perles)} perles · {BOSS_RECOMPENSE.capsules} capsule ·</Text>
+            <Icone nom="eclat" taille={13} />
+            <Text style={styles.bossRecomp}>{BOSS_RECOMPENSE.eclats} éclats</Text>
+          </View>
+          {bossBattu ? (
+            <View style={styles.bossBattuBadge}><Icone nom="check" taille={16} /><Text style={styles.bossBattuTxt}>Vaincu cette semaine — reviens lundi !</Text></View>
+          ) : (
+            <BoutonJeu titre="Combattre le boss" onPress={() => router.push('/jeu/duel?mode=boss' as any)} style={{ alignSelf: 'stretch', backgroundColor: '#C0455A' }} />
+          )}
+        </View>
+
         {/* === 🎒 Équipement (3 emplacements par combattant) === */}
         <View style={styles.carte}>
           <View style={styles.equipEnTete}>
-            <Text style={styles.carteTitre}>🎒 Équipement</Text>
-            <View style={styles.eclatsPill}><Text style={styles.eclatsTxt}>🔹 {formatNb(etat.eclats)}</Text></View>
+            <View style={styles.titreIcone}><Icone nom="sac" taille={18} /><Text style={styles.carteTitre}>Équipement</Text></View>
+            <View style={styles.eclatsPill}><Icone nom="eclat" taille={13} /><Text style={styles.eclatsTxt}>{formatNb(etat.eclats)}</Text></View>
           </View>
           {etat.arene.equipe.map((id) => {
             const slots = etat.portes[id] || {};
@@ -208,16 +313,17 @@ export default function AreneScreen() {
                           key={slot}
                           style={[styles.slotChip, def && { borderColor: RARETES[def.rarete].couleur, backgroundColor: '#fff' }]}
                         >
-                          <Text style={[styles.slotChipTxt, !def && { opacity: 0.32 }]}>
-                            {def ? def.emoji : EMPLACEMENTS[slot].emoji}
-                          </Text>
+                          {def
+                            ? <IconeEmoji emoji={def.emoji} taille={19} />
+                            : <View style={{ opacity: 0.32 }}><IconeEmoji emoji={EMPLACEMENTS[slot].emoji} taille={19} /></View>}
                         </View>
                       );
                     })}
                     {panos.map((p) => (
-                      <Text key={p.id} style={[styles.panoTag, { color: PANOPLIES[p.id].couleur }]}>
-                        {PANOPLIES[p.id].emoji}{p.pieces}
-                      </Text>
+                      <View key={p.id} style={styles.panoTagRang}>
+                        <IconeEmoji emoji={PANOPLIES[p.id].emoji} taille={14} />
+                        <Text style={[styles.panoTag, { color: PANOPLIES[p.id].couleur }]}>{p.pieces}</Text>
+                      </View>
                     ))}
                   </View>
                 </View>
@@ -225,13 +331,27 @@ export default function AreneScreen() {
               </Pressable>
             );
           })}
-          <BoutonJeu titre="🔨 Atelier d'objets" onPress={() => { setAtelierVisible(true); setRevele(null); }} style={{ backgroundColor: C.violetClair, marginTop: 6 }} />
-          <Text style={styles.aide}>3 emplacements par combattant. Réunis une panoplie (❄️🍯⚡👑) pour un bonus de set.</Text>
+          <BoutonJeu titre="Atelier d'objets" onPress={() => { setAtelierVisible(true); setRevele(null); }} style={{ backgroundColor: C.violetClair, marginTop: 6 }} />
+          <Text style={styles.aide}>3 emplacements par combattant. Réunis une panoplie (Givré · Sucré · Orage · Royale) pour un bonus de set.</Text>
         </View>
+
+        {/* === Défis d'amis (async) === */}
+        <Pressable style={[styles.carte, styles.defisCarte]} onPress={() => router.push('/jeu/defis' as any)}>
+          <View style={styles.defisHaut}>
+            <View style={styles.titreIcone}><Icone nom="epee" taille={18} /><Text style={styles.carteTitre}>Défis d'amis</Text></View>
+            {nbDefis > 0 && <View style={styles.defisBadge}><Text style={styles.defisBadgeTxt}>{nbDefis}</Text></View>}
+          </View>
+          <Text style={styles.aide}>
+            {nbDefis > 0
+              ? `${nbDefis} ami${nbDefis > 1 ? 's t\'ont' : ' t\'a'} défié — relève leurs équipes quand tu veux, sans notif.`
+              : 'Tous les défis du jour sont relevés — reviens demain !'}
+          </Text>
+          <Text style={styles.defisOuvrir}>Ouvrir les défis ›</Text>
+        </Pressable>
 
         {/* === Défier un ami === */}
         <View style={styles.carte}>
-          <Text style={styles.carteTitre}>🤝 Défier un ami</Text>
+          <View style={styles.titreIcone}><Icone nom="epee" taille={18} /><Text style={styles.carteTitre}>Duel rapide</Text></View>
           <Text style={styles.aide}>
             Sam (simulé) a composé son équipe du jour. En duel MISÉ, chacun met un
             doublon en jeu : le vainqueur emporte les deux billes !
@@ -250,7 +370,7 @@ export default function AreneScreen() {
                 ? 'Duel avec mise — aucun doublon à miser'
                 : misesRestantes === 0
                   ? 'Duel avec mise — reviens demain !'
-                  : `Duel avec mise 😏 (${misesRestantes}/${MISES_DUEL_PAR_JOUR} aujourd'hui)`
+                  : `Duel avec mise (${misesRestantes}/${MISES_DUEL_PAR_JOUR} aujourd'hui)`
             }
             disabled={doublons.length === 0 || misesRestantes === 0}
             onPress={ouvrirMise}
@@ -268,24 +388,49 @@ export default function AreneScreen() {
       {/* === Choix d'équipe === */}
       <Modal visible={choixVisible} transparent animationType="fade" onRequestClose={() => setChoixVisible(false)}>
         <View style={styles.modalFond}>
-          <View style={[styles.modalCarte, { maxHeight: '80%' }]}>
+          <View style={[styles.modalCarte, { maxHeight: '86%' }]}>
             <Text style={styles.modalTitre}>Mon équipe ({selection.length}/3)</Text>
+            {(() => {
+              const coutSel = coutEquipe(selection);
+              const mult = multOutsider(coutSel);
+              return (
+                <View style={styles.budgetBoite}>
+                  <View style={styles.budgetLigne}>
+                    <Text style={styles.budgetTxt}>Budget rareté : {coutSel}/{BUDGET_EQUIPE}</Text>
+                    {mult > 1 && <Text style={styles.budgetBonus}>Bonus outsider +{Math.round((mult - 1) * 100)} %</Text>}
+                  </View>
+                  <View style={styles.budgetBarreFond}>
+                    <View style={[styles.budgetBarrePlein, { width: `${Math.min(100, (coutSel / BUDGET_EQUIPE) * 100)}%` }]} />
+                  </View>
+                  <Text style={styles.budgetAide}>Commune 1 · Rare 2 · Épique 3 · Légendaire 4. Chaque point sous le budget booste ton équipe (PV/ATQ).</Text>
+                </View>
+              );
+            })()}
             <ScrollView contentContainerStyle={styles.grilleChoix}>
               {possedes.map((id) => {
                 const choisi = selection.includes(id);
                 const c = trouverCollectible(id)!;
+                const trop = !choisi && (selection.length >= 3 || coutEquipe([...selection, id]) > BUDGET_EQUIPE);
+                const pas = passifDe(id);
                 return (
                   <Pressable
                     key={id}
-                    style={[styles.choix, choisi && styles.choixActif]}
+                    style={[styles.choix, choisi && styles.choixActif, trop && { opacity: 0.38 }]}
+                    disabled={trop}
                     onPress={() => {
                       if (choisi) setSelection(selection.filter((x) => x !== id));
-                      else if (selection.length < 3) setSelection([...selection, id]);
+                      else if (!trop) setSelection([...selection, id]);
                     }}
                   >
-                    <PastilleCollectible id={id} taille={62} />
+                    <PastilleCollectible id={id} taille={56} />
                     <Text style={styles.slotNom} numberOfLines={1}>{c.nom}</Text>
-                    <Text style={[styles.choixRarete, { color: RARETES[c.rarete].couleur }]}>{RARETES[c.rarete].nom}</Text>
+                    <Text style={[styles.choixRarete, { color: RARETES[c.rarete].couleur }]}>{RARETES[c.rarete].nom} · {coutCarte(id)}pt</Text>
+                    {pas && (
+                      <View style={styles.choixPassifRang}>
+                        <Icone nom="etoile" taille={11} />
+                        <Text style={styles.choixPassif} numberOfLines={1}>{pas.nom}</Text>
+                      </View>
+                    )}
                   </Pressable>
                 );
               })}
@@ -320,10 +465,13 @@ export default function AreneScreen() {
                     const equipe = slots[slot];
                     return (
                       <View key={slot} style={styles.slotBloc}>
-                        <Text style={styles.slotTitre}>{EMPLACEMENTS[slot].emoji} {EMPLACEMENTS[slot].nom} · {EMPLACEMENTS[slot].role}</Text>
+                        <View style={styles.slotTitreRang}>
+                          <IconeEmoji emoji={EMPLACEMENTS[slot].emoji} taille={17} />
+                          <Text style={styles.slotTitre}>{EMPLACEMENTS[slot].nom} · {EMPLACEMENTS[slot].role}</Text>
+                        </View>
                         <View style={styles.slotChoixRang}>
                           <Pressable style={[styles.miniChoix, !equipe && styles.miniChoixActif]} onPress={() => equiperObjet(objetPour!, slot, null)}>
-                            <Text style={styles.miniChoixTxt}>🚫</Text>
+                            <Icone nom="interdit" taille={22} />
                           </Pressable>
                           {possede.length === 0 && <Text style={styles.slotVide}>Aucun objet — va à l'Atelier</Text>}
                           {possede.map((o) => (
@@ -332,7 +480,7 @@ export default function AreneScreen() {
                               style={[styles.miniChoix, { borderColor: RARETES[OBJETS[o].rarete].couleur }, equipe === o && styles.miniChoixActif]}
                               onPress={() => equiperObjet(objetPour!, slot, o)}
                             >
-                              <Text style={styles.miniChoixTxt}>{OBJETS[o].emoji}</Text>
+                              <IconeEmoji emoji={OBJETS[o].emoji} taille={22} />
                             </Pressable>
                           ))}
                         </View>
@@ -340,16 +488,25 @@ export default function AreneScreen() {
                       </View>
                     );
                   })}
+                  {passifDe(objetPour) && (
+                    <View style={styles.passifBoite}>
+                      <View style={styles.titreIcone}><Icone nom="etoile" taille={14} /><Text style={styles.passifTitre}>Atout : {passifDe(objetPour)!.nom}</Text></View>
+                      <Text style={styles.passifDesc}>{passifDe(objetPour)!.desc}</Text>
+                    </View>
+                  )}
                   <View style={styles.effResume}>
-                    <Text style={styles.effTitre}>Bonus actifs</Text>
+                    <Text style={styles.effTitre}>Bonus actifs (objets + panoplies)</Text>
                     <Text style={styles.effTxt}>{resumeEffet(eff) || 'Aucun objet équipé'}</Text>
                     {panos.map((p) => {
                       const pano = PANOPLIES[p.id];
                       const palier = [...pano.paliers].reverse().find((x) => p.pieces >= x.seuil);
                       return (
-                        <Text key={p.id} style={[styles.panoLigne, { color: pano.couleur }]}>
-                          {pano.emoji} Panoplie {pano.nom} ({p.pieces}/3){palier ? ` — ${palier.detail}` : ''}
-                        </Text>
+                        <View key={p.id} style={styles.panoLigneRang}>
+                          <IconeEmoji emoji={pano.emoji} taille={14} />
+                          <Text style={[styles.panoLigne, { color: pano.couleur }]}>
+                            Panoplie {pano.nom} ({p.pieces}/3){palier ? ` — ${palier.detail}` : ''}
+                          </Text>
+                        </View>
                       );
                     })}
                   </View>
@@ -366,17 +523,17 @@ export default function AreneScreen() {
         <View style={styles.modalFond}>
           <View style={[styles.modalCarte, { maxHeight: '90%' }]}>
             <View style={styles.atelierEnTete}>
-              <Text style={styles.modalTitre}>🔨 Atelier d'objets</Text>
+              <View style={styles.modalTitreRang}><Icone nom="marteau" taille={20} /><Text style={styles.modalTitre}>Atelier d'objets</Text></View>
               <View style={styles.soldeRang}>
                 <View style={styles.soldePill}><IconePerle taille={12} /><Text style={styles.soldeTxt}>{formatNb(etat.perles)}</Text></View>
-                <View style={styles.soldePill}><Text style={styles.soldeTxt}>🔹 {formatNb(etat.eclats)}</Text></View>
+                <View style={styles.soldePill}><Icone nom="eclat" taille={12} /><Text style={styles.soldeTxt}>{formatNb(etat.eclats)}</Text></View>
               </View>
             </View>
             <View style={styles.tabsRang}>
-              {(['boutique', 'capsule', 'forge'] as const).map((t) => (
+              {(['boutique', 'capsule', 'forge', 'conso'] as const).map((t) => (
                 <Pressable key={t} style={[styles.tab, atelierTab === t && styles.tabActif]} onPress={() => setAtelierTab(t)}>
                   <Text style={[styles.tabTxt, atelierTab === t && styles.tabTxtActif]}>
-                    {t === 'boutique' ? '💰 Boutique' : t === 'capsule' ? '🔵 Capsule' : '🔨 Forge'}
+                    {t === 'boutique' ? 'Objets' : t === 'capsule' ? 'Capsule' : t === 'forge' ? 'Forge' : 'Sac'}
                   </Text>
                 </Pressable>
               ))}
@@ -388,12 +545,12 @@ export default function AreneScreen() {
                 const cher = def.cout == null || etat.perles < def.cout;
                 return (
                   <View key={o} style={styles.boutiqueLigne}>
-                    <View style={[styles.objBadge, { borderColor: RARETES[def.rarete].couleur }]}><Text style={{ fontSize: 19 }}>{def.emoji}</Text></View>
+                    <View style={[styles.objBadge, { borderColor: RARETES[def.rarete].couleur }]}><IconeEmoji emoji={def.emoji} taille={24} /></View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.objNom}>{def.nom} <Text style={{ color: RARETES[def.rarete].couleur, fontSize: 10 }}>{RARETES[def.rarete].nom}</Text></Text>
-                      <Text style={styles.objDetail}>{EMPLACEMENTS[def.slot].emoji} {def.detail}</Text>
+                      <View style={styles.objDetailRang}><IconeEmoji emoji={EMPLACEMENTS[def.slot].emoji} taille={13} /><Text style={styles.objDetail}>{def.detail}</Text></View>
                     </View>
-                    {owned ? <Text style={styles.possede}>✓</Text> : (
+                    {owned ? <Icone nom="check" taille={20} /> : (
                       <Pressable style={[styles.objAchat, cher && { opacity: 0.4 }]} disabled={cher} onPress={() => acheterObjet(o)}>
                         <IconePerle taille={12} /><Text style={styles.objAchatTxt}>{def.cout != null ? formatNb(def.cout) : '—'}</Text>
                       </Pressable>
@@ -405,16 +562,16 @@ export default function AreneScreen() {
               {atelierTab === 'capsule' && (
                 <View style={{ gap: 12, alignItems: 'center' }}>
                   <Text style={styles.capsuleDesc}>
-                    Ouvre une Capsule Objet : un objet aléatoire (surtout rares/épiques, parfois légendaire 👑).
-                    Les doublons se transforment en 🔹 éclats à forger.
+                    Ouvre une Capsule Objet : un objet aléatoire (surtout rares/épiques, parfois légendaire).
+                    Les doublons se transforment en éclats à forger.
                   </Text>
                   <Text style={styles.pityTxt}>Épique garanti dans {Math.max(1, PITY_OBJET_EPIQUE - etat.pityObjet)} ouverture(s)</Text>
                   {revele && (
                     <View style={[styles.reveleBoite, { borderColor: RARETES[OBJETS[revele.objet].rarete].couleur }]}>
-                      <Text style={{ fontSize: 40 }}>{OBJETS[revele.objet].emoji}</Text>
+                      <IconeEmoji emoji={OBJETS[revele.objet].emoji} taille={46} />
                       <Text style={styles.reveleNom}>{OBJETS[revele.objet].nom}</Text>
                       <Text style={[styles.reveleRar, { color: RARETES[OBJETS[revele.objet].rarete].couleur }]}>{RARETES[OBJETS[revele.objet].rarete].nom}</Text>
-                      <Text style={styles.reveleEtat}>{revele.doublon ? `Doublon → +${revele.eclats} 🔹 éclats` : '✨ Nouvel objet débloqué !'}</Text>
+                      <Text style={styles.reveleEtat}>{revele.doublon ? `Doublon → +${revele.eclats} éclats` : 'Nouvel objet débloqué !'}</Text>
                     </View>
                   )}
                   <Pressable
@@ -430,7 +587,7 @@ export default function AreneScreen() {
               {atelierTab === 'forge' && (
                 <View style={{ gap: 9 }}>
                   <Text style={styles.capsuleDesc}>
-                    Dépense tes 🔹 éclats pour forger DIRECTEMENT l'objet voulu — même épique ou légendaire.
+                    Dépense tes éclats pour forger DIRECTEMENT l'objet voulu — même épique ou légendaire.
                     La parade anti-malchance des gros joueurs.
                   </Text>
                   {OBJET_IDS.filter((o) => !etat.objets[o]).sort((a, b) => ORDRE_RARETE[OBJETS[a].rarete] - ORDRE_RARETE[OBJETS[b].rarete]).map((o) => {
@@ -439,13 +596,39 @@ export default function AreneScreen() {
                     const peut = etat.eclats >= cout;
                     return (
                       <View key={o} style={styles.boutiqueLigne}>
-                        <View style={[styles.objBadge, { borderColor: RARETES[def.rarete].couleur }]}><Text style={{ fontSize: 19 }}>{def.emoji}</Text></View>
+                        <View style={[styles.objBadge, { borderColor: RARETES[def.rarete].couleur }]}><IconeEmoji emoji={def.emoji} taille={24} /></View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.objNom}>{def.nom} <Text style={{ color: RARETES[def.rarete].couleur, fontSize: 10 }}>{RARETES[def.rarete].nom}</Text></Text>
-                          <Text style={styles.objDetail}>{EMPLACEMENTS[def.slot].emoji} {def.detail}</Text>
+                          <View style={styles.objDetailRang}><IconeEmoji emoji={EMPLACEMENTS[def.slot].emoji} taille={13} /><Text style={styles.objDetail}>{def.detail}</Text></View>
                         </View>
                         <Pressable style={[styles.objAchat, !peut && { opacity: 0.4 }]} disabled={!peut} onPress={() => forgerObjet(o)}>
-                          <Text style={styles.objAchatTxt}>🔹 {cout}</Text>
+                          <Icone nom="eclat" taille={12} /><Text style={styles.objAchatTxt}>{cout}</Text>
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {atelierTab === 'conso' && (
+                <View style={{ gap: 9 }}>
+                  <Text style={styles.capsuleDesc}>
+                    Des objets à usage unique pour tes duels : soigner, réveiller, booster… Utiliser un
+                    consommable en combat coûte ton tour, mais ça sauve les remontées.
+                  </Text>
+                  {CONSOMMABLE_IDS.map((id) => {
+                    const d = CONSOMMABLES[id];
+                    const stock = etat.consommables[id] ?? 0;
+                    const cher = etat.perles < d.cout;
+                    return (
+                      <View key={id} style={styles.boutiqueLigne}>
+                        <View style={[styles.objBadge, { borderColor: C.bord }]}><IconeEmoji emoji={d.emoji} taille={24} /></View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.objNom}>{d.nom} {stock > 0 && <Text style={{ color: C.vert, fontSize: 11 }}>×{stock}</Text>}</Text>
+                          <Text style={styles.objDetail}>{d.desc}</Text>
+                        </View>
+                        <Pressable style={[styles.objAchat, cher && { opacity: 0.4 }]} disabled={cher} onPress={() => acheterConsommable(id)}>
+                          <IconePerle taille={12} /><Text style={styles.objAchatTxt}>{formatNb(d.cout)}</Text>
                         </Pressable>
                       </View>
                     );
@@ -458,11 +641,60 @@ export default function AreneScreen() {
         </View>
       </Modal>
 
+      {/* === 🏆 Ligue : échelle des tiers, saison, récompense === */}
+      <Modal visible={ligueVisible} transparent animationType="fade" onRequestClose={() => setLigueVisible(false)}>
+        <View style={styles.modalFond}>
+          <View style={[styles.modalCarte, { maxHeight: '90%' }]}>
+            <View style={styles.modalTitreRang}><Icone nom="trophee" taille={20} /><Text style={styles.modalTitre}>Ligue — Saison {cl.saison}</Text></View>
+            <Text style={styles.ligueSous}>
+              Grimpe les tiers en gagnant tes combats d'Arène (+{26} PC la victoire). La saison finit dans {cl.joursRestants} j :
+              reset doux, et ton meilleur tier te donne une récompense + un titre.
+            </Text>
+            {gainSaison && <Text style={styles.ligueGain}>Réclamé : {gainSaison}</Text>}
+            {cl.recompenseEnAttente && (
+              <View style={styles.ligueRecompense}>
+                <View style={styles.titreIcone}><Icone nom="cadeau" taille={16} /><Text style={styles.ligueRecompenseTitre}>Récompense de la saison {cl.recompenseEnAttente.saison}</Text></View>
+                <Text style={styles.ligueRecompenseDetail}>{apercuRecompense(cl.recompenseEnAttente.tierId)}</Text>
+                <BoutonJeu
+                  titre="Réclamer"
+                  onPress={() => { const r = reclamerRecompenseSaison(); if (r) setGainSaison(apercuGain(r)); }}
+                  style={{ alignSelf: 'stretch', backgroundColor: C.vert }}
+                />
+              </View>
+            )}
+            <ScrollView contentContainerStyle={{ gap: 7, paddingVertical: 2 }}>
+              {[...TIERS].reverse().map((t) => {
+                const actuel = t.id === cl.tier.id;
+                const atteint = cl.meilleurTierSaison >= t.id;
+                const titre = recompenseSaison(t.id).titre;
+                return (
+                  <View key={t.id} style={[styles.ligueTier, actuel && { borderColor: t.couleur, borderWidth: 2, backgroundColor: '#fff' }]}>
+                    <IconeEmoji emoji={t.emoji} taille={26} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.ligueTierNom, { color: t.couleur }]}>{t.nom}{actuel ? '  ← toi' : ''}</Text>
+                      <Text style={styles.ligueTierSeuil}>{t.seuil} PC{titre ? `  ·  titre « ${titre} »` : ''}</Text>
+                    </View>
+                    {atteint && <Icone nom="check" taille={16} />}
+                  </View>
+                );
+              })}
+            </ScrollView>
+            {cl.titres.length > 0 && (
+              <View style={styles.ligueTitresRang}>
+                <Icone nom="trophee" taille={14} />
+                <Text style={styles.ligueTitres}>Tes titres : {cl.titres.join('  ·  ')}</Text>
+              </View>
+            )}
+            <BoutonJeu titre="Fermer" onPress={() => setLigueVisible(false)} style={{ alignSelf: 'stretch' }} />
+          </View>
+        </View>
+      </Modal>
+
       {/* === Mise du duel === */}
       <Modal visible={miseVisible} transparent animationType="fade" onRequestClose={() => setMiseVisible(false)}>
         <View style={styles.modalFond}>
           <View style={styles.modalCarte}>
-            <Text style={styles.modalTitre}>😏 Duel avec mise</Text>
+            <Text style={styles.modalTitre}>Duel avec mise</Text>
             <Text style={styles.aide}>Choisis le doublon que tu mises :</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
               {doublons.map((id) => (
@@ -511,6 +743,13 @@ const styles = StyleSheet.create({
   slotNom: { fontFamily: F.t700, fontSize: 11.5, color: C.texte },
 
   aide: { fontFamily: F.t600, fontSize: 12, color: C.texte2, lineHeight: 17, textAlign: 'center' },
+  typeCarte: { backgroundColor: C.fond, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 10, gap: 7, marginTop: 4 },
+  typeLegende: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  typeChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.carte, borderRadius: R.pill, paddingVertical: 3, paddingHorizontal: 8 },
+  typeNom: { fontFamily: F.t800, fontSize: 12, color: C.texte },
+  typeBat: { fontFamily: F.t700, fontSize: 11, color: C.texte3 },
+  typeSign: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  typeSignTxt: { fontFamily: F.t600, fontSize: 10.5, color: C.texte2, textAlign: 'center' },
   puissance: { backgroundColor: C.lavande, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 10 },
   puissanceTxt: { fontFamily: F.t800, fontSize: 12.5, color: C.violetProfond },
   recompense: { fontFamily: F.t700, fontSize: 13, color: C.vertFonce, textAlign: 'center' },
@@ -525,6 +764,11 @@ const styles = StyleSheet.create({
   tropheesMini: { fontFamily: F.t800, fontSize: 13, color: '#9A6B00' },
   tournoiEtat: { fontFamily: F.t600, fontSize: 13, color: C.texte2, lineHeight: 18 },
   tournoiOuvrir: { fontFamily: F.t800, fontSize: 13.5, color: C.violetClair, textAlign: 'right' },
+  defisCarte: { borderWidth: 2, borderColor: C.violetClair },
+  defisHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  defisBadge: { backgroundColor: C.danger, borderRadius: R.pill, minWidth: 22, height: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  defisBadgeTxt: { fontFamily: F.t800, fontSize: 12, color: '#fff' },
+  defisOuvrir: { fontFamily: F.t800, fontSize: 13.5, color: C.violetClair, textAlign: 'right' },
 
   objetLigne: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   objetNomPerso: { fontFamily: F.t800, fontSize: 13.5, color: C.texte },
@@ -546,7 +790,7 @@ const styles = StyleSheet.create({
 
   // === équipement (carte) ===
   equipEnTete: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eclatsPill: { backgroundColor: '#EAF4FA', borderRadius: R.pill, paddingVertical: 3, paddingHorizontal: 10, borderWidth: 1, borderColor: '#BFE0EF' },
+  eclatsPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EAF4FA', borderRadius: R.pill, paddingVertical: 3, paddingHorizontal: 10, borderWidth: 1, borderColor: '#BFE0EF' },
   eclatsTxt: { fontFamily: F.t800, fontSize: 12.5, color: '#3E7C97' },
   equipLigne: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   slotChips: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
@@ -600,6 +844,46 @@ const styles = StyleSheet.create({
   capsuleBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#4E9DC4', borderRadius: R.pill, paddingVertical: 13, paddingHorizontal: 26 },
   capsuleBtnTxt: { fontFamily: F.t800, fontSize: 15, color: '#fff' },
 
+  // === classement (carte) ===
+  rangCarte: { backgroundColor: C.carte, borderRadius: 20, padding: 16, gap: 10, borderWidth: 2, ...OMBRE },
+  rangHaut: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rangEmoji: { fontSize: 34 },
+  rangNom: { fontFamily: F.t800, fontSize: 17 },
+  rangSaison: { fontFamily: F.t600, fontSize: 11.5, color: C.texte2, marginTop: 1 },
+  rangPcBoite: { alignItems: 'center' },
+  rangPc: { fontFamily: F.titre, fontSize: 22, color: C.texte },
+  rangPcLib: { fontFamily: F.t700, fontSize: 10, color: C.texte2, marginTop: -2 },
+  rangBarreFond: { height: 9, borderRadius: 5, backgroundColor: C.fond, overflow: 'hidden' },
+  rangBarrePlein: { height: 9, borderRadius: 5 },
+  rangSous: { fontFamily: F.t700, fontSize: 11.5, color: C.violetClair },
+  rangRecompenseBadge: { backgroundColor: C.vertPale, borderRadius: 10, paddingVertical: 7, paddingHorizontal: 10, alignItems: 'center' },
+  rangRecompenseTxt: { fontFamily: F.t800, fontSize: 12.5, color: '#2E7D32' },
+  mutBanniere: { backgroundColor: '#FFF3D6', borderRadius: 16, paddingVertical: 11, paddingHorizontal: 15, gap: 2, borderWidth: 1, borderColor: C.jaune },
+  mutTitre: { fontFamily: F.t800, fontSize: 13.5, color: '#9A6B00' },
+  mutDesc: { fontFamily: F.t600, fontSize: 11.5, color: C.texte2, lineHeight: 16 },
+  bossCarte: { backgroundColor: C.carte, borderRadius: 20, padding: 16, gap: 9, borderWidth: 2, borderColor: '#F0C0C8', ...OMBRE },
+  bossHaut: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  bossNom: { fontFamily: F.t800, fontSize: 16, color: '#B23A4E' },
+  bossGimmick: { fontFamily: F.t700, fontSize: 12, color: C.texte2, marginTop: 2 },
+  bossIndice: { fontFamily: F.t600, fontSize: 11.5, color: C.texte2, lineHeight: 16 },
+  bossRecomp: { fontFamily: F.t800, fontSize: 12, color: '#9A6B00' },
+  bossBattuBadge: { flexDirection: 'row', gap: 6, backgroundColor: C.vertPale, borderRadius: 10, paddingVertical: 9, alignItems: 'center', justifyContent: 'center' },
+  bossRecompRang: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
+  bossBattuTxt: { fontFamily: F.t800, fontSize: 12.5, color: '#2E7D32' },
+
+  // === ligue (modal) ===
+  ligueSous: { fontFamily: F.t600, fontSize: 12.5, color: C.texte2, lineHeight: 18, textAlign: 'center' },
+  ligueGain: { fontFamily: F.t800, fontSize: 12.5, color: '#2E7D32', textAlign: 'center', backgroundColor: C.vertPale, borderRadius: 10, paddingVertical: 8, overflow: 'hidden' },
+  ligueRecompense: { backgroundColor: '#FFF3D6', borderRadius: 14, padding: 12, gap: 8, borderWidth: 1, borderColor: C.jaune },
+  ligueRecompenseTitre: { fontFamily: F.t800, fontSize: 13.5, color: '#9A6B00' },
+  ligueRecompenseDetail: { fontFamily: F.t700, fontSize: 12, color: C.texte },
+  ligueTier: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.fond, borderRadius: 12, padding: 10, borderWidth: 2, borderColor: 'transparent' },
+  ligueTierEmoji: { fontSize: 24 },
+  ligueTierNom: { fontFamily: F.t800, fontSize: 14 },
+  ligueTierSeuil: { fontFamily: F.t600, fontSize: 11, color: C.texte2, marginTop: 1 },
+  ligueTierCheck: { fontFamily: F.t800, fontSize: 16, color: C.vert },
+  ligueTitres: { fontFamily: F.t700, fontSize: 11.5, color: C.texte2, textAlign: 'center' },
+
   modalFond: { flex: 1, backgroundColor: 'rgba(42,29,70,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   modalCarte: { backgroundColor: C.carte, borderRadius: 24, padding: 20, gap: 12, alignSelf: 'stretch', ...OMBRE },
   modalTitre: { fontFamily: F.titre, fontSize: 20, color: C.violet, textAlign: 'center' },
@@ -610,8 +894,32 @@ const styles = StyleSheet.create({
   },
   choixActif: { borderColor: C.vert, backgroundColor: C.vertPale },
   choixRarete: { fontFamily: F.t700, fontSize: 10.5, color: C.texte3 },
+  choixPassif: { fontFamily: F.t700, fontSize: 9.5, color: C.violetClair, textAlign: 'center' },
+  budgetBoite: { backgroundColor: C.fond, borderRadius: 14, padding: 12, gap: 6 },
+  budgetLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  budgetTxt: { fontFamily: F.t800, fontSize: 13, color: C.texte },
+  budgetBonus: { fontFamily: F.t800, fontSize: 12, color: '#2E7D32' },
+  budgetBarreFond: { height: 8, borderRadius: 4, overflow: 'hidden', backgroundColor: C.bord },
+  budgetBarrePlein: { height: 8, borderRadius: 4, backgroundColor: C.violetClair },
+  budgetAide: { fontFamily: F.t600, fontSize: 10.5, color: C.texte2, lineHeight: 15 },
+  passifBoite: { backgroundColor: '#F1ECFA', borderRadius: 12, padding: 11, gap: 2, borderWidth: 1, borderColor: C.violetClair },
+  passifTitre: { fontFamily: F.t800, fontSize: 13, color: C.violet },
+  passifDesc: { fontFamily: F.t600, fontSize: 11.5, color: C.texte2 },
   vsLigne: { flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' },
   vsTxt: { fontFamily: F.t700, fontSize: 13.5, color: C.texte2 },
   vsNom: { fontFamily: F.t800, fontSize: 13.5, color: C.texte },
   annuler: { fontFamily: F.t700, fontSize: 14, color: C.texte2, textAlign: 'center', padding: 6 },
+
+  // rangées « icône + texte » (remplacent les emojis inline)
+  titreIcone: { flexDirection: 'row', alignItems: 'center', gap: 7, flexShrink: 1 },
+  modalTitreRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  mutTitreRang: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
+  recompenseRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, flexWrap: 'wrap' },
+  tropheesMiniRang: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  panoTagRang: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 2 },
+  choixPassifRang: { flexDirection: 'row', alignItems: 'center', gap: 3, justifyContent: 'center' },
+  slotTitreRang: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  objDetailRang: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 },
+  panoLigneRang: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  ligueTitresRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
 });

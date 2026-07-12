@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { cleSemaine, evenementDuJour, labelPalier, PASS_PALIERS, PASS_XP } from '@/components/jeu/economie';
+import { Icone, IconeNom } from '@/components/jeu/icones';
 import { BandeauPreview, BoutonJeu, EnTeteJeu, formatNb, IconePerle } from '@/components/jeu/ui-jeu';
 import { etatPass, reclamerPalierPass, useBobaQuest } from '@/store/jeu';
 
@@ -25,7 +26,7 @@ export default function PassScreen() {
   return (
     <View style={[styles.fond, { paddingTop: insets.top + 10 }]}>
       <View style={{ paddingHorizontal: 18 }}>
-        <EnTeteJeu titre="Boba Pass 🎫" onRetour={() => router.back()} perles={etat.perles} />
+        <EnTeteJeu titre="Boba Pass" onRetour={() => router.back()} perles={etat.perles} />
       </View>
 
       <ScrollView contentContainerStyle={styles.contenu}>
@@ -41,7 +42,7 @@ export default function PassScreen() {
           <Text style={styles.pitch}>
             {prochain
               ? `Encore ${formatNb(prochain.xp - pass.xp)} XP avant le prochain palier · nouveau pass chaque lundi`
-              : 'Pass au maximum — bravo ! 🏆 Reviens lundi pour le prochain.'}
+              : 'Pass au maximum — bravo ! Reviens lundi pour le prochain.'}
           </Text>
           {evt.actif && (
             <View style={styles.evtChip}><Text style={styles.evtChipTxt}>{evt.titre} · XP inchangé, perles ×2</Text></View>
@@ -56,20 +57,20 @@ export default function PassScreen() {
           return (
             <View key={i} style={[styles.palier, atteint && styles.palierAtteint, final && styles.palierFinal]}>
               <View style={[styles.numero, atteint && styles.numeroAtteint, final && styles.numeroFinal]}>
-                <Text style={[styles.numeroTxt, atteint && { color: '#fff' }]}>{final ? '🏆' : i + 1}</Text>
+                {final ? <Icone nom="trophee" taille={20} /> : <Text style={[styles.numeroTxt, atteint && { color: '#fff' }]}>{i + 1}</Text>}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.palierLabel}>{labelPalier(palier)}</Text>
                 <Text style={styles.palierXp}>{formatNb(palier.xp)} XP</Text>
               </View>
               {reclame ? (
-                <Text style={styles.reclameTxt}>✓</Text>
+                <View style={{ paddingHorizontal: 8 }}><Icone nom="check" taille={18} /></View>
               ) : atteint ? (
                 <Pressable style={styles.reclamer} onPress={() => reclamerPalierPass(i)}>
                   <Text style={styles.reclamerTxt}>Réclamer</Text>
                 </Pressable>
               ) : (
-                <Text style={styles.verrou}>🔒</Text>
+                <View style={{ paddingHorizontal: 6, opacity: 0.5 }}><Icone nom="cadenas" taille={16} /></View>
               )}
             </View>
           );
@@ -78,12 +79,12 @@ export default function PassScreen() {
         {/* Comment gagner de l'XP */}
         <View style={styles.carte}>
           <Text style={styles.carteTitre}>Comment gagner de l'XP ?</Text>
-          <LigneXp emoji="🎯" texte="Terminer un niveau d'Aventure" xp={PASS_XP.niveauPremiere} />
-          <LigneXp emoji="⚡" texte="Réclamer un défi du jour" xp={PASS_XP.defi} />
-          <LigneXp emoji="⚔️" texte="Gagner un combat au tournoi" xp={PASS_XP.tournoi} />
-          <LigneXp emoji="🏟️" texte="Gagner un combat d'Arène" xp={PASS_XP.arene} />
-          <LigneXp emoji="🧿" texte="Ouvrir une capsule" xp={PASS_XP.capsule} />
-          <LigneXp emoji="🧋" texte="Jouer une partie d'Infini" xp={PASS_XP.partieInfini} />
+          <LigneXp nom="cible" texte="Terminer un niveau d'Aventure" xp={PASS_XP.niveauPremiere} />
+          <LigneXp nom="eclair" texte="Réclamer un défi du jour" xp={PASS_XP.defi} />
+          <LigneXp nom="trophee" texte="Gagner un combat au tournoi" xp={PASS_XP.tournoi} />
+          <LigneXp nom="epee" texte="Gagner un combat d'Arène" xp={PASS_XP.arene} />
+          <LigneXp nom="cadeau" texte="Ouvrir une capsule" xp={PASS_XP.capsule} />
+          <LigneXp nom="boba" texte="Jouer une partie d'Infini" xp={PASS_XP.partieInfini} />
         </View>
 
         <BoutonJeu titre="Aller jouer !" onPress={() => router.replace('/jeu' as any)} style={{ backgroundColor: C.vert }} />
@@ -93,10 +94,10 @@ export default function PassScreen() {
   );
 }
 
-function LigneXp({ emoji, texte, xp }: { emoji: string; texte: string; xp: number }) {
+function LigneXp({ nom, texte, xp }: { nom: IconeNom; texte: string; xp: number }) {
   return (
     <View style={styles.ligneXp}>
-      <Text style={{ fontSize: 16 }}>{emoji}</Text>
+      <Icone nom={nom} taille={18} />
       <Text style={styles.ligneXpTxt}>{texte}</Text>
       <Text style={styles.ligneXpVal}>+{xp} XP</Text>
     </View>

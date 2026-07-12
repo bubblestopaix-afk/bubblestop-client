@@ -8,6 +8,7 @@ import Svg, { Path } from 'react-native-svg';
 
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { paramsNiveau } from '@/components/jeu/moteur-shooter';
+import { Icone } from '@/components/jeu/icones';
 import { EnTeteJeu } from '@/components/jeu/ui-jeu';
 import { etoilesDuNiveau, useBobaQuest } from '@/store/jeu';
 
@@ -29,7 +30,7 @@ export default function ParcoursScreen() {
         <EnTeteJeu titre="Aventure" onRetour={() => router.back()} perles={etat.perles} />
         <Text style={styles.pitch}>
           Libère les capsules : coupe les perles qui les retiennent, en tirs limités.
-          Boss tous les 5 niveaux = capsule dorée 👑
+          Boss tous les 5 niveaux = capsule dorée !
         </Text>
       </View>
 
@@ -104,20 +105,23 @@ function Noeud({ n, boss, fait, jouable, courant, etoiles, xFrac, y }: {
           boss && styles.noeudBoss,
         ]}
       >
-        {boss && <Text style={{ fontSize: 15, marginBottom: -3 }}>👑</Text>}
-        <Text style={[
-          styles.noeudNb,
-          fait && { color: '#fff' },
-          !jouable && { color: C.texte3 },
-          courant && !fait && { color: C.violetProfond },
-        ]}>
-          {jouable ? n : '🔒'}
-        </Text>
+        {boss && <View style={{ marginBottom: -3 }}><Icone nom="couronne" taille={16} /></View>}
+        {jouable ? (
+          <Text style={[
+            styles.noeudNb,
+            fait && { color: '#fff' },
+            courant && !fait && { color: C.violetProfond },
+          ]}>
+            {n}
+          </Text>
+        ) : (
+          <Icone nom="cadenas" taille={22} />
+        )}
       </Pressable>
       {/* étoiles sous le nœud */}
-      <View style={{ flexDirection: 'row', marginTop: 3 }}>
+      <View style={{ flexDirection: 'row', marginTop: 3, gap: 1 }}>
         {[1, 2, 3].map((i) => (
-          <Text key={i} style={{ fontSize: 11, opacity: fait ? (i <= etoiles ? 1 : 0.2) : 0 }}>⭐</Text>
+          <View key={i} style={{ opacity: fait ? (i <= etoiles ? 1 : 0.2) : 0 }}><Icone nom="etoile" taille={12} /></View>
         ))}
       </View>
       {courant && <View style={styles.chipJoue}><Text style={styles.chipJoueTxt}>JOUER</Text></View>}

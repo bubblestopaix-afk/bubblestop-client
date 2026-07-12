@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { supabase } from '@/lib/supabase';
+import { useJeuVisible } from '@/lib/app-config';
 import { offreEnCours } from '@/lib/offres';
 import { MAGASINS } from '@/store/magasin';
 import { useCatalogueCloud, trouverCategorieCloud, trouverSaveurCloud } from '@/data/catalogue-cloud';
@@ -16,6 +17,7 @@ import { usePanier, ajouterLigne, totalPanier } from '@/store/panier';
 import { calculerPrix } from '@/data/catalogue';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { Chevron } from '@/components/ui-kit';
+import { LogoBubbleStop } from '@/components/logo-bubblestop';
 import { PictoHub } from '@/components/jeu/ui-jeu';
 import RappelNotifs from '@/components/rappel-notifs';
 
@@ -29,6 +31,7 @@ export default function AccueilScreen() {
   const insets = useSafeAreaInsets();
   const { categories } = useCatalogueCloud();
   const lignes = usePanier();
+  const jeuFlag = useJeuVisible(); // 🕹️ flag serveur : la carte Boba Quest s'affiche ou pas
   const [prenom, setPrenom] = useState('');
   const [magasinId, setMagasinId] = useState<string | null>(null);
   const [carte, setCarte] = useState<{ tampons: number; cadeaux: number } | null>(null);
@@ -109,13 +112,13 @@ export default function AccueilScreen() {
       >
         {/* === Header de marque (violet, arrondi en bas) === */}
         <View style={[styles.header, { paddingTop: insets.top + 18 }]}>
-          <Text style={styles.logo}>BUBBLE STOP</Text>
+          <LogoBubbleStop variante="blanc" largeur={182} />
           <Text style={styles.salut}>
-            {prenom ? `Salut ${prenom} 👋` : 'Ton bubble tea préféré, dans ta poche'}
+            {prenom ? `Salut ${prenom}` : 'Ton bubble tea préféré, dans ta poche'}
           </Text>
           {(nomMagasin || horairesJour) && (
             <View style={styles.infosMag}>
-              {!!nomMagasin && <Text style={styles.infosMagTxt}>📍 {nomMagasin}</Text>}
+              {!!nomMagasin && <Text style={styles.infosMagTxt}>{nomMagasin}</Text>}
               {!!horairesJour && <Text style={styles.infosMagHoraires}>{horairesJour}</Text>}
             </View>
           )}
@@ -162,18 +165,25 @@ export default function AccueilScreen() {
             </View>
           </Pressable>
 
-          {/* === 🕹️ Boba Quest : le jeu à collection (perles, capsules, prix réels) === */}
-          <Pressable style={styles.jeu} onPress={() => router.push('/jeu' as any)}>
-            <PictoHub id="jouer" fond="#fff" taille={46} />
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={styles.jeuTitre}>Boba Quest</Text>
-                <View style={styles.jeuBadge}><Text style={styles.jeuBadgeTxt}>NOUVEAU</Text></View>
+          {/* === 🕹️ Boba Quest : visible si flag serveur `jeu` actif (ou admin, pour tester).
+               Interrupteur : Compte → admin → « Jeu Boba Quest » (cf. AGENTS.md). === */}
+          {jeuFlag.visible && (
+            <Pressable style={styles.jeu} onPress={() => router.push('/jeu' as any)}>
+              <PictoHub id="jouer" fond="#fff" taille={46} />
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={styles.jeuTitre}>Boba Quest</Text>
+                  <View style={styles.jeuBadge}><Text style={styles.jeuBadgeTxt}>NOUVEAU</Text></View>
+                </View>
+                <Text style={styles.jeuSous}>
+                  {jeuFlag.admin && !jeuFlag.actif
+                    ? 'Caché pour les clients — visible car tu es admin'
+                    : 'Joue, collectionne, gagne de vrais prix !'}
+                </Text>
               </View>
-              <Text style={styles.jeuSous}>Joue, collectionne, gagne de vrais prix !</Text>
-            </View>
-            <Chevron couleur={C.lavande} />
-          </Pressable>
+              <Chevron couleur={C.lavande} />
+            </Pressable>
+          )}
 
           {/* === La carte : raccourcis catégories en photos === */}
           <Text style={styles.sectionTitre}>La carte</Text>
@@ -205,7 +215,7 @@ export default function AccueilScreen() {
               </View>
               <Text style={styles.fideliteTexte}>
                 {carte.cadeaux > 0
-                  ? `🎉 ${carte.cadeaux} boisson${carte.cadeaux > 1 ? 's' : ''} offerte${carte.cadeaux > 1 ? 's' : ''} à utiliser`
+                  ? `${carte.cadeaux} boisson${carte.cadeaux > 1 ? 's' : ''} offerte${carte.cadeaux > 1 ? 's' : ''} à utiliser`
                   : `Encore ${9 - tampons} boisson${9 - tampons > 1 ? 's' : ''} avant la prochaine offerte`}
               </Text>
             </Pressable>

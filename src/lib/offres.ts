@@ -21,9 +21,11 @@ export type Offre = {
   push_auto?: boolean | null;
   dernier_push_auto?: string | null;
   // Contenu structuré : remise appliquée AUTOMATIQUEMENT par la caisse (≥ POS 0.28.138)
-  remise_type?: 'pourcent' | 'montant' | null; // −% sur lignes ciblées | −€ par boisson ciblée
+  // 'tampons' (≥ POS 0.28.159) : PAS une remise en € — chaque boisson payée crédite
+  // remise_valeur tampons (×2, ×3…), borne + caisse, cumulés pour la prochaine visite.
+  remise_type?: 'pourcent' | 'montant' | 'tampons' | null; // −% | −€/boisson | tampons ×N
   remise_valeur?: number | null;
-  cible_categories?: string[] | null;          // ids catégories POS (fruit-tea…) ; null = toute la carte
+  cible_categories?: string[] | null;          // ids catégories POS (fruit-tea…) ; null = toute la carte (ignoré pour 'tampons')
 };
 
 const minutes = (hhmm?: string | null): number | null => {

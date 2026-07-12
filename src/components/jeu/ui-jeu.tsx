@@ -173,13 +173,20 @@ export function ChipRarete({ nom, couleur }: { nom: string; couleur: string }) {
 
 // Grand bouton d'action du jeu (violet plein — le vert reste pour les achats)
 export function BoutonJeu({
-  titre, onPress, disabled, style,
-}: { titre: string; onPress: () => void; disabled?: boolean; style?: any }) {
+  titre, onPress, disabled, style, accessibilityHint,
+}: {
+  titre: string; onPress: () => void; disabled?: boolean; style?: any;
+  accessibilityHint?: string;
+}) {
   return (
     <Pressable
       style={[styles.btnJeu, disabled && { opacity: 0.45 }, style]}
       onPress={onPress}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={titre}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled: Boolean(disabled) }}
     >
       <Text style={styles.btnJeuTxt}>{titre}</Text>
     </Pressable>

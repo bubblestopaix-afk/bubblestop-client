@@ -1,155 +1,108 @@
 // === Icônes du bandeau (partagées natif + web) ===
-// Grille 24x24, trait 1.8 arrondi, géométrie soignée.
-// État ACTIF = remplissage duotone léger (0.15) + trait plein.
-
-import Svg, { Path, Circle, Rect, Line } from 'react-native-svg';
+// Redesign : formes CHUNKY arrondies dans l'esprit du logo (traits épais, angles
+// ronds). État ACTIF = silhouette pleine + détails en négatif ; inactif = contour.
+import Svg, { Path, Circle, Rect, Line, G } from 'react-native-svg';
 
 type IconeProps = { color: string; size: number; focused: boolean };
 
-// Maison : toit à faîte adouci, base arrondie, porte cintrée centrée
+// Épaisseur de trait généreuse, comme les lettres du logo.
+const T = 2.15;
+
+// Fond des découpes en état plein (le bandeau est clair) — donne l'effet "négatif".
+const NEG = '#FBF7FF';
+
+// Maison — toit dômé, porte cintrée
 export function IconeAccueil({ color, size, focused }: IconeProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M4.1 10.7 L10.93 4.42 Q12 3.44 13.07 4.42 L19.9 10.7 L19.9 18.5 Q19.9 20.3 18.1 20.3 L5.9 20.3 Q4.1 20.3 4.1 18.5 Z"
-        stroke={color}
-        strokeWidth={1.8}
-        strokeLinejoin="round"
+        d="M3.6 11 L10.8 4.3 Q12 3.2 13.2 4.3 L20.4 11 L20.4 18.4 Q20.4 20.4 18.4 20.4 L5.6 20.4 Q3.6 20.4 3.6 18.4 Z"
+        stroke={color} strokeWidth={T} strokeLinejoin="round"
         fill={focused ? color : 'none'}
-        fillOpacity={focused ? 0.15 : 0}
       />
       <Path
-        d="M9.75 20.3 L9.75 15.45 Q9.75 14.05 11.15 14.05 L12.85 14.05 Q14.25 14.05 14.25 15.45 L14.25 20.3"
-        stroke={color}
-        strokeWidth={1.8}
-        strokeLinecap="round"
-        fill="none"
+        d="M9.4 20.4 L9.4 15.1 Q9.4 13.6 10.9 13.6 L13.1 13.6 Q14.6 13.6 14.6 15.1 L14.6 20.4"
+        stroke={focused ? NEG : color} strokeWidth={T} strokeLinecap="round" strokeLinejoin="round"
+        fill={focused ? NEG : 'none'}
       />
     </Svg>
   );
 }
 
-// Bubble tea : couvercle dôme, paille traversante, gobelet fuselé, perles
+// Bubble tea — couvercle dôme, paille, gobelet fuselé, perles
 export function IconeCommander({ color, size, focused }: IconeProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      {/* Paille inclinée, derrière le dôme */}
-      <Line x1="14.9" y1="1.9" x2="13.2" y2="7.7" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
-      {/* Dôme du couvercle */}
+      <Line x1="15.1" y1="1.8" x2="13.3" y2="7.6" stroke={color} strokeWidth={T} strokeLinecap="round" />
       <Path
-        d="M6.7 7.9 Q6.7 3.7 12 3.7 Q17.3 3.7 17.3 7.9"
-        stroke={color}
-        strokeWidth={1.8}
+        d="M6.3 8 L17.7 8 L16.4 19.8 Q16.2 21.5 14.4 21.5 L9.6 21.5 Q7.8 21.5 7.6 19.8 Z"
+        stroke={color} strokeWidth={T} strokeLinejoin="round"
         fill={focused ? color : 'none'}
-        fillOpacity={focused ? 0.15 : 0}
       />
-      {/* Bord du couvercle, légèrement débordant */}
-      <Line x1="5.7" y1="7.9" x2="18.3" y2="7.9" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
-      {/* Gobelet fuselé, fond arrondi */}
-      <Path
-        d="M6.5 7.9 L17.5 7.9 L16.3 19.6 Q16.12 21.3 14.4 21.3 L9.6 21.3 Q7.88 21.3 7.7 19.6 Z"
-        stroke={color}
-        strokeWidth={1.8}
-        strokeLinejoin="round"
-        fill={focused ? color : 'none'}
-        fillOpacity={focused ? 0.15 : 0}
-      />
-      {/* Perles de tapioca */}
-      <Circle cx="9.8" cy="17.6" r="1.15" fill={color} />
-      <Circle cx="12.05" cy="18.35" r="1.15" fill={color} />
-      <Circle cx="14.25" cy="17.5" r="1.15" fill={color} />
-      <Circle cx="11" cy="15.3" r="1.15" fill={color} />
+      <Path d="M6.4 7.9 Q6.4 3.6 12 3.6 Q17.6 3.6 17.6 7.9" stroke={color} strokeWidth={T} strokeLinecap="round" fill="none" />
+      <Line x1="5.5" y1="7.9" x2="18.5" y2="7.9" stroke={color} strokeWidth={T} strokeLinecap="round" />
+      <G fill={focused ? NEG : color}>
+        <Circle cx="9.9" cy="17.6" r="1.15" />
+        <Circle cx="12.1" cy="18.4" r="1.15" />
+        <Circle cx="14.2" cy="17.5" r="1.15" />
+        <Circle cx="11" cy="15.4" r="1.15" />
+      </G>
     </Svg>
   );
 }
 
-// Cadeau : boîte arrondie, couvercle débordant, ruban et nœud à deux boucles lisses
+// Fidélité — carte à tampons (perles) : c'est LITTÉRALEMENT l'écran fidélité
 export function IconeFidelite({ color, size, focused }: IconeProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Rect
-        x="4.7"
-        y="10.9"
-        width="14.6"
-        height="9.4"
-        rx="1.7"
-        stroke={color}
-        strokeWidth={1.8}
+        x="3.2" y="5.6" width="17.6" height="12.8" rx="3.2"
+        stroke={color} strokeWidth={T} strokeLinejoin="round"
         fill={focused ? color : 'none'}
-        fillOpacity={focused ? 0.15 : 0}
       />
-      <Rect
-        x="3.5"
-        y="7.5"
-        width="17"
-        height="3.4"
-        rx="1.2"
-        stroke={color}
-        strokeWidth={1.8}
-        fill={focused ? color : 'none'}
-        fillOpacity={focused ? 0.15 : 0}
-      />
-      {/* Ruban vertical */}
-      <Line x1="12" y1="10.9" x2="12" y2="20.3" stroke={color} strokeWidth={1.8} />
-      {/* Boucles du nœud, courbes symétriques */}
-      <Path
-        d="M12 7.5 C9.4 7.5 8 6.8 8 5.4 C8 4.15 9.15 3.55 10.2 4.3 C11.2 5 11.85 6.1 12 7.5 Z"
-        stroke={color}
-        strokeWidth={1.7}
-        strokeLinejoin="round"
-        fill={focused ? color : 'none'}
-        fillOpacity={focused ? 0.15 : 0}
-      />
-      <Path
-        d="M12 7.5 C14.6 7.5 16 6.8 16 5.4 C16 4.15 14.85 3.55 13.8 4.3 C12.8 5 12.15 6.1 12 7.5 Z"
-        stroke={color}
-        strokeWidth={1.7}
-        strokeLinejoin="round"
-        fill={focused ? color : 'none'}
-        fillOpacity={focused ? 0.15 : 0}
-      />
+      {/* rangée de tampons */}
+      <G>
+        <Circle cx="7.6" cy="12" r="1.55" stroke={focused ? NEG : color} strokeWidth={1.7} fill={focused ? color : 'none'} />
+        <Circle cx="12" cy="12" r="1.55" stroke={focused ? NEG : color} strokeWidth={1.7} fill={focused ? NEG : 'none'} />
+        <Circle cx="16.4" cy="12" r="1.55" stroke={focused ? NEG : color} strokeWidth={1.7} fill={focused ? NEG : 'none'} />
+      </G>
     </Svg>
   );
 }
 
-// Offres : étiquette promo inclinée avec œillet
+// Offres — étiquette promo avec "%"
 export function IconeOffres({ color, size, focused }: IconeProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M3.9 11 L3.9 5.8 Q3.9 3.9 5.8 3.9 L11 3.9 Q12 3.9 12.7 4.6 L19.7 11.6 Q21 12.9 19.7 14.2 L14.2 19.7 Q12.9 21 11.6 19.7 L4.6 12.7 Q3.9 12 3.9 11 Z"
-        stroke={color}
-        strokeWidth={1.8}
-        strokeLinejoin="round"
+        d="M3.8 11 L3.8 5.6 Q3.8 3.8 5.6 3.8 L11 3.8 Q12.1 3.8 12.9 4.6 L19.8 11.5 Q21.1 12.8 19.8 14.1 L14.1 19.8 Q12.8 21.1 11.5 19.8 L4.6 12.9 Q3.8 12.1 3.8 11 Z"
+        stroke={color} strokeWidth={T} strokeLinejoin="round"
         fill={focused ? color : 'none'}
-        fillOpacity={focused ? 0.15 : 0}
       />
-      {/* Œillet de l'étiquette */}
-      <Circle cx="8" cy="8" r="1.45" stroke={color} strokeWidth={1.6} fill="none" />
+      <Circle cx="8" cy="8" r="1.5" stroke={focused ? NEG : color} strokeWidth={1.7} fill={focused ? NEG : 'none'} />
+      {/* signe pourcent */}
+      <G stroke={focused ? NEG : color} strokeWidth={1.7} strokeLinecap="round">
+        <Line x1="10.4" y1="14.3" x2="14.3" y2="10.4" />
+        <Circle cx="10.7" cy="10.7" r="0.6" fill={focused ? NEG : color} />
+        <Circle cx="14" cy="14" r="0.6" fill={focused ? NEG : color} />
+      </G>
     </Svg>
   );
 }
 
-// Profil : tête + buste aux épaules arrondies
+// Compte — buste arrondi
 export function IconeCompte({ color, size, focused }: IconeProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Circle
-        cx="12"
-        cy="7.7"
-        r="3.85"
-        stroke={color}
-        strokeWidth={1.8}
+        cx="12" cy="8" r="4"
+        stroke={color} strokeWidth={T}
         fill={focused ? color : 'none'}
-        fillOpacity={focused ? 0.15 : 0}
       />
       <Path
-        d="M5.1 20.3 L5.1 19.5 Q5.1 14.9 12 14.9 Q18.9 14.9 18.9 19.5 L18.9 20.3"
-        stroke={color}
-        strokeWidth={1.8}
-        strokeLinecap="round"
+        d="M4.6 20.4 L4.6 19.4 Q4.6 14.4 12 14.4 Q19.4 14.4 19.4 19.4 L19.4 20.4"
+        stroke={color} strokeWidth={T} strokeLinecap="round" strokeLinejoin="round"
         fill={focused ? color : 'none'}
-        fillOpacity={focused ? 0.15 : 0}
       />
     </Svg>
   );

@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { C, F } from '@/constants/charte';
 import { Carte, ChampTexte, Message, BoutonPrimaire } from '@/components/ui-kit';
+import { IconeApp } from '@/components/icones-app';
 
 // JJ/MM/AAAA → YYYY-MM-DD (null si invalide, dans le futur, ou improbable)
 function naissanceVersIso(saisie: string): string | null {
@@ -62,10 +63,10 @@ export function GateNaissance({ userId, onDone }: { userId: string; onDone: () =
           <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
             <View>
               <Carte style={styles.carte}>
-                <Text style={styles.titre}>Bienvenue 🎉</Text>
+                <Text style={styles.titre}>Bienvenue</Text>
                 <Text style={styles.sous}>
                   Avant de continuer, indique ta date de naissance. Elle nous sert à t'offrir une boisson
-                  le jour de ton anniversaire 🎂.
+                  le jour de ton anniversaire.
                 </Text>
                 <ChampTexte
                   value={valeur}
@@ -83,7 +84,10 @@ export function GateNaissance({ userId, onDone }: { userId: string; onDone: () =
                   returnKeyType="done"
                   onSubmitEditing={Keyboard.dismiss}
                 />
-                <Text style={styles.aide}>🔒 Non modifiable une fois enregistrée.</Text>
+                <View style={styles.aideRang}>
+                  <IconeApp nom="cadenas" taille={13} />
+                  <Text style={styles.aide}>Non modifiable une fois enregistrée.</Text>
+                </View>
                 {msg && <Message texte={msg} />}
                 <BoutonPrimaire titre="Valider" onPress={enregistrer} loading={enCours} />
               </Carte>
@@ -101,4 +105,5 @@ const styles = StyleSheet.create({
   titre: { fontFamily: F.titre, fontSize: 24, color: C.violet, textAlign: 'center' },
   sous: { fontFamily: F.t400, fontSize: 15, color: C.texte2, textAlign: 'center', lineHeight: 21 },
   aide: { fontFamily: F.t400, fontSize: 12, color: C.texte2, textAlign: 'center' },
+  aideRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
 });

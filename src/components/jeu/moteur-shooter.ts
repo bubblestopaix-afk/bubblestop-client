@@ -49,6 +49,7 @@ export type Objectif =
   | { type: 'tomber'; cible: number }                // faire tomber N perles
   | { type: 'nettoyer' }                             // vider le plateau
   | { type: 'couleur'; couleur: Couleur; cible: number } // éclater N perles d'une couleur
+  | { type: 'boss'; pv: number }                     // 👹 vider les PV du boss en éclatant
   | { type: 'score' };                               // infini (aucune fin)
 
 export const BONUS_POINTS = 40;   // points d'une perle bonus éclatée
@@ -163,6 +164,7 @@ export function couleursPresentes(grille: Ligne[]): Couleur[] {
 
 export function objectifCible(o: Objectif): number {
   if (o.type === 'tomber' || o.type === 'couleur') return o.cible;
+  if (o.type === 'boss') return o.pv;
   return 1;
 }
 
@@ -175,6 +177,7 @@ export function objectifAtteint(etat: EtatShooter): boolean {
     case 'nettoyer': return etat.grille.every((l) => l.cases.every((b) => !b));
     case 'tomber':
     case 'couleur': return etat.objProgres >= o.cible;
+    case 'boss': return etat.objProgres >= o.pv;            // 👹 PV du boss vidés
   }
 }
 
@@ -186,6 +189,7 @@ export function objectifLabel(o: Objectif, couleurNom?: (c: Couleur) => string):
     case 'nettoyer': return 'Vide tout le plateau';
     case 'tomber': return `Fais tomber ${o.cible} perles`;
     case 'couleur': return `Éclate ${o.cible} perles ${couleurNom ? couleurNom(o.couleur) : ''}`.trim();
+    case 'boss': return 'Vaincs le boss 👹';
   }
 }
 
@@ -265,6 +269,7 @@ export type ParamsNiveau = {
 // L'objectif tourne selon le niveau, en introduisant les buts progressivement.
 function objectifNiveau(n: number, nbCouleurs: number): Objectif {
   if (n <= 2) return { type: 'capsules' };
+  if (n % 5 === 0) return { type: 'boss', pv: 26 + n * 4 }; // 👹 niveaux boss (tous les 5)
   switch (n % 4) {
     case 1: return { type: 'capsules' };
     case 2: return { type: 'tomber', cible: 12 + Math.floor(n / 2) };
@@ -283,7 +288,8 @@ export function paramsNiveau(n: number): ParamsNiveau {
     ? Math.min(1 + Math.floor((n - 1) / 6), 3) + (boss ? 1 : 0)
     : 0;
   const tirsMax = 28 - Math.min(12, Math.floor(n / 2)) + nbCapsules * 4
-    + (objectif.type === 'tomber' || objectif.type === 'nettoyer' ? 6 : 0);
+    + (objectif.type === 'tomber' || objectif.type === 'nettoyer' ? 6 : 0)
+    + (objectif.type === 'boss' ? 12 : 0);
   const tirsParDescente = n <= 6 ? 0 : n <= 14 ? 9 : 7;
   // perles spéciales, introduites progressivement
   const nbGlacons = objectif.type === 'nettoyer' ? 0 : n >= 4 ? Math.min(1 + Math.floor((n - 4) / 3), 4) : 0;
@@ -343,7 +349,7 @@ export function creerNiveau(n: number): EtatShooter {
     tirs: 0,
     tirsParDescente: p.tirsParDescente,
     tirsRestants: p.tirsMax,
-    regenerer: false,
+    regenerer: p.objectif.type === 'boss', // 👹 le boss : plateau qui se régénère (on cogne sans fin)
     couleursPool: pool,
     chaine: 0,
     graceChaine: 0,
@@ -657,7 +663,7 @@ export function tirer(
   etat.detruites += eclatees.length + tombees.length;
   etat.capsulesLiberees += capsules;
 
-  // Avancement de l'objectif du niveau (tomber / couleur)
+  // Avancement de l'objectif du niveau (tomber / couleur / boss)
   const obj = etat.objectif;
   if (obj.type === 'tomber') {
     etat.objProgres += tombees.filter((t) => !t.bulle.capsule).length;
@@ -665,6 +671,12 @@ export function tirer(
     const compte = (arr: { bulle: Bulle }[]) =>
       arr.filter((x) => !estBloc(x.bulle) && x.bulle.special !== 'arc' && x.bulle.couleur === obj.couleur).length;
     etat.objProgres += compte(eclatees) + compte(tombees);
+  } else if (obj.type === 'boss') {
+    // 👹 chaque perle éclatée / tombée blesse le boss ; gros combos et explosions cognent plus fort
+    const degats = eclatees.filter((x) => !estBloc(x.bulle)).length
+      + tombees.filter((t) => !t.bulle.capsule).length
+      + (tailleGroupe >= 5 ? 3 : 0) + explosions * 2;
+    etat.objProgres += degats;
   }
 
   // Munitions : les tirs spéciaux ne consomment PAS la perle courante

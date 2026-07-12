@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { offreEnCours } from '@/lib/offres';
 import RappelNotifs from '@/components/rappel-notifs';
+import { IconeApp } from '@/components/icones-app';
 import { C, F, R, OMBRE } from '@/constants/charte';
 
 // "il y a 2 j" / "aujourd'hui" pour dater une offre
@@ -50,7 +51,7 @@ export default function OffresScreen() {
 
         {offres?.length === 0 && (
           <View style={styles.videCarte}>
-            <Text style={styles.videEmoji}>🎁</Text>
+            <IconeApp nom="cadeau" taille={42} />
             <Text style={styles.videTitre}>Pas d'offre en ce moment</Text>
             <Text style={styles.videTexte}>
               Reviens bientôt — les nouvelles offres et nouveautés apparaissent ici.

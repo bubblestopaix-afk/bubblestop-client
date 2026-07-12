@@ -14,6 +14,7 @@ import PastilleCollectible from '@/components/jeu/collectibles';
 import {
   CAPSULES, Collectible, PITY_EPIQUE, PITY_LEGENDAIRE, RARETES, SETS, TypeCapsule,
 } from '@/components/jeu/economie';
+import { Icone, IconeEmoji, IconeNom } from '@/components/jeu/icones';
 import {
   BandeauPreview, BoutonJeu, ChipRarete, EnTeteJeu, formatNb, IconePerle,
 } from '@/components/jeu/ui-jeu';
@@ -21,7 +22,10 @@ import { ouvrirCapsule, pityRestant, useBobaQuest } from '@/store/jeu';
 
 const VIOLET = '#4c2d77';
 
-type Resultat = { collectible: Collectible; doublon: boolean; perlesRendues: number; type: TypeCapsule };
+type Resultat = {
+  collectible: Collectible; doublon: boolean; perlesRendues: number;
+  type: TypeCapsule; premiere: boolean;
+};
 
 export default function CapsulesScreen() {
   const insets = useSafeAreaInsets();
@@ -34,6 +38,7 @@ export default function CapsulesScreen() {
 
   const lancer = (type: TypeCapsule, gratuite: boolean) => {
     if (enCours) return;
+    const premiere = etat.capsulesOuvertes === 0;
     const res = ouvrirCapsule(type, gratuite);
     if (!res) return;
     setEnCours(type);
@@ -49,7 +54,7 @@ export default function CapsulesScreen() {
       Animated.timing(wobble, { toValue: 0, duration: 60, useNativeDriver: true }),
       Animated.timing(chute, { toValue: 1, duration: 650, easing: Easing.bounce, useNativeDriver: true }),
     ]).start(() => {
-      setResultat({ ...res, type });
+      setResultat({ ...res, type, premiere });
       setEnCours(null);
     });
   };
@@ -64,6 +69,11 @@ export default function CapsulesScreen() {
     const gratuite = type === 'classique' ? etat.capsulesGratuites > 0 : etat.capsulesDoreesGratuites > 0;
     setResultat(null);
     setTimeout(() => lancer(type, gratuite), 120);
+  };
+
+  const voirCollection = () => {
+    setResultat(null);
+    router.push('/jeu/collection' as any);
   };
 
   return (
@@ -98,19 +108,19 @@ export default function CapsulesScreen() {
             </Svg>
           </Animated.View>
           <Text style={styles.machineTexte}>
-            {enCours ? 'La machine réfléchit… 🥁' : 'Tente ta chance, complète ta collection !'}
+            {enCours ? 'La machine réfléchit…' : 'Tente ta chance, complète ta collection !'}
           </Text>
         </View>
 
         {/* === 🎁 Garanties (pity) : la malchance est bornée === */}
         <View style={styles.pityCarte}>
           <BarrePity
-            titre="✨ Épique garanti"
+            nom="etoile" titre="Épique garanti"
             restant={pityRestant(etat).epique} total={PITY_EPIQUE}
             couleur="#C99012" fond="#fdf3c2"
           />
           <BarrePity
-            titre="👑 Légendaire garanti"
+            nom="couronne" titre="Légendaire garanti"
             restant={pityRestant(etat).legendaire} total={PITY_LEGENDAIRE}
             couleur="#D2588A" fond="#fbe4ee"
           />
@@ -144,7 +154,7 @@ export default function CapsulesScreen() {
               </View>
               {gratuites > 0 && (
                 <BoutonJeu
-                  titre={`Ouvrir — ${gratuites} gratuite${gratuites > 1 ? 's' : ''} 🎁`}
+                  titre={`Ouvrir — ${gratuites} gratuite${gratuites > 1 ? 's' : ''}`}
                   onPress={() => lancer(type, true)}
                   disabled={!!enCours}
                 />
@@ -153,6 +163,9 @@ export default function CapsulesScreen() {
                 style={[styles.btnAchat, (!peutPayer || !!enCours) && { opacity: 0.45 }]}
                 onPress={() => lancer(type, false)}
                 disabled={!peutPayer || !!enCours}
+                accessibilityRole="button"
+                accessibilityLabel={`Ouvrir ${conf.nom} pour ${formatNb(conf.cout)} perles`}
+                accessibilityState={{ disabled: !peutPayer || Boolean(enCours) }}
               >
                 <Text style={styles.btnAchatTxt}>Ouvrir</Text>
                 <View style={styles.btnAchatCout}>
@@ -165,7 +178,7 @@ export default function CapsulesScreen() {
         })}
 
         <Text style={styles.astuce}>
-          💡 Les perles se gagnent en jouant à Perle Rush — et les perles dorées
+          Les perles se gagnent en jouant à Perle Rush — et les perles dorées
           du plateau contiennent des capsules gratuites. Les doublons sont
           convertis en perles automatiquement.
         </Text>
@@ -174,27 +187,60 @@ export default function CapsulesScreen() {
 
       {/* === Révélation === */}
       <Modal visible={!!resultat} transparent animationType="fade" onRequestClose={() => setResultat(null)}>
-        {resultat && (
-          <View style={styles.modalFond}>
-            <Reveal resultat={resultat} />
-            <View style={{ gap: 10, alignSelf: 'stretch', paddingHorizontal: 30 }}>
-              {encorePossible(resultat.type) && (
-                <BoutonJeu titre="Ouvrir une autre ✨" onPress={ouvrirEncore} />
-              )}
-              <Pressable onPress={() => setResultat(null)} hitSlop={8}>
-                <Text style={styles.fermerTxt}>Fermer</Text>
-              </Pressable>
+        {resultat && (() => {
+          const type = resultat.type;
+          const gratuite = type === 'classique' ? etat.capsulesGratuites > 0 : etat.capsulesDoreesGratuites > 0;
+          const cout = CAPSULES[type].cout;
+          return (
+            <View style={styles.modalFond} accessibilityViewIsModal>
+              <Reveal resultat={resultat} />
+              <View style={{ gap: 10, alignSelf: 'stretch', paddingHorizontal: 30 }}>
+                {resultat.premiere && !resultat.doublon && (
+                  <BoutonJeu
+                    titre="Voir dans ma collection"
+                    onPress={voirCollection}
+                    accessibilityHint="Ouvre ta collection sur le personnage obtenu"
+                  />
+                )}
+                {encorePossible(type) && (
+                  <Pressable
+                    style={styles.encoreBtn}
+                    onPress={ouvrirEncore}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ouvrir une autre capsule"
+                  >
+                    <Text style={styles.encoreBtnTxt}>Ouvrir une autre</Text>
+                    {gratuite ? (
+                      <View style={styles.encoreGratuit}><Text style={styles.encoreGratuitTxt}>gratuite</Text></View>
+                    ) : (
+                      <View style={styles.encoreCout}>
+                        <IconePerle taille={14} />
+                        <Text style={styles.encoreCoutTxt}>{formatNb(cout)}</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                )}
+                {!gratuite && <Text style={styles.encoreNote}>Chaque ouverture coûte {formatNb(cout)} perles</Text>}
+                <Pressable
+                  onPress={() => setResultat(null)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Fermer le résultat"
+                >
+                  <Text style={styles.fermerTxt}>Fermer</Text>
+                </Pressable>
+              </View>
             </View>
-          </View>
-        )}
+          );
+        })()}
       </Modal>
     </View>
   );
 }
 
 // Barre de progression « pity » : combien de capsules avant le drop garanti
-function BarrePity({ titre, restant, total, couleur, fond }: {
-  titre: string; restant: number; total: number; couleur: string; fond: string;
+function BarrePity({ nom, titre, restant, total, couleur, fond }: {
+  nom: IconeNom; titre: string; restant: number; total: number; couleur: string; fond: string;
 }) {
   const faites = total - restant;
   const pct = Math.max(0, Math.min(100, (faites / total) * 100));
@@ -202,9 +248,9 @@ function BarrePity({ titre, restant, total, couleur, fond }: {
   return (
     <View style={{ gap: 5 }}>
       <View style={styles.pityHaut}>
-        <Text style={styles.pityTitre}>{titre}</Text>
+        <View style={styles.pityTitreRang}><Icone nom={nom} taille={15} /><Text style={styles.pityTitre}>{titre}</Text></View>
         <Text style={[styles.pityRestant, proche && { color: couleur }]}>
-          {restant === 0 ? 'PROCHAINE GARANTIE ! 🎉' : `encore ${restant}`}
+          {restant === 0 ? 'PROCHAINE GARANTIE !' : `encore ${restant}`}
         </Text>
       </View>
       <View style={[styles.pityBarre, { backgroundColor: fond }]}>
@@ -259,7 +305,8 @@ function Reveal({ resultat }: { resultat: Resultat }) {
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <ChipRarete nom={rarete.nom} couleur={rarete.couleur} />
         <View style={[styles.chipSet, { backgroundColor: set.fond }]}>
-          <Text style={[styles.chipSetTxt, { color: set.couleur }]}>{set.emoji} {set.nom}</Text>
+          <IconeEmoji emoji={set.emoji} taille={14} />
+          <Text style={[styles.chipSetTxt, { color: set.couleur }]}>{set.nom}</Text>
         </View>
       </View>
       <Text style={styles.revealPhrase}>« {collectible.phrase} »</Text>
@@ -315,6 +362,7 @@ const styles = StyleSheet.create({
 
   pityCarte: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12, ...OMBRE },
   pityHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  pityTitreRang: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pityTitre: { fontFamily: F.t800, fontSize: 13.5, color: C.texte },
   pityRestant: { fontFamily: F.t700, fontSize: 12.5, color: C.texte2 },
   pityBarre: { height: 9, borderRadius: 5, overflow: 'hidden' },
@@ -355,7 +403,7 @@ const styles = StyleSheet.create({
   },
   revealNouveau: { fontFamily: F.titre, fontSize: 16, color: C.vertFonce, letterSpacing: 1 },
   revealNom: { fontFamily: F.titre, fontSize: 24, color: C.violet },
-  chipSet: { borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 10 },
+  chipSet: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 10 },
   chipSetTxt: { fontFamily: F.t700, fontSize: 12 },
   revealPhrase: { fontFamily: F.t400, fontSize: 13.5, color: C.texte2, textAlign: 'center', fontStyle: 'italic', lineHeight: 19 },
   doublon: {
@@ -364,4 +412,17 @@ const styles = StyleSheet.create({
   },
   doublonTxt: { fontFamily: F.t700, fontSize: 13, color: '#9A6B00' },
   fermerTxt: { fontFamily: F.t700, fontSize: 14.5, color: C.lavande, textAlign: 'center', padding: 8 },
+  encoreBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    backgroundColor: C.violet, borderRadius: R.btn + 2, paddingVertical: 15,
+  },
+  encoreBtnTxt: { fontFamily: F.t800, fontSize: 15.5, color: '#fff' },
+  encoreCout: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.92)', borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 10,
+  },
+  encoreCoutTxt: { fontFamily: F.t800, fontSize: 13.5, color: C.violetProfond },
+  encoreGratuit: { backgroundColor: C.vert, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 11 },
+  encoreGratuitTxt: { fontFamily: F.t800, fontSize: 12.5, color: C.violetProfond },
+  encoreNote: { fontFamily: F.t600, fontSize: 11.5, color: C.lavande, textAlign: 'center', marginTop: -2 },
 });

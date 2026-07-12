@@ -212,7 +212,7 @@ export function labelPalier(p: RecompensePalier): string {
 
 // --- Gains de partie --------------------------------------------------------------
 
-export const PERLES_MAX_PARTIE = 300;
+export const PERLES_MAX_PARTIE = 450;
 export const BONUS_PREMIERE_PARTIE = 2; // multiplicateur 1ʳᵉ partie du jour
 
 // Conversion score → perles (plafonnée pour garder l'économie saine)
@@ -224,10 +224,10 @@ export function perlesPourScore(score: number): number {
 // 1ʳᵉ réussite d'un niveau = capsule (dorée aux boss, tous les 5 niveaux).
 // Rejouer un niveau déjà réussi = quelques perles seulement (anti-farm).
 
-export const NIVEAU_PERLES_PAR_ETOILE = 25;   // bonus 1ʳᵉ réussite : étoiles × 25
-export const NIVEAU_DIV_SCORE = 10;           // perles = score/10 (1ʳᵉ réussite)
-export const NIVEAU_DIV_REJOUER = 20;         // perles = score/20 (niveau déjà réussi)
-export const NIVEAU_DIV_ECHEC = 20;           // consolation en cas d'échec
+export const NIVEAU_PERLES_PAR_ETOILE = 40;   // bonus 1ʳᵉ réussite : étoiles × 40
+export const NIVEAU_DIV_SCORE = 8;            // perles = score/8 (1ʳᵉ réussite)
+export const NIVEAU_DIV_REJOUER = 14;         // perles = score/14 (niveau déjà réussi)
+export const NIVEAU_DIV_ECHEC = 14;           // consolation en cas d'échec
 
 // --- Perles spéciales (power-ups de tir) — LE grand usage des perles ---------------
 
@@ -254,14 +254,14 @@ export type MesureDefi =
 export type Defi = { id: string; label: string; cible: number; mesure: MesureDefi; perles: number };
 
 export const DEFIS: Defi[] = [
-  { id: 'niveaux2', label: 'Termine 2 niveaux d\'Aventure', cible: 2, mesure: 'niveauxTermines', perles: 150 },
-  { id: 'eclate80', label: 'Éclate 80 perles', cible: 80, mesure: 'eclatees', perles: 120 },
-  { id: 'orphelines25', label: 'Fais tomber 25 perles en combo', cible: 25, mesure: 'orphelines', perles: 150 },
-  { id: 'score800', label: 'Fais 800 points en une partie', cible: 800, mesure: 'meilleurScorePartie', perles: 120 },
-  { id: 'capsules2', label: 'Libère 2 capsules', cible: 2, mesure: 'capsulesLiberees', perles: 180 },
-  { id: 'groupe5', label: 'Éclate un groupe de 5 perles ou plus', cible: 5, mesure: 'meilleurGroupe', perles: 150 },
-  { id: 'chaine3', label: 'Atteins une chaîne ×3', cible: 3, mesure: 'chaineMax', perles: 150 },
-  { id: 'parties3', label: 'Joue 3 parties', cible: 3, mesure: 'parties', perles: 100 },
+  { id: 'niveaux2', label: 'Termine 2 niveaux d\'Aventure', cible: 2, mesure: 'niveauxTermines', perles: 250 },
+  { id: 'eclate80', label: 'Éclate 80 perles', cible: 80, mesure: 'eclatees', perles: 200 },
+  { id: 'orphelines25', label: 'Fais tomber 25 perles en combo', cible: 25, mesure: 'orphelines', perles: 250 },
+  { id: 'score800', label: 'Fais 800 points en une partie', cible: 800, mesure: 'meilleurScorePartie', perles: 200 },
+  { id: 'capsules2', label: 'Libère 2 capsules', cible: 2, mesure: 'capsulesLiberees', perles: 300 },
+  { id: 'groupe5', label: 'Éclate un groupe de 5 perles ou plus', cible: 5, mesure: 'meilleurGroupe', perles: 250 },
+  { id: 'chaine3', label: 'Atteins une chaîne ×3', cible: 3, mesure: 'chaineMax', perles: 250 },
+  { id: 'parties3', label: 'Joue 3 parties', cible: 3, mesure: 'parties', perles: 180 },
 ];
 
 // 3 défis distincts, déterministes pour une date donnée ('YYYY-MM-DD')
@@ -321,10 +321,22 @@ export function effetBuddy(set: SetId, rarete: Rarete): EffetBuddy {
 
 // --- Boutique des prix (perles → prix réels, paliers volontairement longs) --------
 
-export const BOUTIQUE: { id: string; cout: number; type: TypePrix; qte: number; label: string; detail: string }[] = [
-  { id: 'tampon-1', cout: 3000, type: 'tampon', qte: 1, label: '+1 tampon', detail: 'Un tampon direct sur ta carte de fidélité' },
-  { id: 'reduc-10', cout: 8000, type: 'reduction', qte: 10, label: '−10 %', detail: 'Sur ta prochaine commande en boutique' },
-  { id: 'boisson-l', cout: 20000, type: 'boisson', qte: 1, label: 'Grande boisson offerte', detail: 'Taille L (M pour les Signatures)' },
+// Économie « généreuse » : les vrais prix restent accessibles, mais sur plusieurs
+// sessions. Les seuils sont volontairement très au-dessus des dépenses in-game :
+// une capsule dorée coûte 1 200 perles, un vrai tampon commence à 15 000.
+// 🛡️ Anti-farm : CHAQUE article a un plafond MENSUEL (`parMois`, mois calendaire —
+// suivi par article dans le store, `prixMois.achats`). Le jeu reste généreux en
+// récompenses in-game (capsules, objets, perles illimitées), mais ce qui coûte du
+// vrai produit au magasin est borné : un farmeur ne remplit pas une carte en une
+// soirée (max/mois : 1 tampon + 3×−10 % + 1×−20 % + 1 grande boisson).
+// La roulette (1 tour/mois, boisson à ~1 %) reste hors plafonds : jackpot auto-limité.
+// NB : le plafond mensuel s'affiche via `parMois` directement dans la carte de l'article
+// (pastille dédiée dans boutique.tsx) — ne PAS le répéter dans `detail`.
+export const BOUTIQUE: { id: string; cout: number; type: TypePrix; qte: number; parMois: number; label: string; detail: string }[] = [
+  { id: 'tampon-1', cout: 15000, type: 'tampon', qte: 1, parMois: 1, label: '+1 tampon', detail: 'Un tampon direct sur ta carte de fidélité' },
+  { id: 'reduc-10', cout: 50000, type: 'reduction', qte: 10, parMois: 3, label: '−10 %', detail: 'Sur ta prochaine commande en boutique' },
+  { id: 'reduc-20', cout: 100000, type: 'reduction', qte: 20, parMois: 1, label: '−20 %', detail: 'Grosse réduction sur ta prochaine commande' },
+  { id: 'boisson-l', cout: 200000, type: 'boisson', qte: 1, parMois: 1, label: 'Grande boisson offerte', detail: 'Taille L (M pour les Signatures)' },
 ];
 
 // --- Roulette mensuelle (toujours gagnante, 1 tour par mois) -----------------------
@@ -494,8 +506,9 @@ export const PANOPLIES: Record<PanoplieId, {
   },
 };
 
-// Agrège les effets d'une liste d'objets (3 emplacements) + bonus de panoplie.
-export function agregerEffets(ids: ObjetId[]): EffetObjet {
+// Agrège les effets d'une liste d'objets (3 emplacements) + bonus de panoplie,
+// + un effet supplémentaire optionnel (le PASSIF de la carte).
+export function agregerEffets(ids: ObjetId[], extra?: EffetObjet): EffetObjet {
   const acc: Record<string, number | boolean> = {};
   const ajoute = (e: EffetObjet) => {
     for (const [k, v] of Object.entries(e)) {
@@ -515,7 +528,87 @@ export function agregerEffets(ids: ObjetId[]): EffetObjet {
       if (n >= palier.seuil) ajoute(palier.effet);
     }
   }
+  if (extra) ajoute(extra);
   return acc as EffetObjet;
+}
+
+// --- ⭐ Atouts passifs : chaque carte a une identité de combat (façon Pokémon) ------
+// Les communes reçoivent des niches SITUATIONNELLES (anti-étourdissement, survie,
+// premier sang…) qui créent du contre-jeu ; les légendaires cumulent plus d'effets.
+
+export type Passif = { nom: string; desc: string; eff: EffetObjet };
+
+export const PASSIFS: Record<string, Passif> = {
+  // 🧋 Milk Tea (communes) — des niches qui punissent les compos négligentes
+  boba: { nom: 'Increvable', desc: 'Survit une fois à 1 PV', eff: { reviveUneFois: true } },
+  classico: { nom: 'Recette maison', desc: '+5 PV régénérés par tour', eff: { soinTour: 5 } },
+  theo: { nom: 'Infusion zen', desc: 'Insensible à l\'étourdissement', eff: { immuniteEtourdi: true } },
+  lacto: { nom: 'Onctueux', desc: '+12 % de PV max', eff: { pvPct: 12 } },
+  paillette: { nom: 'Vive', desc: 'Agit en premier au 1er tour', eff: { agitPremier: true } },
+  sucrette: { nom: 'Rush de sucre', desc: '+8 % de coups critiques', eff: { critPct: 8 } },
+  // 🍓 Fruités (rares)
+  fraisy: { nom: 'Pétillante', desc: '+10 % de crit', eff: { critPct: 10 } },
+  mango: { nom: 'Tropicale', desc: '+10 % d\'attaque', eff: { atkPct: 10 } },
+  litchee: { nom: 'Parfum précis', desc: '+8 % de précision', eff: { precisionPct: 8 } },
+  passion: { nom: 'Ardente', desc: 'Vol de vie 15 %', eff: { volDeViePct: 15 } },
+  citro: { nom: 'Acide', desc: 'Renvoie 15 % des dégâts subis', eff: { epinesPct: 15 } },
+  pasteka: { nom: 'Carapace', desc: 'Démarre avec un bouclier + −40 % dégâts de zone', eff: { bouclierDepart: true, reducZonePct: 40 } },
+  // ✨ Toppings (épiques)
+  popping: { nom: 'Explosive', desc: '+12 % d\'attaque', eff: { atkPct: 12 } },
+  jelly: { nom: 'Élastique', desc: '−45 % de dégâts de zone', eff: { reducZonePct: 45 } },
+  mochito: { nom: 'Moelleux', desc: '+8 PV régénérés par tour', eff: { soinTour: 8 } },
+  coco: { nom: 'Blindée', desc: '+16 % de PV max', eff: { pvPct: 16 } },
+  pudding: { nom: 'Gourmand', desc: 'Vol de vie 18 %', eff: { volDeViePct: 18 } },
+  nuage: { nom: 'Cocon', desc: '+8 % PV max et +6 PV/tour', eff: { pvPct: 8, soinTour: 6 } },
+  // 👑 Signatures (légendaires) — plusieurs effets cumulés
+  'taro-queen': { nom: 'Aura royale', desc: '+12 % ATQ et +6 % crit', eff: { atkPct: 12, critPct: 6 } },
+  'matcha-sensei': { nom: 'Maîtrise zen', desc: 'Anti-étourdissement + 8 % crit', eff: { immuniteEtourdi: true, critPct: 8 } },
+  'brown-sugar-king': { nom: 'Couronne fondante', desc: '+14 % PV et +6 PV/tour', eff: { pvPct: 14, soinTour: 6 } },
+  'oreo-star': { nom: 'Éclat d\'étoile', desc: '+12 % de crit', eff: { critPct: 12 } },
+  'caramel-chef': { nom: 'Nappage vorace', desc: 'Vol de vie 20 %', eff: { volDeViePct: 20 } },
+  'bubble-master': { nom: 'Suprématie', desc: '+12 % ATQ, +8 % crit, survit une fois à 1 PV', eff: { atkPct: 12, critPct: 8, reviveUneFois: true } },
+};
+
+export function passifDe(id: string): Passif | undefined {
+  return PASSIFS[id];
+}
+
+// --- ⚖️ Budget d'équipe par rareté + bonus outsider -----------------------------------
+// La rareté = plus d'OPTIONS, pas plus de puissance brute : l'équipe doit tenir sous un
+// budget (impossible d'aligner 3 légendaires), et chaque point SOUS le budget booste
+// l'équipe → une équipe modeste reste compétitive face à des cartes rares.
+
+export const COUT_RARETE: Record<Rarete, number> = { commun: 1, rare: 2, epique: 3, legendaire: 4 };
+export const BUDGET_EQUIPE = 7;
+export const OUTSIDER_PAR_POINT = 0.06; // +6 % PV et ATQ par point sous le budget
+
+export function coutCarte(id: string): number {
+  const c = trouverCollectible(id);
+  return c ? COUT_RARETE[c.rarete] : 1;
+}
+export function coutEquipe(ids: string[]): number {
+  return ids.reduce((s, id) => s + coutCarte(id), 0);
+}
+// Multiplicateur de stats « outsider » selon le coût total de l'équipe (1 = pas de bonus)
+export function multOutsider(coutTotal: number): number {
+  return 1 + Math.max(0, BUDGET_EQUIPE - coutTotal) * OUTSIDER_PAR_POINT;
+}
+// Meilleure équipe de 3 sous le budget parmi les cartes possédées (auto-réparation)
+export function equipeAutoSousBudget(possedes: string[]): string[] {
+  const parRarete = [...possedes].sort((a, b) => RARETES[trouverCollectible(b)!.rarete].ordre - RARETES[trouverCollectible(a)!.rarete].ordre);
+  const eq: string[] = [];
+  let cout = 0;
+  for (const id of parRarete) { // les plus rares qui rentrent d'abord
+    if (eq.length >= 3) break;
+    if (cout + coutCarte(id) <= BUDGET_EQUIPE) { eq.push(id); cout += coutCarte(id); }
+  }
+  if (eq.length < 3) { // compléter avec les moins chères
+    for (const id of [...possedes].sort((a, b) => coutCarte(a) - coutCarte(b))) {
+      if (eq.length >= 3) break;
+      if (!eq.includes(id) && cout + coutCarte(id) <= BUDGET_EQUIPE) { eq.push(id); cout += coutCarte(id); }
+    }
+  }
+  return eq.slice(0, 3);
 }
 
 // Panoplies présentes dans une liste d'objets (pour l'affichage), id → nb de pièces.
@@ -524,6 +617,30 @@ export function panopliesActives(ids: ObjetId[]): { id: PanoplieId; pieces: numb
   for (const id of ids) { const p = OBJETS[id]?.panoplie; if (p) c[p] = (c[p] ?? 0) + 1; }
   return (Object.entries(c) as [PanoplieId, number][]).map(([id, pieces]) => ({ id, pieces }));
 }
+
+// --- 🎒 Consommables : objets à usage unique joués EN COMBAT (remontées tactiques) ----
+// Achetés avec des perles, gardés en sac, dépensés pendant un duel. Utiliser un
+// consommable COÛTE le tour (l'adversaire frappe) — c'est un pari, pas un cheat.
+
+export type ConsoEffet = {
+  soinPct?: number;       // soigne % des PV max de l'actif
+  retireEtourdi?: boolean;// retire l'étourdissement
+  boost?: boolean;        // +40 % ATQ pendant 2 tours
+  bouclier?: boolean;     // lève un bouclier
+  degatsEnnemi?: number;  // inflige des dégâts fixes à l'actif adverse
+};
+export type ConsommableDef = { nom: string; emoji: string; desc: string; cout: number; effet: ConsoEffet };
+
+const CONSO_CATALOGUE = {
+  potion: { nom: 'Potion Boba', emoji: '🧪', desc: 'Rend 45 % des PV', cout: 240, effet: { soinPct: 45 } },
+  reveil: { nom: 'Réveil Menthe', emoji: '🌿', desc: 'Retire l\'étourdissement', cout: 160, effet: { retireEtourdi: true } },
+  energie: { nom: 'Boost Énergie', emoji: '⚡', desc: '+40 % ATQ pendant 2 tours', cout: 220, effet: { boost: true } },
+  glacon: { nom: 'Glaçon Bouclier', emoji: '🧊', desc: 'Lève un bouclier protecteur', cout: 200, effet: { bouclier: true } },
+  piment: { nom: 'Bonbon Piquant', emoji: '🌶️', desc: '30 dégâts directs à l\'adversaire', cout: 260, effet: { degatsEnnemi: 30 } },
+} satisfies Record<string, ConsommableDef>;
+export type ConsommableId = keyof typeof CONSO_CATALOGUE;
+export const CONSOMMABLES: Record<ConsommableId, ConsommableDef> = CONSO_CATALOGUE;
+export const CONSOMMABLE_IDS = Object.keys(CONSOMMABLES) as ConsommableId[];
 
 // --- Capsule Objet (gacha d'équipement) + éclats (forge anti-malchance) --------------
 
@@ -552,15 +669,167 @@ export function tirerObjet(min: Rarete | null = null, rng: () => number = Math.r
   return pool[Math.floor(rng() * pool.length)];
 }
 
+// --- 🏆 Classement classé (ligue) + saisons -----------------------------------------
+// Le vrai moteur « je rejoue tous les jours » sans prix réel : on grimpe une échelle
+// de tiers en gagnant des Points de Classement (PC), la saison se remet à zéro chaque
+// mois (reset DOUX), et le meilleur tier atteint donne une récompense + un titre.
+
+export type Tier = { id: number; nom: string; emoji: string; couleur: string; seuil: number };
+
+export const TIERS: Tier[] = [
+  { id: 0, nom: 'Bronze', emoji: '🥉', couleur: '#B08D57', seuil: 0 },
+  { id: 1, nom: 'Argent', emoji: '🥈', couleur: '#9AA7B0', seuil: 120 },
+  { id: 2, nom: 'Or', emoji: '🥇', couleur: '#E0A81E', seuil: 300 },
+  { id: 3, nom: 'Platine', emoji: '💠', couleur: '#3FA9C4', seuil: 540 },
+  { id: 4, nom: 'Diamant', emoji: '💎', couleur: '#5C8DF2', seuil: 840 },
+  { id: 5, nom: 'Maître du Boba', emoji: '👑', couleur: '#B57BE0', seuil: 1200 },
+  { id: 6, nom: 'Boba Légende', emoji: '🧋', couleur: '#D2588A', seuil: 1650 },
+];
+
+export const PC_VICTOIRE = 26;   // victoire d'Arène (Maître)
+export const PC_DEFAITE = -14;   // défaite (PC planché à 0)
+
+export function tierPourPc(pc: number): Tier {
+  let t = TIERS[0];
+  for (const x of TIERS) if (pc >= x.seuil) t = x;
+  return t;
+}
+export function tierSuivant(pc: number): Tier | null {
+  return TIERS[tierPourPc(pc).id + 1] ?? null;
+}
+// Progression 0..1 dans le tier courant (1 si apex)
+export function progressionTier(pc: number): number {
+  const cur = tierPourPc(pc);
+  const suiv = TIERS[cur.id + 1];
+  if (!suiv) return 1;
+  return Math.max(0, Math.min(1, (pc - cur.seuil) / (suiv.seuil - cur.seuil)));
+}
+// Reset DOUX de fin de saison : on retombe ~2 tiers plus bas (jamais à zéro brutal)
+export function resetSaison(pc: number): number {
+  return Math.floor(pc * 0.4);
+}
+// Récompense de fin de saison selon le MEILLEUR tier atteint (titre cosmétique dès Diamant)
+export function recompenseSaison(tierId: number): { perles: number; capsules: number; eclats: number; titre: string | null } {
+  return {
+    perles: 100 + tierId * 120,
+    capsules: tierId >= 5 ? 2 : tierId >= 3 ? 1 : 0,
+    eclats: tierId * 20,
+    titre: tierId >= 4 ? TIERS[tierId].nom : null,
+  };
+}
+// Jours restants dans la saison (le mois en cours, borne incluse)
+export function joursRestantsSaison(d: Date = new Date()): number {
+  const dernier = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  return dernier - d.getDate() + 1;
+}
+
+// --- ⚡ Mutateurs quotidiens : une règle spéciale par jour (le même combat paraît neuf) ---
+// Déterministe par date, appliqué à TOUS les combats du jour. Récompense une armoire large.
+
+export type Mutateur = {
+  id: string; nom: string; emoji: string; desc: string;
+  critChanceX2?: boolean;    // crits deux fois plus fréquents
+  sansBouclier?: boolean;    // boucliers désactivés
+  precisionParfaite?: boolean;// aucune esquive
+  zoneMult?: number;         // multiplie les dégâts de ZONE
+  soinMult?: number;         // multiplie tous les soins
+  degatsMult?: number;       // multiplie tous les dégâts
+};
+
+export const MUTATEURS: Mutateur[] = [
+  { id: 'crit', nom: 'Coups du sort', emoji: '💥', desc: 'Coups critiques deux fois plus fréquents', critChanceX2: true },
+  { id: 'bouclier', nom: 'Boucliers brisés', emoji: '🛡️', desc: 'Les boucliers sont désactivés', sansBouclier: true },
+  { id: 'lynx', nom: 'Œil de lynx', emoji: '🎯', desc: 'Personne n\'esquive : tous les coups portent', precisionParfaite: true },
+  { id: 'tempete', nom: 'Tempête de perles', emoji: '🌊', desc: 'Les attaques de zone infligent +50 %', zoneMult: 1.5 },
+  { id: 'sucre-amer', nom: 'Sucre amer', emoji: '🍬', desc: 'Les soins sont réduits de moitié', soinMult: 0.5 },
+  { id: 'verre-fin', nom: 'Verre fin', emoji: '💢', desc: 'Tous les dégâts sont augmentés de 15 %', degatsMult: 1.15 },
+];
+
+// Mutateur déterministe d'une journée ('YYYY-MM-DD')
+export function mutateurDuJour(jour: string): Mutateur {
+  let g = 0;
+  for (let i = 0; i < jour.length; i++) g = (g * 31 + jour.charCodeAt(i)) >>> 0;
+  return MUTATEURS[g % MUTATEURS.length];
+}
+
+// 🤝 Troc du jour (preview) : proposition déterministe d'un « ami » (Sam) — il VEUT un
+// de tes doublons et t'OFFRE une carte qui te manque. null si tu n'as pas de doublon OU
+// plus aucune carte manquante. Inputs triés → indépendant de l'ordre d'entrée.
+export function trocDuJour(jour: string, doublons: string[], manquants: string[]): { veut: string; offre: string } | null {
+  if (!doublons.length || !manquants.length) return null;
+  let g = 0;
+  for (let i = 0; i < jour.length; i++) g = (g * 31 + jour.charCodeAt(i)) >>> 0;
+  let a = g >>> 0;
+  const rng = () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const d = [...doublons].sort();
+  const m = [...manquants].sort();
+  const veut = d[Math.floor(rng() * d.length)];
+  const offre = m[Math.floor(rng() * m.length)];
+  return { veut, offre };
+}
+
+// --- 👹 Boss hebdomadaire à gimmick : un défi PvE qui FORCE certaines compos --------
+// Une éponge à PV avec une règle qui tourne chaque semaine (immunisé à la zone / se
+// soigne sauf étourdi / bouclier périodique). Battable une fois par semaine → prestige.
+
+export type BossGimmick = 'zone-immune' | 'regen' | 'bouclier';
+
+export type Boss = {
+  nom: string; emoji: string;
+  combattantId: string;   // collectible légendaire servant de base
+  echelle: number;        // multiplicateur de stats
+  pvBonus: number;        // PV × pvBonus (éponge)
+  gimmick: BossGimmick;
+  gimmickDesc: string;
+  indice: string;         // conseil pour le battre
+};
+
+const BOSS_BASES = ['bubble-master', 'taro-queen', 'brown-sugar-king', 'oreo-star', 'caramel-chef', 'matcha-sensei'];
+const BOSS_NOMS = ['Méga Boba', 'Taro Colossal', 'Roi Caramel Géant', 'Oreo Titan', 'Chef Suprême', 'Grand Sensei'];
+const BOSS_GIMMICKS: { g: BossGimmick; desc: string; indice: string }[] = [
+  { g: 'zone-immune', desc: 'Insensible aux attaques de ZONE', indice: 'Frappe en simple cible — la zone ne lui fait rien.' },
+  { g: 'regen', desc: 'Se soigne à chaque tour… sauf s\'il est étourdi', indice: 'Étourdis-le (💫) pour bloquer sa régénération.' },
+  { g: 'bouclier', desc: 'Lève un bouclier tous les 2 tours', indice: 'Un perce-bouclier (⚡ Paille Foudre) ignore sa garde.' },
+];
+
+export const BOSS_RECOMPENSE = { perles: 700, capsules: 1, eclats: 60 };
+
+// Boss déterministe d'une semaine ('YYYY-Sxx')
+export function bossDeLaSemaine(semaine: string): Boss {
+  let g = 0;
+  for (let i = 0; i < semaine.length; i++) g = (g * 31 + semaine.charCodeAt(i)) >>> 0;
+  const i = g % BOSS_BASES.length;
+  const gim = BOSS_GIMMICKS[(g >>> 3) % BOSS_GIMMICKS.length];
+  return {
+    nom: BOSS_NOMS[i], emoji: '👹',
+    combattantId: BOSS_BASES[i],
+    // ⚖️ Calibré par simulation (12/07, 200 combats IA par palier d'équipement) :
+    // équipes NUES ~0 % (le boss force l'équipement — c'est son rôle), kit BOUTIQUE
+    // perles ~50-75 %, bon loot CAPSULE ~75 %, légendaires ~100 %. Les consommables
+    // et la signature ajoutent la marge du vrai joueur. Avant (1.35/3.2) : même un
+    // bon kit capsule plafonnait à 1 % — mur de gacha, pas mur d'équipement.
+    echelle: 1.18,
+    pvBonus: 2.2,
+    gimmick: gim.g,
+    gimmickDesc: gim.desc,
+    indice: gim.indice,
+  };
+}
+
 // --- Tournoi hebdomadaire (3 étapes, 1 tentative par semaine) ------------------------
 
 export const TOURNOI_ETAPES = ['Quart de finale', 'Demi-finale', 'GRANDE FINALE'] as const;
 export const TOURNOI_RECOMPENSES: { perles: number; capsule: 'classique' | 'doree' | null }[] = [
-  { perles: 200, capsule: null },
-  { perles: 300, capsule: 'classique' },
-  { perles: 500, capsule: 'doree' },
+  { perles: 350, capsule: null },
+  { perles: 500, capsule: 'classique' },
+  { perles: 800, capsule: 'doree' },
 ];
-export const TOURNOI_CONSOLATION = 50; // perles si éliminé
+export const TOURNOI_CONSOLATION = 90; // perles si éliminé
 
 // Libellé d'un prix pour l'écran « Mes prix »
 export function labelPrix(type: TypePrix, qte: number): string {

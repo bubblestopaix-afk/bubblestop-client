@@ -19,6 +19,7 @@ import { supabase } from '@/lib/supabase';
 import { peutCommander } from '@/lib/eligibilite';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { BoutonRetour, Chip, Stepper, Message, BoutonPrimaire, BoutonGhost } from '@/components/ui-kit';
+import { IconeApp } from '@/components/icones-app';
 
 // Résumé lisible d'une ligne (affichage + JSON envoyé en base)
 function decrireLigne(l: LignePanier) {
@@ -224,7 +225,7 @@ export default function PanierScreen() {
 
         {lignes.length === 0 && (
           <View style={styles.videCarte}>
-            <Text style={{ fontSize: 40 }}>🛒</Text>
+            <IconeApp nom="panier" taille={44} />
             <Text style={styles.videTitre}>Ton panier est vide</Text>
             <BoutonPrimaire titre="Voir la carte" onPress={() => router.back()} style={{ alignSelf: 'stretch' }} />
           </View>
@@ -260,8 +261,9 @@ export default function PanierScreen() {
         {/* === Cadeau fidélité (boisson offerte dispo) === */}
         {lignes.length > 0 && cadeauxDispo > 0 && (
           <Pressable style={styles.cadeauLigne} onPress={() => setUtiliserCadeau(!utiliserCadeau)}>
+            <IconeApp nom="cadeau" taille={17} />
             <Text style={styles.cadeauTexte}>
-              🎁 Utiliser ma boisson offerte (taille L, M pour Signature) — remise appliquée en caisse
+              Utiliser ma boisson offerte (taille L, M pour Signature) — remise appliquée en caisse
             </Text>
             <View style={[styles.cadeauCase, utiliserCadeau && styles.cadeauCaseActive]}>
               <Text style={{ color: '#fff', fontFamily: F.t800 }}>{utiliserCadeau ? '✓' : ''}</Text>

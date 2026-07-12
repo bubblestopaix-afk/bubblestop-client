@@ -14,6 +14,8 @@ import { supabase } from '@/lib/supabase';
 import { lireCommandeMagasins } from '@/lib/app-config';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import { BoutonPrimaire } from '@/components/ui-kit';
+import { IconeApp } from '@/components/icones-app';
+import GobeletBubble from '@/components/gobelet-bubble';
 
 // Libellés courts des statuts pour la bannière de suivi
 const STATUTS_BANNIERE: Record<string, string> = {
@@ -106,7 +108,7 @@ export default function CommanderScreen() {
       <View style={styles.fond}>
         <ScrollView contentContainerStyle={[styles.contenu, { paddingTop: insets.top + 18, flexGrow: 1, justifyContent: 'center' }]}>
           <View style={styles.gateCarte}>
-            <Text style={styles.gateEmoji}>🧋</Text>
+            <GobeletBubble size={54} />
             <Text style={styles.gateTitre}>La commande en ligne arrive bientôt</Text>
             <Text style={styles.gateTexte}>
               Pour l'instant, l'appli te sert à suivre ta fidélité et tes offres. La commande en ligne ouvrira prochainement — reste connecté !
@@ -124,7 +126,7 @@ export default function CommanderScreen() {
       <View style={styles.fond}>
         <ScrollView contentContainerStyle={[styles.contenu, { paddingTop: insets.top + 18, flexGrow: 1, justifyContent: 'center' }]}>
           <View style={styles.gateCarte}>
-            <Text style={styles.gateEmoji}>🧋</Text>
+            <GobeletBubble size={54} />
             <Text style={styles.gateTitre}>La commande en ligne se débloque avec la fidélité</Text>
             <Text style={styles.gateTexte}>
               Pour commander depuis l'appli, il faut avoir complété au moins une carte de fidélité entière (9 tampons) en boutique.
@@ -152,8 +154,9 @@ export default function CommanderScreen() {
         {/* Magasin du client (celui de sa 1ère commande) — les autres ne sont pas proposés */}
         {magasinInscription && (
           <View style={styles.magasinChip}>
+            <IconeApp nom="pin" taille={13} />
             <Text style={styles.magasinTexte}>
-              📍 {MAGASINS.find((m) => m.id === magasinInscription)?.nom || magasinInscription}
+              {MAGASINS.find((m) => m.id === magasinInscription)?.nom || magasinInscription}
             </Text>
           </View>
         )}
@@ -229,6 +232,7 @@ const styles = StyleSheet.create({
   lienSuivi: { fontFamily: F.t700, fontSize: 14, color: C.violetClair },
 
   magasinChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
     alignSelf: 'flex-start', backgroundColor: C.lavande,
     borderRadius: R.pill, paddingVertical: 7, paddingHorizontal: 13,
   },

@@ -11,6 +11,8 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { C, F } from '@/constants/charte';
 import { Carte, ChampTexte, Message, BoutonPrimaire, BoutonGhost } from '@/components/ui-kit';
+import { IconeApp } from '@/components/icones-app';
+import { LogoBubbleStop } from '@/components/logo-bubblestop';
 import { appelCarteTemp, memoriserJeton, oublierJeton } from '@/lib/carte-temp';
 
 // Téléchargement de l'appli native (le QR ouvre déjà l'appli web ; le natif est un +).
@@ -88,8 +90,8 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
         setResultat({
           ok: true,
           texte: d.rattachee
-            ? `🎉 Cette carte est maintenant TA carte ! ${detail} conservé${n + g > 1 ? 's' : ''} — ton QR express reste valable en boutique.`
-            : `🎉 ${detail} en cours de transfert vers ta carte — ils apparaissent d'ici quelques instants. Ton QR express reste valable : il pointe désormais vers ta carte.`,
+            ? `Cette carte est maintenant TA carte ! ${detail} conservé${n + g > 1 ? 's' : ''} — ton QR express reste valable en boutique.`
+            : `${detail} en cours de transfert vers ta carte — ils apparaissent d'ici quelques instants. Ton QR express reste valable : il pointe désormais vers ta carte.`,
         });
       } else {
         const e = String(d?.erreur || '');
@@ -110,9 +112,12 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
   return (
     <View style={styles.fond}>
       <ScrollView contentContainerStyle={[styles.contenu, { paddingTop: insets.top + 24 }]} keyboardShouldPersistTaps="handled">
-        <Text style={styles.logo}>BUBBLE STOP</Text>
+        <View style={{ alignItems: 'center' }}><LogoBubbleStop largeur={172} /></View>
         <Carte style={styles.carte}>
-          <Text style={styles.titre}>🎟️ Ta carte fidélité</Text>
+          <View style={styles.titreRang}>
+            <IconeApp nom="ticket" taille={20} />
+            <Text style={styles.titre}>Ta carte fidélité</Text>
+          </View>
 
           {!token ? (
             <>
@@ -162,7 +167,7 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
           ) : (
             <>
               <Text style={styles.sous}>
-                {tampons} tampon{tampons > 1 ? 's' : ''}{cadeaux > 0 ? ` + ${cadeaux} boisson${cadeaux > 1 ? 's' : ''} offerte${cadeaux > 1 ? 's' : ''} 🎁` : ''} prêt{tampons + cadeaux > 1 ? 's' : ''} à rejoindre ton compte.
+                {tampons} tampon{tampons > 1 ? 's' : ''}{cadeaux > 0 ? ` + ${cadeaux} boisson${cadeaux > 1 ? 's' : ''} offerte${cadeaux > 1 ? 's' : ''}` : ''} prêt{tampons + cadeaux > 1 ? 's' : ''} à rejoindre ton compte.
               </Text>
               {numeroVerrou ? (
                 <Text style={styles.sousPetit}>Ton compte a déjà une carte : tout sera transféré dessus (tampons + boissons offertes).</Text>
@@ -182,7 +187,10 @@ export default function ReclamerCarte({ token: tokenBrut }: { token: string }) {
 
         {/* Incitation à garder l'appli native (le QR ouvre déjà l'appli web ; même compte → mêmes tampons) */}
         <Carte style={styles.appBloc}>
-          <Text style={styles.appTitre}>📲 Garde l'appli Bubble Stop</Text>
+          <View style={styles.titreRang}>
+            <IconeApp nom="telephone" taille={17} />
+            <Text style={styles.appTitre}>Garde l'appli Bubble Stop</Text>
+          </View>
           <Text style={styles.appSous}>Tes tampons, tes offres et la commande à l'avance — toujours dans ta poche.</Text>
           <View style={styles.appBoutons}>
             {/* ⚠️ Guideline App Store 2.3.10 : ne JAMAIS montrer un bouton Google Play dans
@@ -204,6 +212,7 @@ const styles = StyleSheet.create({
   contenu: { flexGrow: 1, justifyContent: 'center', padding: 22, gap: 18, paddingBottom: 40 },
   logo: { fontFamily: F.titre, fontSize: 28, color: C.violet, textAlign: 'center', letterSpacing: 0.5 },
   carte: { gap: 14 },
+  titreRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   titre: { fontFamily: F.t800, fontSize: 20, color: C.texte, textAlign: 'center' },
   sous: { fontFamily: F.t400, fontSize: 14.5, color: C.texte2, textAlign: 'center', lineHeight: 21 },
   sousPetit: { fontFamily: F.t600, fontSize: 13, color: C.texte2, textAlign: 'center' },

@@ -86,6 +86,12 @@ export default function AppTabs() {
         name="jeu"
         options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
+      {/* 💳 Carte cadeau / solde prépayé (/carte-cadeau) — ouvert depuis Ma carte (explore).
+          Route SANS onglet (même pattern que /c et /p : jamais de `href` ici). */}
+      <Tabs.Screen
+        name="carte-cadeau"
+        options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+      />
     </Tabs>
   );
 }
