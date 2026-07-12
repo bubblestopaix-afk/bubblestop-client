@@ -276,7 +276,7 @@ export default function AreneScreen() {
               <Text style={styles.bossGimmick}>{boss.gimmickDesc}</Text>
             </View>
           </View>
-          <Text style={styles.bossIndice}>{boss.indice}</Text>
+          <Text style={styles.bossIndice}>{boss.indice} Il change de phase à 70 % puis 35 % de PV.</Text>
           <View style={styles.bossRecompRang}>
             <Icone nom="trophee" taille={14} />
             <Text style={styles.bossRecomp}>{formatNb(BOSS_RECOMPENSE.perles)} perles · {BOSS_RECOMPENSE.capsules} capsule ·</Text>

@@ -5,7 +5,8 @@
 //   👑 Signature : neutre dans les deux sens, mais des stats de légende.
 // Piment : précision (les grosses attaques ratent plus), coups critiques ×1,5,
 // attaques de ZONE (toute l'équipe adverse), OBJETS tenus (bonus passifs),
-// et champions de TOURNOI hebdomadaire. L'ordre d'action suit la VIT.
+// champions de TOURNOI, intentions annoncées, Garde et combos de marques.
+// L'ordre d'action suit la VIT.
 // Testé sous Node.
 
 // import RELATIF (même dossier) : permet aussi de tester ce module sous Node
@@ -67,6 +68,9 @@ export const PRECISION_BASE = 0.92;    // attaques normales
 export const PRECISION_LOURDE = 0.85;  // grosses attaques (puissance ≥ 1,3)
 export const PRECISION_ZONE = 0.9;     // vague de zone (par cible)
 export const CHANCE_CRITIQUE = 0.12;   // ×1,5 dégâts
+export const GARDE_REDUCTION = 0.45;    // action universelle : prochain impact −45 %
+export const CHANGEMENT_REDUCTION = 0.25; // changement tactique : prochain impact −25 %
+export const GARDE_COOLDOWN = 2;        // tours complets avant de pouvoir garder à nouveau
 
 // --- Les fiches des 24 combattants --------------------------------------------------
 
@@ -133,7 +137,15 @@ export type Combattant = {
   charge: number;          // ⭐ jauge signature (0..CHARGE_MAX)
   speRestantes: number;    // 🔋 munitions de l'attaque n°2 (SPE_USAGES par combat)
   gimmick?: BossGimmick;   // 👹 règle spéciale (boss hebdomadaire uniquement)
+  gardePct: number;        // réduction du prochain impact (Garde ou changement)
+  gardeCooldown: number;   // tours restants avant une nouvelle Garde
+  collantTours: number;    // 🍯 −4 VIT pendant N actions
+  givre: boolean;          // ❄️ prochain impact ×1,35
+  petillant: boolean;      // 🫧 prochain impact éclabousse le banc
+  bossPhase: 1 | 2 | 3;    // phases de rage à 70 % et 35 % PV
 };
+
+export type IntentionIA = 0 | 1 | 'signature';
 
 export type EtatCombat = {
   equipes: Record<CoteCombat, Combattant[]>;
@@ -142,6 +154,7 @@ export type EtatCombat = {
   fini: boolean;
   vainqueur: CoteCombat | null;
   mutateur?: Mutateur;   // ⚡ règle spéciale du jour, appliquée à la résolution
+  intentionB: IntentionIA; // action adverse verrouillée et montrée AVANT le choix joueur
 };
 
 // Un événement à animer côté UI (l'état du moteur est déjà à jour).
@@ -184,6 +197,12 @@ export function creerCombattant(id: string, echelle = 1, objets: ObjetId[] = [])
     reviveDispo: !!eff.reviveUneFois,
     charge: 0,
     speRestantes: SPE_USAGES,
+    gardePct: 0,
+    gardeCooldown: 0,
+    collantTours: 0,
+    givre: false,
+    petillant: false,
+    bossPhase: 1,
   };
 }
 
@@ -207,7 +226,9 @@ export function creerCombat(
   const b = idsB.map((id) => creerCombattant(id, echelleB, objetsB[id] ?? []));
   appliquerOutsider(a);
   appliquerOutsider(b); // même règle des deux côtés (une compo modeste reste dangereuse)
-  return { equipes: { a, b }, actifs: { a: 0, b: 0 }, round: 0, fini: false, vainqueur: null, mutateur };
+  const etat: EtatCombat = { equipes: { a, b }, actifs: { a: 0, b: 0 }, round: 0, fini: false, vainqueur: null, mutateur, intentionB: 0 };
+  etat.intentionB = choisirAttaqueIA(etat, 'b', () => 0.5);
+  return etat;
 }
 
 // 👹 Combat contre le boss hebdomadaire : ton équipe de 3 vs UNE éponge à PV + gimmick.
@@ -221,14 +242,17 @@ export function creerCombatBoss(
   bossC.gimmick = boss.gimmick;
   const a = idsA.map((id) => creerCombattant(id, 1, objetsA[id] ?? []));
   appliquerOutsider(a); // le bonus outsider s'applique à l'équipe du joueur, pas au boss
-  return {
+  const etat: EtatCombat = {
     equipes: { a, b: [bossC] },
     actifs: { a: 0, b: 0 },
     round: 0,
     fini: false,
     vainqueur: null,
     mutateur,
+    intentionB: 0,
   };
+  etat.intentionB = choisirAttaqueIA(etat, 'b', () => 0.5);
+  return etat;
 }
 
 export function actif(etat: EtatCombat, cote: CoteCombat): Combattant {
@@ -279,6 +303,32 @@ export function choisirAttaqueIA(etat: EtatCombat, cote: CoteCombat, rng: Rng): 
   return speOk && s1 >= s0 ? 1 : 0;
 }
 
+export type DescriptionIntention = {
+  titre: string;
+  detail: string;
+  ton: 'normal' | 'danger' | 'soin' | 'defense';
+};
+
+// Contrat d'interface : cette description vient de l'action déjà verrouillée
+// dans l'état. Le moteur exécutera exactement ce qui est annoncé.
+export function decrireIntention(etat: EtatCombat): DescriptionIntention {
+  const c = actif(etat, 'b');
+  if (c.etourdi) return { titre: 'Passe son tour', detail: `${c.nom} est étourdi`, ton: 'defense' };
+  if (etat.intentionB === 'signature') {
+    const sig = SIGNATURES[c.set];
+    return { titre: `Signature : ${sig.nom}`, detail: sig.desc, ton: 'danger' };
+  }
+  const attaque = c.attaques[etat.intentionB];
+  const ton = attaque.type === 'soin' ? 'soin'
+    : attaque.type === 'bouclier' || attaque.type === 'boost' ? 'defense'
+      : attaque.puissance >= 1.3 || attaque.type === 'zone' || attaque.type === 'double' ? 'danger' : 'normal';
+  return {
+    titre: attaque.nom,
+    detail: `${etat.intentionB === 1 ? `Spé · ${c.speRestantes} charge${c.speRestantes > 1 ? 's' : ''} · ` : ''}${HINT_ATTAQUE[attaque.type]}`,
+    ton,
+  };
+}
+
 // --- Résolution d'un round -----------------------------------------------------------------
 
 // Si l'actif du camp `cote` est KO → fait entrer le suivant (ou termine le combat)
@@ -293,6 +343,24 @@ function verifierRemplacement(etat: EtatCombat, cote: CoteCombat, evts: EvtComba
   } else {
     etat.actifs[cote] = suivant;
     evts.push({ t: 'entree', cote, index: suivant, nom: equipe[suivant].nom });
+  }
+}
+
+function actualiserPhaseBoss(c: Combattant, cote: CoteCombat, evts: EvtCombat[]) {
+  if (!c.gimmick || c.pv <= 0) return;
+  const ratio = c.pv / Math.max(1, c.pvMax);
+  const cible: 1 | 2 | 3 = ratio <= 0.35 ? 3 : ratio <= 0.7 ? 2 : 1;
+  while (c.bossPhase < cible) {
+    c.bossPhase = (c.bossPhase + 1) as 2 | 3;
+    if (c.bossPhase === 2) {
+      c.atk = Math.round(c.atk * 1.12);
+      evts.push({ t: 'statut', cote, texte: `${c.nom} passe en PHASE 2 : sa puissance augmente !` });
+    } else {
+      c.atk = Math.round(c.atk * 1.15);
+      c.vit += 3;
+      c.charge = CHARGE_MAX;
+      evts.push({ t: 'statut', cote, texte: `${c.nom} entre en PHASE FINALE : Signature imminente !` });
+    }
   }
 }
 
@@ -347,6 +415,12 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
     if (estZone && mut?.zoneMult) degats = Math.round(degats * mut.zoneMult);
     // 🧊 …puis réduits par l'Isotherme / panoplie Givré de la cible
     if (estZone && qui.eff.reducZonePct) degats = Math.ceil(degats * (1 - qui.eff.reducZonePct / 100));
+    // ❄️ combo Givré : le prochain impact brise la marque et frappe plus fort.
+    if (qui.givre && degats > 0) {
+      degats = Math.ceil(degats * 1.35);
+      qui.givre = false;
+      evts.push({ t: 'statut', cote, texte: `BRIS DE GLACE sur ${qui.nom} ! ❄️` });
+    }
     const boucAgit = qui.bouclier && !mut?.sansBouclier;               // 🛡️ mutateur peut désactiver les boucliers
     const perce = moi.eff.perceBouclier;
     if (boucAgit && !perce) {
@@ -356,9 +430,16 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
     } else if (boucAgit && perce) {
       evts.push({ t: 'statut', cote, texte: `${moi.nom} transperce le bouclier ! ⚡` });
     }
+    if (qui.gardePct > 0 && degats > 0) {
+      const reduction = qui.gardePct;
+      degats = Math.ceil(degats * (1 - reduction));
+      qui.gardePct = 0;
+      evts.push({ t: 'statut', cote: adverse(cote), texte: `${qui.nom} amortit ${Math.round(reduction * 100)} % du choc !` });
+    }
     const avant = qui.pv;
     const inflige = Math.min(avant, degats);
     qui.pv = Math.max(0, avant - degats);
+    actualiserPhaseBoss(qui, adverse(cote), evts);
     if (inflige > 0) qui.charge = Math.min(CHARGE_MAX, qui.charge + 1); // ⭐ encaisser charge la jauge
     let revive = false;
     if (qui.pv <= 0 && qui.reviveDispo) { qui.pv = 1; qui.reviveDispo = false; revive = true; } // 🧿 Grigri
@@ -379,6 +460,21 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
         if (moi.pv <= 0) evts.push({ t: 'ko', cote, index: indexMoi, nom: moi.nom });
       }
     }
+    // 🫧 combo Pétillant : l'impact éclabousse tous les remplaçants encore debout.
+    if (inflige > 0 && qui.petillant) {
+      qui.petillant = false;
+      const equipe = etat.equipes[adverse(cote)];
+      const splash = Math.max(1, Math.round(inflige * 0.25));
+      for (let i = 0; i < equipe.length; i++) {
+        const banc = equipe[i];
+        if (i === indexQui || banc.pv <= 0) continue;
+        const avantBanc = banc.pv;
+        banc.pv = Math.max(0, banc.pv - splash);
+        evts.push({ t: 'degats', cote: adverse(cote), index: i, valeur: Math.min(avantBanc, splash), efficace: 1, pvApres: banc.pv });
+        if (banc.pv <= 0) evts.push({ t: 'ko', cote: adverse(cote), index: i, nom: banc.nom });
+      }
+      evts.push({ t: 'statut', cote, texte: 'ÉCLABOUSSURE PÉTILLANTE sur le banc ! 🫧' });
+    }
     return true;
   };
 
@@ -390,6 +486,11 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
     moi.charge = 0;
     evts.push({ t: 'annonce', cote, texte: `⭐ ${moi.nom} déchaîne ${sig.nom} !` });
     let degatsSig = Math.min(Math.round(cible.pvMax * sig.pvPct / 100), Math.round(moi.atk * SIG_CAP_ATK));
+    if (cible.givre) {
+      degatsSig = Math.ceil(degatsSig * 1.35);
+      cible.givre = false;
+      evts.push({ t: 'statut', cote, texte: `BRIS DE GLACE sur ${cible.nom} ! ❄️` });
+    }
     const boucSig = cible.bouclier && !mut?.sansBouclier;
     if (boucSig && !(sig.perceBouclier || moi.eff.perceBouclier)) {
       degatsSig = Math.ceil(degatsSig / 2);
@@ -398,8 +499,15 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
     } else if (boucSig) {
       evts.push({ t: 'statut', cote, texte: `${moi.nom} transperce le bouclier ! ⚡` });
     }
+    if (cible.gardePct > 0) {
+      const reduction = cible.gardePct;
+      degatsSig = Math.ceil(degatsSig * (1 - reduction));
+      cible.gardePct = 0;
+      evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} amortit ${Math.round(reduction * 100)} % de la Signature !` });
+    }
     const avantSig = cible.pv;
     cible.pv = Math.max(0, cible.pv - degatsSig);
+    actualiserPhaseBoss(cible, adverse(cote), evts);
     // 💪 comeback : ENCAISSER une signature charge FORT ta propre jauge (+2)
     if (degatsSig > 0 && cible.pv > 0) cible.charge = Math.min(CHARGE_MAX, cible.charge + 2);
     let reviveSig = false;
@@ -420,21 +528,35 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
       moi.boostTours = 3; // décrémenté à la fin de CETTE action → effectif 2 tours
       evts.push({ t: 'statut', cote, texte: `${moi.nom} monte en puissance ! (+40 % ATQ) 💪` });
     }
+    if (degatsSig > 0 && cible.petillant) {
+      cible.petillant = false;
+      const splash = Math.max(1, Math.round(degatsSig * 0.25));
+      etat.equipes[adverse(cote)].forEach((banc, i) => {
+        if (i === indexCible || banc.pv <= 0) return;
+        const avant = banc.pv;
+        banc.pv = Math.max(0, banc.pv - splash);
+        evts.push({ t: 'degats', cote: adverse(cote), index: i, valeur: Math.min(avant, splash), efficace: 1, pvApres: banc.pv });
+        if (banc.pv <= 0) evts.push({ t: 'ko', cote: adverse(cote), index: i, nom: banc.nom });
+      });
+      evts.push({ t: 'statut', cote, texte: 'La Signature déclenche l’ÉCLABOUSSURE PÉTILLANTE ! 🫧' });
+    }
   } else {
     const attaque = moi.attaques[choix];
     const bonus = estSpe ? SPE_BONUS : 1; // 🔋 la spé frappe/soigne plus fort
+    let touchePourMarque = false;
     evts.push({ t: 'annonce', cote, texte: `${moi.nom} utilise ${attaque.nom} !` });
 
     switch (attaque.type) {
       case 'degats':
-        frapper(cible, indexCible, attaque.puissance * bonus, attaque.puissance >= 1.3 ? PRECISION_LOURDE : PRECISION_BASE);
+        touchePourMarque = frapper(cible, indexCible, attaque.puissance * bonus, attaque.puissance >= 1.3 ? PRECISION_LOURDE : PRECISION_BASE);
         break;
       case 'double':
-        frapper(cible, indexCible, attaque.puissance * bonus, PRECISION_BASE);
-        if (cible.pv > 0) frapper(cible, indexCible, attaque.puissance * bonus, PRECISION_BASE);
+        touchePourMarque = frapper(cible, indexCible, attaque.puissance * bonus, PRECISION_BASE);
+        if (cible.pv > 0) touchePourMarque = frapper(cible, indexCible, attaque.puissance * bonus, PRECISION_BASE) || touchePourMarque;
         break;
       case 'etourdit': {
         const touche = frapper(cible, indexCible, attaque.puissance * bonus, PRECISION_BASE);
+        touchePourMarque = touche;
         if (touche && cible.pv > 0 && rng() < (estSpe ? 0.7 : 0.55)) {
           if (cible.eff.immuniteEtourdi) evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} est insensible à l'étourdissement ! ❄️` });
           else { cible.etourdi = true; evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} est étourdi ! 💫` }); }
@@ -446,7 +568,7 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
         const equipeAdverse = etat.equipes[adverse(cote)];
         for (let i = 0; i < equipeAdverse.length; i++) {
           const c = equipeAdverse[i];
-          if (c.pv > 0) frapper(c, i, attaque.puissance * bonus, PRECISION_ZONE, true);
+          if (c.pv > 0) touchePourMarque = frapper(c, i, attaque.puissance * bonus, PRECISION_ZONE, true) || touchePourMarque;
         }
         break;
       }
@@ -465,8 +587,24 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
         evts.push({ t: 'statut', cote, texte: `${moi.nom} monte en puissance ! (+40 % ATQ) 💪` });
         break;
     }
+
+    // Les attaques Spé offensives posent une marque de famille. Le joueur peut
+    // ensuite changer de combattant pour déclencher le combo correspondant.
+    if (estSpe && touchePourMarque && cible.pv > 0) {
+      if (moi.set === 'fruit') {
+        cible.collantTours = Math.max(cible.collantTours, 2);
+        evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} devient COLLANT : −4 VIT ! 🍯` });
+      } else if (moi.set === 'milk') {
+        cible.givre = true;
+        evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} est GIVRÉ : prochain impact renforcé ! ❄️` });
+      } else if (moi.set === 'topping') {
+        cible.petillant = true;
+        evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} devient PÉTILLANT : prochain impact sur le banc ! 🫧` });
+      }
+    }
   }
   if (moi.boostTours > 0) moi.boostTours--;
+  if (moi.collantTours > 0) moi.collantTours--;
 
   // 🍯 régénération par tour (Nappé / panoplie Sucré) — appliquée après l'action
   if (moi.eff.soinTour && moi.pv > 0 && moi.pv < moi.pvMax) {
@@ -488,8 +626,12 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
   verifierRemplacement(etat, cote, evts);
 }
 
-// Action du joueur : attaque (0|1), signature (jauge pleine), changement actif, OU consommable.
-export type ActionJoueur = 0 | 1 | 'signature' | { changer: number } | { objet: ConsommableId };
+// Action du joueur : attaque, Signature, Garde, changement actif, ou consommable.
+export type ActionJoueur = 0 | 1 | 'signature' | 'garde' | { changer: number } | { objet: ConsommableId };
+
+export function preparerIntentionIA(etat: EtatCombat, rng: Rng = Math.random) {
+  if (!etat.fini) etat.intentionB = choisirAttaqueIA(etat, 'b', rng);
+}
 
 // Joue un round complet : les deux camps agissent dans l'ordre de VIT.
 // `choixA` = attaque du joueur (ou changement) ; le camp b joue à l'IA (ou `choixB`).
@@ -497,7 +639,26 @@ export function jouerRound(etat: EtatCombat, choixA: ActionJoueur, rng: Rng = Ma
   if (etat.fini) return [];
   const evts: EvtCombat[] = [];
   etat.round++;
-  const cb = choixB ?? choisirAttaqueIA(etat, 'b', rng);
+  const actifA = actif(etat, 'a');
+  if (actifA.gardeCooldown > 0) actifA.gardeCooldown--;
+  const cb = choixB ?? etat.intentionB;
+  const finirRound = () => preparerIntentionIA(etat, rng);
+
+  // 🛡️ Garde universelle : lisible grâce à l'intention ennemie, mais bornée
+  // par un cooldown pour ne pas remplacer les vrais personnages défensifs.
+  if (choixA === 'garde') {
+    const moi = actif(etat, 'a');
+    if (moi.gardeCooldown <= 0) {
+      moi.gardePct = Math.max(moi.gardePct, GARDE_REDUCTION);
+      moi.gardeCooldown = GARDE_COOLDOWN + 1;
+      moi.charge = Math.min(CHARGE_MAX, moi.charge + 1);
+      evts.push({ t: 'statut', cote: 'a', texte: `${moi.nom} se met en GARDE : prochain impact −${Math.round(GARDE_REDUCTION * 100)} % !` });
+      if (!etat.fini) agir(etat, 'b', cb, rng, evts);
+      finirRound();
+      return evts;
+    }
+    choixA = 0;
+  }
 
   // 🔄 Changement actif / 🎒 consommable : le joueur PAIE son tour, puis b frappe.
   if (typeof choixA === 'object') {
@@ -506,7 +667,9 @@ export function jouerRound(etat: EtatCombat, choixA: ActionJoueur, rng: Rng = Ma
       const eq = etat.equipes.a;
       if (idx !== etat.actifs.a && eq[idx] && eq[idx].pv > 0) {
         etat.actifs.a = idx;
+        eq[idx].gardePct = Math.max(eq[idx].gardePct, CHANGEMENT_REDUCTION);
         evts.push({ t: 'entree', cote: 'a', index: idx, nom: eq[idx].nom });
+        evts.push({ t: 'statut', cote: 'a', texte: `Changement tactique : ${eq[idx].nom} amortira le prochain impact de ${Math.round(CHANGEMENT_REDUCTION * 100)} %.` });
       }
     } else {
       // 🎒 consommable joué sur l'actif (ou dégâts directs à l'adversaire)
@@ -528,6 +691,7 @@ export function jouerRound(etat: EtatCombat, choixA: ActionJoueur, rng: Rng = Ma
           const cible = actif(etat, 'b');
           const idxCible = etat.actifs.b;
           cible.pv = Math.max(0, cible.pv - e.degatsEnnemi);
+          actualiserPhaseBoss(cible, 'b', evts);
           evts.push({ t: 'degats', cote: 'b', index: idxCible, valeur: e.degatsEnnemi, efficace: 1, pvApres: cible.pv });
           if (cible.pv <= 0) evts.push({ t: 'ko', cote: 'b', index: idxCible, nom: cible.nom });
           verifierRemplacement(etat, 'b', evts);
@@ -535,20 +699,22 @@ export function jouerRound(etat: EtatCombat, choixA: ActionJoueur, rng: Rng = Ma
       }
     }
     if (!etat.fini) agir(etat, 'b', cb, rng, evts);
+    finirRound();
     return evts;
   }
 
   // ⏳ Sablier / panoplie Sucré : agit en premier au 1er round (gros bonus de VIT ponctuel)
   const vitBonus = (c: Combattant) => (etat.round === 1 && c.eff.agitPremier ? 1000 : 0);
   const ca = actif(etat, 'a'); const cbt = actif(etat, 'b');
-  const vitA = ca.vit + vitBonus(ca);
-  const vitB = cbt.vit + vitBonus(cbt);
+  const vitA = ca.vit - (ca.collantTours > 0 ? 4 : 0) + vitBonus(ca);
+  const vitB = cbt.vit - (cbt.collantTours > 0 ? 4 : 0) + vitBonus(cbt);
   const premier: CoteCombat = vitA === vitB ? (rng() < 0.5 ? 'a' : 'b') : vitA > vitB ? 'a' : 'b';
   const ordre: CoteCombat[] = premier === 'a' ? ['a', 'b'] : ['b', 'a'];
   for (const cote of ordre) {
     if (etat.fini) break;
     agir(etat, cote, cote === 'a' ? choixA : cb, rng, evts);
   }
+  finirRound();
   return evts;
 }
 

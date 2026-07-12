@@ -1,10 +1,10 @@
-// === Boba Quest — « Perle Rush », le bubble shooter (v2) ===
+// === Boba Quest — « Perle Rush », le bubble shooter (v3) ===
 // Deux modes :
 // • AVENTURE (?niveau=N) : libère les capsules accrochées au plateau en un
 //   nombre de tirs limité — étoiles ★★★, boss tous les 5 niveaux.
 // • INFINI : score et perles, plateau sans fin — AUCUNE capsule.
-// Twists : chaîne ×1→×3 (matchs consécutifs), bonus REBOND ×1,5, et perles
-// spéciales achetées avec les perles : 💣 Bombe et 🌈 Arc-en-ciel.
+// Twists : chaîne ×1→×3, REBOND ×1,5, Tir parfait, Shaker Fever du copain,
+// boss actifs, aperçu d'impact, et perles spéciales 💣 Bombe / 🌈 Arc-en-ciel.
 // La logique vit dans moteur-shooter.ts (testée) — ici : rendu + gestes + anims.
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import {
@@ -17,12 +17,13 @@ import Svg, { Circle, Line, Path } from 'react-native-svg';
 
 import { C, F, OMBRE } from '@/constants/charte';
 import {
-  BONUS_POINTS, Bulle, Case, creerNiveau, creerPartieInfini, echangerMunitions,
-  EtatShooter, etoilesNiveau, GROS_LACHER, LARGEUR_TERRAIN, LIGNE_H, LIGNE_LIMITE,
-  Ligne, nbCapsules, objectifCible, objectifLabel, paramsNiveau, Point, simulerVol,
-  Special, tirer,
+  activerFever, ApercuTir, BONUS_POINTS, Bulle, Case, creerNiveau, creerPartieInfini,
+  echangerMunitions, EtatShooter, etoilesNiveau, FEVER_MAX, GROS_LACHER,
+  labelBossActionTir, LARGEUR_TERRAIN, LIGNE_H, LIGNE_LIMITE, Ligne, nbCapsules,
+  objectifCible, objectifLabel, paramsNiveau, Point, previsualiserTir, simulerVol,
+  Special, tirer, TIR_PARFAIT_SEUIL,
 } from '@/components/jeu/moteur-shooter';
-import { perlesPourScore, POWERUPS, PowerupId } from '@/components/jeu/economie';
+import { perlesPourScore, POWERUPS, PowerupId, trouverCollectible } from '@/components/jeu/economie';
 import { Icone } from '@/components/jeu/icones';
 import { BilleSkia, BullePx, PlateauSkia } from '@/components/jeu/plateau-skia';
 import { BoutonJeu, formatNb, IconePerle } from '@/components/jeu/ui-jeu';
@@ -95,6 +96,7 @@ export default function ShooterScreen() {
   // instantanément à destination → effet de téléportation).
   const [grilleFigee, setGrilleFigee] = useState<Ligne[] | null>(null);
   const [guide, setGuide] = useState<Point[] | null>(null);
+  const [apercu, setApercu] = useState<ApercuTir | null>(null);
   // 🏹 effet lance-pierre : pendant la visée, la bille RECULE à l'opposé du tir comme un
   // élastique tendu (plus le doigt est loin, plus ça tire), puis CLAQUE en avant au lâcher.
   // `recul` anime la bille (Animated) ; `visee` (état) dessine l'élastique en SVG.
@@ -105,6 +107,8 @@ export default function ShooterScreen() {
   const [volee, setVolee] = useState<Volee | null>(null);
   const [fin, setFin] = useState<Fin | null>(null);
   const [armee, setArmee] = useState<Special | null>(null);
+  const [feverArmee, setFeverArmee] = useState(false);
+  const [messageFever, setMessageFever] = useState<string | null>(null);
   const [achat, setAchat] = useState<PowerupId | null>(null);
 
   const gridShift = useRef(new Animated.Value(0)).current;
@@ -136,6 +140,9 @@ export default function ShooterScreen() {
     animRef.current?.stop();
     setFin(null);
     setArmee(null);
+    setFeverArmee(false);
+    setMessageFever(null);
+    setApercu(null);
     setProj(null);
     setGrilleFigee(null);
     setVolee(null);
@@ -177,9 +184,10 @@ export default function ShooterScreen() {
 
   const majGuide = useCallback((tx: number, ty: number) => {
     const a = calculerAngle(tx, ty);
-    if (a === null) { setGuide(null); relacherElastique(); return; }
+    if (a === null) { setGuide(null); setApercu(null); relacherElastique(); return; }
     const { points } = simulerVol(etatRef.current!.grille, lanceur, a, 0.16);
     setGuide(points);
+    setApercu(previsualiserTir(etatRef.current!, lanceur, a, armee));
     // 🏹 la bille SUIT le doigt (étirement 1:1, plafonné à ~1,5 bille et au bord d'écran)
     const dist = Math.hypot(tx - lanceurPx.x, ty - lanceurPx.y);
     const rMax = Math.max(d * 0.6, Math.min(d * 1.5, (dims ? dims.h : 700) - lanceurPx.y - d * 0.55));
@@ -189,17 +197,19 @@ export default function ShooterScreen() {
     tensionRef.current = Math.min(1, r / rMax);
     setVisee({ a, r });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calculerAngle, d, lanceurPx.x, lanceurPx.y, dims]);
+  }, [calculerAngle, d, lanceurPx.x, lanceurPx.y, dims, armee]);
 
   // — tir —
   const feu = useCallback((angle: number) => {
     const etat = etatRef.current!;
     if (phaseRef.current !== 'pret' || etat.perdu || !dims) return;
     const special = armee;
-    if (special && !consommerPowerup(special)) { setArmee(null); return; }
+    if (special && !feverArmee && !consommerPowerup(special)) { setArmee(null); return; }
     setArmee(null);
+    setFeverArmee(false);
     setPhase('anim');
     setGuide(null);
+    setApercu(null);
     // 🏹 l'élastique CLAQUE proportionnellement à la tension au lâcher
     const tension = Math.max(0.25, Math.min(1, tensionRef.current));
     tensionRef.current = 0;
@@ -219,7 +229,7 @@ export default function ShooterScreen() {
     // photo de la grille AVANT résolution → affichée pendant tout le vol
     const figee = etat.grille.map((l) => ({ decalee: l.decalee, cases: [...l.cases] }));
     setGrilleFigee(figee);
-    const res = tirer(etat, lanceur, angle, Math.random, special);
+    const res = tirer(etat, lanceur, angle, Math.random, special, tension >= TIR_PARFAIT_SEUIL);
 
     // stats de partie (défis du jour)
     const s = statsRef.current;
@@ -255,7 +265,7 @@ export default function ShooterScreen() {
       atterrir(res, couleurTiree, figee);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dims, d, offX, armee]);
+  }, [dims, d, offX, armee, feverArmee]);
 
   // — résolution visuelle à l'atterrissage (positions dans la grille FIGÉE) —
   const atterrir = (res: ReturnType<typeof tirer>, couleurTiree: string, figee: Ligne[]) => {
@@ -289,6 +299,10 @@ export default function ShooterScreen() {
       textes.push({ cle: 't0', y: Math.max(60, yLimite * 0.45), txt: `+${formatNb(res.points)}${suffixe}` });
     }
     if (res.rebond) textes.push({ cle: 'tr', y: Math.max(90, yLimite * 0.45) + 30, txt: 'REBOND ! ×1,5', gros: true });
+    if (res.tirParfait) textes.push({ cle: 'tparfait', y: Math.max(65, yLimite * 0.38), txt: 'TIR PARFAIT !', gros: true });
+    if (res.feverGagne > 0 && etat.fever >= FEVER_MAX) textes.push({ cle: 'tfever', y: yLimite * 0.74, txt: 'SHAKER FEVER PRÊT !', gros: true });
+    if (res.bossInterrompu) textes.push({ cle: 'tbi', y: yLimite * 0.24, txt: 'ATTAQUE DU BOSS INTERROMPUE !', gros: true });
+    if (res.bossAction) textes.push({ cle: 'tba', y: yLimite * 0.24, txt: `${labelBossActionTir(res.bossAction)} !`, gros: true });
     if (res.explosions > 0) textes.push({ cle: 'tx', y: yLimite * 0.32, txt: res.explosions > 1 ? `💥 ${res.explosions} EXPLOSIONS !` : '💥 BOUM !', gros: true });
     if (res.bonusPop > 0) textes.push({ cle: 'tb', y: yLimite * 0.68, txt: `⭐ +${formatNb(res.bonusPop * BONUS_POINTS)}` });
     if (res.grosLacher >= GROS_LACHER) textes.push({ cle: 'tg', y: yLimite * 0.55, txt: `ÉNORME ! ${res.grosLacher} perles 🎉`, gros: true });
@@ -379,11 +393,12 @@ export default function ShooterScreen() {
       onPanResponderMove: (e) => majGuideRef.current(e.nativeEvent.locationX, e.nativeEvent.locationY),
       onPanResponderRelease: (e) => {
         setGuide(null);
+        setApercu(null);
         const a = calculerAngleRef.current(e.nativeEvent.locationX, e.nativeEvent.locationY);
         if (a !== null) feuRef.current(a);
         else relacherRef.current(); // 🏹 pas de tir → l'élastique se détend
       },
-      onPanResponderTerminate: () => { setGuide(null); relacherRef.current(); },
+      onPanResponderTerminate: () => { setGuide(null); setApercu(null); relacherRef.current(); },
     }),
   ).current;
 
@@ -404,8 +419,23 @@ export default function ShooterScreen() {
   // — power-ups —
   const toucherPowerup = (id: PowerupId) => {
     if (phase !== 'pret') return;
+    setFeverArmee(false);
     if (jeu.powerups[id] > 0) setArmee(armee === id ? null : id);
-    else setAchat(id);
+    else { setArmee(null); setAchat(id); }
+  };
+
+  const declencherFever = () => {
+    if (phase !== 'pret') return;
+    const pouvoir = jeu.buddyId ? (trouverCollectible(jeu.buddyId)?.set ?? 'neutre') : 'neutre';
+    const r = activerFever(etatRef.current!, pouvoir);
+    if (!r.active) return;
+    if (r.special) {
+      setArmee(r.special);
+      setFeverArmee(true);
+    }
+    setMessageFever(r.label);
+    setTimeout(() => setMessageFever(null), 1800);
+    forcer();
   };
 
   // — rendu —
@@ -414,6 +444,8 @@ export default function ShooterScreen() {
   const capsulesRestantes = aventure ? nbCapsules(grille) : 0;
   const perlesSiFin = perlesPourScore(etat.score) * (bonusDispo && !crediteRef.current ? 2 : 1);
   const multChaine = Math.min(etat.chaine, 3);
+  const bossSeuil = etat.bossPhase === 3 ? 2 : 3;
+  const bossDans = Math.max(1, bossSeuil - etat.bossCompteur);
 
   const pointsGuide: Point[] = [];
   if (guide && d > 0) {
@@ -508,6 +540,9 @@ export default function ShooterScreen() {
                   <View style={[styles.bossHpPlein, { width: `${pct}%` }]} />
                 </View>
                 <Text style={styles.bossHpTxt}>Boss — {restant}/{pv} PV</Text>
+                <Text style={styles.bossActionTxt} numberOfLines={1}>
+                  Phase {etat.bossPhase} · {labelBossActionTir(etat.bossProchaineAction)} dans {bossDans} tir{bossDans > 1 ? 's' : ''}
+                </Text>
               </View>
             </View>
           );
@@ -541,6 +576,16 @@ export default function ShooterScreen() {
             <Text style={styles.chainePillTxt}>Chaîne ×{multChaine}</Text>
           </View>
         )}
+        <Pressable
+          style={[styles.feverPill, etat.fever >= FEVER_MAX && styles.feverPillPret]}
+          disabled={etat.fever < FEVER_MAX || phase !== 'pret'}
+          onPress={declencherFever}
+        >
+          <Icone nom="eclat" taille={13} />
+          <Text style={[styles.feverTxt, etat.fever >= FEVER_MAX && styles.feverTxtPret]}>
+            {etat.fever >= FEVER_MAX ? 'SHAKER !' : `${etat.fever}/${FEVER_MAX}`}
+          </Text>
+        </Pressable>
         {etat.tirsParDescente > 0 && (
           <View style={{ flexDirection: 'row', gap: 3 }}>
             {Array.from({ length: etat.tirsParDescente }).map((_, i) => (
@@ -585,6 +630,22 @@ export default function ShooterScreen() {
                 />
               );
             })}
+
+            {apercu?.pose && (() => {
+              const ligne = etat.grille[apercu.pose!.r];
+              const dec = ligne?.decalee ?? (apercu.pose!.r % 2 === 1);
+              const p = enPx({
+                x: apercu.pose!.c + 0.5 + (dec ? 0.5 : 0),
+                y: apercu.pose!.r * LIGNE_H + 0.5,
+              });
+              return (
+                <View pointerEvents="none" style={[styles.apercuPose, { left: p.x - d * 0.47, top: p.y - d * 0.47, width: d * 0.94, height: d * 0.94, borderRadius: d * 0.47 }]}>
+                  {(apercu.eclatees > 0 || apercu.tombees > 0) && (
+                    <Text style={styles.apercuTxt}>−{apercu.eclatees + apercu.tombees}</Text>
+                  )}
+                </View>
+              );
+            })()}
 
             {proj && (
               <Animated.View
@@ -703,8 +764,9 @@ export default function ShooterScreen() {
 
             {/* perle suivante + échanger (droite) */}
             <Pressable
-              onPress={() => { if (phase === 'pret') { echangerMunitions(etatRef.current!); forcer(); } }}
-              style={[styles.suivant, { left: lanceurPx.x + d * 1.5, top: lanceurPx.y - d * 0.42 }]}
+              disabled={etat.swapBloqueTirs > 0}
+              onPress={() => { if (phase === 'pret' && echangerMunitions(etatRef.current!)) forcer(); }}
+              style={[styles.suivant, etat.swapBloqueTirs > 0 && { opacity: 0.35 }, { left: lanceurPx.x + d * 1.5, top: lanceurPx.y - d * 0.42 }]}
               hitSlop={10}
             >
               <BilleSkia taille={d * 0.7} hex={COULEURS[etat.couleurSuivante]} />
@@ -715,7 +777,15 @@ export default function ShooterScreen() {
             </Pressable>
 
             <Text style={[styles.astuce, { top: lanceurPx.y + d * 1.1 }]}>
-              {armee ? `${POWERUPS[armee].nom} armée — tire vers le bas et relâche !` : 'Tire la bille vers le bas… et relâche !'}
+              {messageFever
+                ? messageFever
+                : visee && tensionRef.current >= TIR_PARFAIT_SEUIL
+                  ? 'TIR PARFAIT armé — relâche !'
+                  : etat.swapBloqueTirs > 0
+                    ? `Échange brouillé encore ${etat.swapBloqueTirs} tir${etat.swapBloqueTirs > 1 ? 's' : ''}`
+                    : armee
+                      ? `${feverArmee ? 'Fever' : POWERUPS[armee].nom} armée — tire vers le bas et relâche !`
+                      : 'Tire la bille vers le bas… et relâche !'}
             </Text>
           </>
         )}
@@ -944,7 +1014,7 @@ const styles = StyleSheet.create({
 
   sousHud: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 12, paddingHorizontal: 16, paddingTop: 6, minHeight: 30,
+    gap: 8, paddingHorizontal: 16, paddingTop: 6, minHeight: 30, flexWrap: 'wrap',
   },
   capsulesRang: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   capsulesLib: { fontFamily: F.t700, fontSize: 11.5, color: C.texte2, marginLeft: 3 },
@@ -969,12 +1039,20 @@ const styles = StyleSheet.create({
   bossHpFond: { height: 9, borderRadius: 5, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.18)' },
   bossHpPlein: { height: 9, borderRadius: 5, backgroundColor: '#E8556A' },
   bossHpTxt: { fontFamily: F.t800, fontSize: 11, color: '#FFD3DA' },
+  bossActionTxt: { fontFamily: F.t600, fontSize: 9.5, color: '#F3D8E8' },
   chainePill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: '#FFF3D6', borderRadius: 999, paddingVertical: 4, paddingHorizontal: 11,
     borderWidth: 1, borderColor: C.jaune,
   },
   chainePillTxt: { fontFamily: F.t800, fontSize: 12, color: '#9A6B00' },
+  feverPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999,
+    paddingVertical: 4, paddingHorizontal: 9, backgroundColor: C.carte, borderWidth: 1, borderColor: C.bord,
+  },
+  feverPillPret: { backgroundColor: C.violet, borderColor: C.jaune },
+  feverTxt: { fontFamily: F.t800, fontSize: 11, color: C.texte3, fontVariant: ['tabular-nums'] },
+  feverTxtPret: { color: '#fff' },
   pointTir: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.bord },
   pointTirPlein: { backgroundColor: C.violetClair },
 
@@ -982,6 +1060,11 @@ const styles = StyleSheet.create({
   mur: { position: 'absolute', top: 0, width: 2, backgroundColor: C.bord, borderRadius: 1 },
   limite: { position: 'absolute', height: 2, backgroundColor: 'rgba(199,84,80,0.45)', borderRadius: 1 },
   guide: { position: 'absolute', width: 6, height: 6, borderRadius: 3, backgroundColor: C.violetClair },
+  apercuPose: {
+    position: 'absolute', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2.5, borderStyle: 'dashed', borderColor: C.vert, backgroundColor: 'rgba(163,199,36,0.16)',
+  },
+  apercuTxt: { fontFamily: F.t800, fontSize: 11, color: C.vertFonce },
   projectile: { position: 'absolute', ...OMBRE },
   reflet: { position: 'absolute', top: '14%', left: '14%', backgroundColor: '#fff', opacity: 0.5 },
   eclat: { position: 'absolute', borderWidth: 3.5, backgroundColor: 'transparent' },

@@ -1,3 +1,10 @@
+# ⚠️ RÈGLE ABSOLUE — LIRE ET MAINTENIR CE FICHIER
+
+- **AVANT DE FAIRE QUOI QUE CE SOIT dans ce repo** (analyse, commande, modification, test, build, déploiement ou réponse technique), **ouvrir `AGENTS.md` et le lire/visionner EN ENTIER**. Ne jamais se fier uniquement à un ancien résumé, à sa mémoire ou au contexte d'une conversation précédente : ce fichier est la source de vérité vivante du projet.
+- **APRÈS toute mise à jour notable**, compléter `AGENTS.md` dans la même intervention afin que Claude, Codex et les prochaines conversations comprennent exactement ce qui a changé. Est notable notamment : nouvelle fonctionnalité ou mécanique, décision produit, règle métier, changement d'architecture ou de données, migration, piège découvert, correctif important, nouvelle procédure de test/build/release, dépendance native, contrainte de compatibilité ou état de déploiement.
+- Le récapitulatif ajouté doit préciser au minimum : **date, objectif, fichiers/systèmes concernés, comportement exact, valeurs/règles importantes, validations effectuées, compatibilité/migration, pièges à ne pas refaire et statut de déploiement**.
+- Une modification notable n'est pas considérée terminée tant que le code, les tests nécessaires **ET `AGENTS.md`** ne sont pas cohérents entre eux.
+
 # Expo HAS CHANGED
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before writing any code.
@@ -165,3 +172,63 @@ Demande Yoann : contrôler séparément la visibilité du jeu pour les clients E
 - `lib/app-config.ts` : `lireJeuFlags()` / `ecrireJeuFlags(patch)` (lecture-modif-écriture — ne perd jamais l'autre clé ; l'ancien `ecrireJeuActif` écrasait la valeur entière, corrigé en wrapper), cache AsyncStorage passé en JSON (parse l'ancien format '1'/'0'), `useJeuVisible()` → `visible = admin ? flags.adminVisible : flags.actif` (le hook alimente la carte Boba Quest de l'accueil ET la garde de route `jeu/_layout`).
 - `compte.tsx` admin : carte « 🕹️ Jeu Boba Quest » avec 2 switches (« Visible pour les clients » / « Visible pour l'admin (moi) »), optimiste + rollback, même pattern que la commande en ligne.
 ⚠️ La build 24 (déjà construite) n'a PAS cette UI : ces fichiers partent dans le PREMIER `eas update --channel production` une fois la 24 en ligne (runtime 1.0.2), ou dans la build 25. D'ici là, demander à l'agent de basculer les flags en base.
+
+## 🤖 Soumission Play Store AUTOMATIQUE — nouvelle clé sous bubblestopaix@gmail.com (12/07/2026)
+
+L'ancienne clé EAS (`firebase-adminsdk-fbsvc@bubble-stop.iam.gserviceaccount.com`, projet Google n° 345934565840 « bubble-stop ») appartient à un projet auquel AUCUN compte Chrome de Yoann n'a accès (créé pendant la config push d'origine, propriétaire inconnu) → `eas submit --platform android` échouait en PERMISSION_DENIED (API Play non activée, inaccessible). ⚠️ Ce même projet fantôme fournit le `google-services.json` (push FCM Android) — à refaire sous bubblestopaix@gmail.com dans une build future.
+
+**Nouvelle chaîne (tout sous bubblestopaix@gmail.com)** : projet GCP `bubblestop-play` (n° 352252562060) → API « Google Play Android Developer » activée → compte de service `eas-submit@bubblestop-play.iam.gserviceaccount.com` (créé via Cloud Shell, clé JSON `eas-submit-key.json` téléchargée dans ~/Downloads) → invité dans Play Console (BubblePOS, compte org 8130144413767915496) avec accès app BubbleStop : publier en production + canaux de test. `eas.json` : `submit.production.android = { track: "production", releaseStatus: "completed" }` (avant : track internal par défaut). **Reste à faire une fois l'invitation cliquée** : `npx eas-cli@latest credentials --platform android` → production → Google Service Account Key → uploader ~/Downloads/eas-submit-key.json (remplace la clé fantôme sur les serveurs EAS). Ensuite : `eas submit --platform android --latest` = zéro clic. La release 13 (1.0.2) du 12/07 est partie en review via UPLOAD MANUEL (Play Console, déploiement complet).
+
+## 🚀 LA PROCÉDURE DE RELEASE (nouvelle façon officielle, validée le 12/07/2026)
+
+La chaîne Play est réparée et TESTÉE : clé `eas-submit@bubblestop-play.iam.gserviceaccount.com` uploadée sur EAS et assignée aux soumissions Play (le test `eas submit` est passé sans PERMISSION_DENIED, track production). Ne JAMAIS resélectionner la clé fantôme `firebase-adminsdk…@bubble-stop` pour les soumissions ; elle reste UNIQUEMENT en place pour « Push Notifications (FCM V1) » tant que le google-services.json n'est pas refait.
+
+**Changement JS uniquement (pas de nouveau module natif, runtime inchangé)** → OTA instantané, pas de review :
+```
+cd ~/Desktop/bubblestop-client
+git add -A && git commit -m "…" && git push
+npx eas-cli@latest update --channel production
+```
+⚠️ OTA autorisé SEULEMENT si la version `app.json` n'a pas bougé depuis la dernière build native (runtimeVersion = appVersion). Nouveau module natif ajouté = OTA INTERDIT → build native.
+
+**Release native (nouveau module, ou nouvelle version marketing)** :
+```
+cd ~/Desktop/bubblestop-client
+# 1. bump "version" dans app.json (ex 1.0.2 → 1.0.3) — nouveau runtime
+git add -A && git commit -m "build N: …" && git push
+# 2. build les deux plateformes
+npx eas-cli@latest build --platform all --profile production
+# 3. soumettre (l'Android part DIRECT en production — eas.json submit.production.android.track)
+npx eas-cli@latest submit --platform ios --latest
+npx eas-cli@latest submit --platform android --latest
+```
+iOS : arrive dans TestFlight (~10 min de processing Apple) → tester sur l'iPhone → valider la mise en review dans App Store Connect (appstoreconnect.apple.com, review ~24-48 h). Android : part tout seul en review Google (quelques heures), puis se déploie à 100 %. Erreur « version code already used » au submit Android = la build était déjà soumise (ex. upload manuel) → rien à faire.
+
+**Après la release native** : les OTA suivants ciblent le nouveau runtime automatiquement. Les caisses, elles, restent sur leur circuit : `npm run release:win` dans bubble-tea-pos.
+
+## 🕹️ Boba Quest v3 — tirs + combats enrichis (12/07/2026, JS uniquement, PAS encore déployé)
+
+Demande Yoann : rendre **Perle Rush** et les combats nettement plus tactiques. Implémentation terminée dans `components/jeu/moteur-shooter.ts`, `components/jeu/arene.ts`, `app/jeu/shooter.tsx`, `app/jeu/duel.tsx` (+ texte boss dans `app/jeu/arene.tsx`). **Aucune dépendance native, aucune nouvelle monnaie, aucune migration AsyncStorage** : les nouveaux champs vivent dans `EtatShooter` / `EtatCombat`, donc uniquement pendant la partie ; les anciennes sauvegardes restent compatibles.
+
+### Shooter / Perle Rush v3
+
+- **12 silhouettes de plateau MAISON** (`MOTIFS_PLATEAU`) : ponts, tunnels, arches et grappes, cyclées selon le niveau puis complétées par les lignes de difficulté existantes. Les capsules remplacent toujours une perle réellement reliée (jamais un trou). Test permanent : aucun plateau ne démarre avec des orphelines.
+- **Aperçu exact du tir** : `previsualiserTir()` clone profondément l'état puis appelle la VRAIE résolution `tirer()` ; la bille fantôme montre la case d'arrivée et le nombre total de perles éclatées/tombées. RÈGLE : ne jamais calculer l'aperçu avec une logique parallèle qui pourrait mentir au joueur ; il ne doit JAMAIS muter la partie réelle.
+- **Tir parfait** : tension du lance-pierre ≥ `TIR_PARFAIT_SEUIL=0.88`. Un impact utile donne +25 points × multiplicateur, casse directement une couche de givre et ajoute +1 dégât au boss. Tir normal jamais pénalisé.
+- **Shaker Fever** : jauge `FEVER_MAX=5`. Match normal = +1 ; match réussi après rebond = +2. Activation manuelle via le pill « SHAKER ! ». Pouvoir selon le copain équipé : Fruité = bille actuelle + suivante recolorées avec la couleur dominante ; Milk = retarde la descente de 2 tirs (ou +1 tir si niveau sans descente) ; Topping = Bombe gratuite ; Signature = Arc-en-ciel gratuit + 1 grâce de chaîne ; sans copain = couleur dominante. ⚠️ Les Bombe/Arc fournis par Fever sont marqués `feverArmee` et **ne consomment jamais** le stock acheté.
+- **Boss shooter actifs et télégraphiés** : HUD = phase + prochaine action + compte à rebours. Rotation déterministe : Souffle givré → Pluie de perles (ligne immédiate) → Brouilleur de couleurs (swap verrouillé 2 tirs). Phase 1/2 : attaque tous les 3 tirs ; phase 3 (boss ≥66 % de dégâts subis) : tous les 2 tirs. Un **rebond réussi** ou un **gros lâcher ≥8** interrompt et remet son compteur à zéro. Ne pas rendre ces attaques silencieuses : l'anticipation est le contre-jeu.
+
+### Combats / Arène v3
+
+- **Intention adverse VERROUILLÉE** : `EtatCombat.intentionB` est choisie à la fin du tour précédent, décrite par `decrireIntention()`, affichée dans « PROCHAINE ACTION ADVERSE », puis exécutée telle quelle par `jouerRound()`. RÈGLE ABSOLUE : ne jamais recalculer l'action après le choix du joueur, sinon l'UI ment et l'IA paraît tricher. La jauge Signature adverse reste visible.
+- **Garde universelle** : action `garde`, prochain impact −45 % (`GARDE_REDUCTION`), +1 charge Signature, cooldown de 2 tours complets. Elle coûte le tour et l'adversaire agit. **Changement tactique** : changer de combattant coûte toujours le tour, mais le nouvel entrant amortit le prochain impact de 25 % (`CHANGEMENT_REDUCTION`). Le bouclier d'un combattant reste une mécanique distincte et peut se cumuler.
+- **Combos de marques via les attaques Spé OFFENSIVES uniquement** : Fruité pose **Collant** (−4 VIT pendant 2 actions) ; Milk pose **Givré** (prochain impact ×1,35 puis marque consommée) ; Topping pose **Pétillant** (prochain impact éclabousse le banc à 25 %). Une Spé de soin/bouclier/boost ne pose rien. Les boutons indiquent la marque posée et les cartes montrent 🍯/❄️/🫧.
+- **Boss de l'Arène en 3 phases** : phase 2 à ≤70 % PV → ATQ ×1,12 ; phase finale à ≤35 % → ATQ ×1,15 supplémentaire, +3 VIT et jauge Signature pleine pour le PROCHAIN tour annoncé. Les gimmicks hebdomadaires existants (zone-immune / regen / bouclier) restent actifs en plus.
+- **Vitesse de replay ×1/×2** : bouton dans le header du duel ; divise les délais du journal/animations sans changer le moteur ni les résultats.
+
+### Validation et maintenance
+
+- Nouveau test déterministe `scripts/test-jeu.cjs`, commande **`npm run test:jeu`** : 12 silhouettes distinctes et sans orphelines, aperçu sans mutation, attaque boss shooter, pouvoirs Fever, intention=coup exécuté, réduction Garde, 3 marques et phase boss combat.
+- Validé le 12/07 : `npx tsc --noEmit` ✅ · `npm run test:jeu` ✅ · bundle Metro `npx expo export --platform ios` ✅ · `git diff --check` ✅.
+- `npm run lint` n'est PAS une référence verte : le repo n'avait aucune config ESLint ; Expo a tenté d'en installer une puis a trouvé 72 erreurs typographiques préexistantes (`react/no-unescaped-entities`) dans toute l'app. L'installation automatique ESLint a été retirée, aucune dépendance gardée.
+- **Déploiement** : modifications JS/TS uniquement, donc suivre la procédure OTA officielle ci-dessus SI `app.json.version` correspond bien au runtime du binaire en ligne. Aucun `eas update`, commit ou push n'a été effectué dans cette conversation.

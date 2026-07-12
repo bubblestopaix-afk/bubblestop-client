@@ -11,7 +11,8 @@ import Svg, { Line } from 'react-native-svg';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import {
   adversairePNJ, adversaireTournoi, Combattant, CoteCombat, creerCombat, creerCombatBoss,
-  CHARGE_MAX, equipeSam, equipeAmi, EtatCombat, EvtCombat, HINT_ATTAQUE, jouerRound, multType, SIGNATURES, SPE_USAGES,
+  CHARGE_MAX, decrireIntention, equipeSam, equipeAmi, EtatCombat, EvtCombat,
+  GARDE_REDUCTION, HINT_ATTAQUE, jouerRound, multType, SIGNATURES, SPE_USAGES,
 } from '@/components/jeu/arene';
 import PastilleCollectible from '@/components/jeu/collectibles';
 import { BurstSkia } from '@/components/jeu/combat-skia';
@@ -25,8 +26,6 @@ import {
   defaiteArene, defaiteTournoi, objetsEquipe, resoudreDefiAmi, resoudreDuelAmi, useBobaQuest,
   utiliserConsommable, victoireArene, victoireBoss, victoireTournoi,
 } from '@/store/jeu';
-
-const delai = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 type Recap =
   | { type: 'pnj'; gagne: boolean; perles: number; capsule: 'classique' | 'doree' | null; rang: number; pc: number }
@@ -87,7 +86,11 @@ export default function DuelScreen() {
   const [burst, setBurst] = useState<{ cote: CoteCombat; crit: boolean; cle: number } | null>(null);
   const [sacVisible, setSacVisible] = useState(false);
   const [recap, setRecap] = useState<Recap | null>(null);
+  const [vitesse, setVitesse] = useState<1 | 2>(1);
+  const vitesseRef = useRef<1 | 2>(1);
+  vitesseRef.current = vitesse;
   const crediteRef = useRef(false);
+  const attendre = (ms: number) => new Promise<void>((r) => setTimeout(r, Math.round(ms / vitesseRef.current)));
 
   const majPv = (cote: CoteCombat, index: number, pvApres: number) =>
     setAffiche((prev) => {
@@ -174,7 +177,7 @@ export default function DuelScreen() {
       switch (evt.t) {
         case 'annonce':
           pousserJournal(evt.texte);
-          await delai(520);
+          await attendre(520);
           break;
         case 'degats': {
           majPv(evt.cote, evt.index, evt.pvApres); // → la barre GLISSE vers la nouvelle valeur
@@ -191,7 +194,7 @@ export default function DuelScreen() {
           critFlag = false;
           const eff = evt.efficace === 1.5 ? ' C\'est super efficace !' : evt.efficace === 0.75 ? ' Pas très efficace…' : '';
           if (eff && surActif) pousserJournal(eff.trim());
-          await delai(surActif ? 700 : 480);
+          await attendre(surActif ? 700 : 480);
           setFlottant(null);
           break;
         }
@@ -200,26 +203,26 @@ export default function DuelScreen() {
           if (evt.index === afficheRef.current.actifs[evt.cote]) {
             setFlottant({ cote: evt.cote, txt: `+${evt.valeur}`, couleur: C.vertFonce, cle: Date.now() });
           }
-          await delai(620);
+          await attendre(620);
           setFlottant(null);
           break;
         case 'statut':
           if (/critique/i.test(evt.texte)) critFlag = true; // le prochain coup est un critique
           pousserJournal(evt.texte);
-          await delai(600);
+          await attendre(600);
           break;
         case 'ko':
           pousserJournal(`${evt.nom} est K.O. ! 💥`);
-          await delai(750);
+          await attendre(750);
           break;
         case 'entree':
           pousserJournal(`${evt.nom} entre en piste !`);
           majActif(evt.cote, evt.index); // → la carte bascule au bon MOMENT du replay
-          await delai(600);
+          await attendre(600);
           break;
         case 'fin':
           pousserJournal(evt.vainqueur === 'a' ? 'VICTOIRE ! 🎉' : 'Défaite… 😵‍💫');
-          await delai(500);
+          await attendre(500);
           finaliser(evt.vainqueur);
           break;
       }
@@ -232,6 +235,15 @@ export default function DuelScreen() {
     const evts = jouerRound(combat, choix);
     await rejouerEvts(evts);
     synchroniser(); // filet de sécurité : affichage = état exact du moteur
+    setEnCours(false);
+  };
+
+  const garder = async () => {
+    if (enCours || combat.fini) return;
+    setEnCours(true);
+    const evts = jouerRound(combat, 'garde');
+    await rejouerEvts(evts);
+    synchroniser();
     setEnCours(false);
   };
 
@@ -275,6 +287,15 @@ export default function DuelScreen() {
   const sacObjets = CONSOMMABLE_IDS.filter((id) => (jeu.consommables[id] ?? 0) > 0);
   const sigPrete = moi.charge >= CHARGE_MAX;
   const sig = SIGNATURES[moi.set];
+  const intention = decrireIntention(combat);
+  const gardeRestante = Math.max(0, moi.gardeCooldown - 1);
+  const gardeDispo = moi.gardeCooldown <= 1;
+  const marqueSpe = moi.set === 'fruit' ? 'Pose Collant 🍯'
+    : moi.set === 'milk' ? 'Pose Givré ❄️'
+      : moi.set === 'topping' ? 'Pose Pétillant 🫧' : null;
+  const fondIntention = intention.ton === 'danger' ? C.dangerPale
+    : intention.ton === 'soin' ? C.vertPale
+      : intention.ton === 'defense' ? '#E9E2F7' : '#FFF3D6';
 
   return (
     <View style={[styles.fond, { paddingTop: insets.top + 8 }]}>
@@ -287,7 +308,9 @@ export default function DuelScreen() {
           </Svg>
         </Pressable>
         <Text style={styles.titre} numberOfLines={1}>{adversaire.nom}</Text>
-        <View style={{ width: 40 }} />
+        <Pressable style={styles.vitesseBtn} disabled={enCours} onPress={() => setVitesse((v) => v === 1 ? 2 : 1)}>
+          <Text style={styles.vitesseTxt}>×{vitesse}</Text>
+        </Pressable>
       </View>
 
       {mutateur && (
@@ -297,6 +320,17 @@ export default function DuelScreen() {
             <IconeEmoji emoji={mutateur.emoji} taille={15} />
             <Text style={[styles.mutateurTxt, { flexShrink: 1 }]} numberOfLines={2}>{mutateur.nom} — {mutateur.desc}</Text>
           </View>
+        </View>
+      )}
+
+      {!combat.fini && (
+        <View style={[styles.intention, { backgroundColor: fondIntention }]}>
+          <View style={styles.intentionHaut}>
+            <Text style={styles.intentionLabel}>PROCHAINE ACTION ADVERSE</Text>
+            {lui.gimmick && <Text style={styles.phaseBoss}>PHASE {lui.bossPhase}</Text>}
+          </View>
+          <Text style={styles.intentionTitre} numberOfLines={1}>{intention.titre}</Text>
+          <Text style={styles.intentionDetail} numberOfLines={2}>{intention.detail}</Text>
         </View>
       )}
 
@@ -380,7 +414,7 @@ export default function DuelScreen() {
             >
               <Text style={[styles.btnAttaqueNom, spe && { color: '#fff' }]}>{a.nom}</Text>
               <Text style={[styles.btnAttaqueHint, spe && { color: C.lavande }]}>
-                {epuisee ? 'Épuisée pour ce combat' : HINT_ATTAQUE[a.type]}
+                {epuisee ? 'Épuisée pour ce combat' : `${HINT_ATTAQUE[a.type]}${spe && marqueSpe && ['degats', 'double', 'etourdit', 'zone'].includes(a.type) ? ` · ${marqueSpe}` : ''}`}
               </Text>
               {spe && (
                 <Text style={styles.btnAttaqueMun}>
@@ -414,6 +448,16 @@ export default function DuelScreen() {
                 </Pressable>
               );
             })}
+            <Pressable
+              style={[styles.gardeBtn, (!gardeDispo || enCours) && { opacity: 0.42 }]}
+              disabled={!gardeDispo || enCours}
+              onPress={garder}
+            >
+              <Icone nom="bouclier" taille={15} />
+              <Text style={styles.gardeBtnTxt}>
+                {gardeDispo ? `Garde −${Math.round(GARDE_REDUCTION * 100)} %` : `Garde · ${gardeRestante} t`}
+              </Text>
+            </Pressable>
             {sacDispo && (
               <Pressable style={[styles.sacBtn, enCours && { opacity: 0.4 }]} disabled={enCours} onPress={() => setSacVisible(true)}>
                 <Icone nom="sac" taille={15} />
@@ -671,6 +715,11 @@ function CarteCombattant({ cote, equipe, actifIdx, pvAffiches, secousse, flottan
             {c.bouclier ? <Icone nom="bouclier" taille={13} /> : null}
             {c.boostTours > 0 ? <Icone nom="boost" taille={13} /> : null}
             {c.etourdi ? <Icone nom="etourdi" taille={13} /> : null}
+            {c.gardePct > 0 ? <Text style={styles.statutMini}>GARDE</Text> : null}
+            {c.collantTours > 0 ? <Text style={styles.statutMini}>🍯</Text> : null}
+            {c.givre ? <Text style={styles.statutMini}>❄️</Text> : null}
+            {c.petillant ? <Text style={styles.statutMini}>🫧</Text> : null}
+            {c.gimmick && c.bossPhase > 1 ? <Text style={styles.statutBoss}>P{c.bossPhase}</Text> : null}
             {/* ⭐ jauge signature — visible des DEUX côtés (on voit venir l'ulti adverse) */}
             <View style={styles.chargeRang}>
               {Array.from({ length: CHARGE_MAX }, (_, i) => (
@@ -697,6 +746,21 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', ...OMBRE,
   },
   titre: { flex: 1, fontFamily: F.titre, fontSize: 18, color: C.violet, textAlign: 'center' },
+  vitesseBtn: {
+    width: 40, height: 34, borderRadius: R.pill, backgroundColor: C.violet,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  vitesseTxt: { fontFamily: F.t800, fontSize: 13, color: '#fff', fontVariant: ['tabular-nums'] },
+
+  intention: {
+    marginHorizontal: 18, marginTop: 5, borderRadius: 14, paddingVertical: 8, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: C.bord,
+  },
+  intentionHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  intentionLabel: { fontFamily: F.t800, fontSize: 9.5, color: C.texte3, letterSpacing: 0.4 },
+  intentionTitre: { fontFamily: F.t800, fontSize: 13.5, color: C.texte, marginTop: 2 },
+  intentionDetail: { fontFamily: F.t600, fontSize: 10.5, color: C.texte2 },
+  phaseBoss: { fontFamily: F.t800, fontSize: 9.5, color: C.danger },
 
   zone: { flex: 1, padding: 18, gap: 12, justifyContent: 'space-between' },
 
@@ -717,6 +781,8 @@ const styles = StyleSheet.create({
   pvRempli: { height: 10, borderRadius: 5 },
   sousLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   pvTxt: { fontFamily: F.t700, fontSize: 12, color: C.texte2 },
+  statutMini: { fontFamily: F.t800, fontSize: 9, color: C.violet, backgroundColor: C.lavande, borderRadius: 5, paddingHorizontal: 3 },
+  statutBoss: { fontFamily: F.t800, fontSize: 9, color: '#fff', backgroundColor: C.danger, borderRadius: 5, paddingHorizontal: 4 },
   point: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.vert },
   flottant: { position: 'absolute', top: -6, alignSelf: 'center', fontFamily: F.titre, fontSize: 20 },
 
@@ -762,6 +828,12 @@ const styles = StyleSheet.create({
   },
   bancChipNom: { fontFamily: F.t700, fontSize: 12.5, color: C.texte },
   bancAv: { fontFamily: F.t800, fontSize: 12 },
+  gardeBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#E9E2F7', borderRadius: R.pill, paddingVertical: 6, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: C.violetClair,
+  },
+  gardeBtnTxt: { fontFamily: F.t800, fontSize: 11.5, color: C.violet },
   sacBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: C.violet, borderRadius: R.pill, paddingVertical: 6, paddingHorizontal: 14,

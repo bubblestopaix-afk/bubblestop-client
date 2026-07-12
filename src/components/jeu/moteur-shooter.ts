@@ -24,9 +24,13 @@ export const LARGEUR_TERRAIN = COLS + 0.5; // les lignes décalées débordent d
 export const CHAINE_MAX = 3;              // multiplicateur maxi
 export const BONUS_REBOND = 1.5;          // multiplicateur d'un match après rebond
 export const RAYON_BOMBE = 2.2;           // rayon d'explosion (en unités, ~7-10 perles en plein plateau)
+export const FEVER_MAX = 5;                // matchs nécessaires pour charger le Shaker Fever
+export const TIR_PARFAIT_SEUIL = 0.88;     // tension minimale du lance-pierre (0..1)
 
 export type Couleur = 0 | 1 | 2 | 3 | 4 | 5;
 export type Special = 'bombe' | 'arc'; // munitions spéciales (achetées)
+export type PouvoirFever = 'fruit' | 'milk' | 'topping' | 'signature' | 'neutre';
+export type BossActionTir = 'givre' | 'descente' | 'verrou-swap';
 
 // Perles SPÉCIALES posées sur le plateau (transforment chaque niveau en puzzle) :
 //  glacon = bloc qui ne se matche pas, à faire tomber ou détruire ;
@@ -77,6 +81,12 @@ export type EtatShooter = {
   objectif: Objectif;           // but du niveau
   objProgres: number;           // avancement vers l'objectif (tomber/couleur)
   specialsAuto: boolean;        // semer bonus/bombes au fil du jeu (infini)
+  fever: number;                // 0..FEVER_MAX, pouvoir du copain prêt au maximum
+  swapBloqueTirs: number;       // boss : échange courant/suivant temporairement verrouillé
+  bossPhase: 1 | 2 | 3;         // boss Aventure : cadence plus agressive selon ses PV
+  bossCompteur: number;         // tirs depuis la dernière attaque/interruption du boss
+  bossActionIndex: number;      // rotation déterministe des attaques du boss
+  bossProchaineAction: BossActionTir;
 };
 
 // Résolution d'un tir : tout ce qu'il faut pour animer côté UI.
@@ -97,6 +107,17 @@ export type ResultatTir = {
   bonusPop: number;             // perles bonus éclatées ce tir
   grosLacher: number;           // nb de perles tombées d'un coup (≥ GROS_LACHER = « ÉNORME »)
   objectifAtteint: boolean;     // le niveau est gagné après ce tir
+  tirParfait: boolean;          // tension maximale + impact utile
+  feverGagne: number;           // progression gagnée sur ce tir
+  bossAction: BossActionTir | null;
+  bossInterrompu: boolean;
+};
+
+export type ApercuTir = {
+  pose: Case | null;
+  eclatees: number;
+  tombees: number;
+  capsules: number;
 };
 
 export type Rng = () => number;
@@ -245,6 +266,12 @@ export function creerPartieInfini(rng: Rng = Math.random): EtatShooter {
     objectif: { type: 'score' },
     objProgres: 0,
     specialsAuto: true,
+    fever: 0,
+    swapBloqueTirs: 0,
+    bossPhase: 1,
+    bossCompteur: 0,
+    bossActionIndex: 0,
+    bossProchaineAction: 'givre',
   };
 }
 
@@ -303,13 +330,48 @@ export function paramsNiveau(n: number): ParamsNiveau {
   };
 }
 
+// Douze silhouettes récurrentes donnent une identité aux plateaux : ponts,
+// tunnels, grappes et arches. La difficulté continue d'être pilotée par
+// paramsNiveau ; les lignes supplémentaires des niveaux avancés restent générées.
+const MOTIFS_PLATEAU: string[][] = [
+  ['########', '###..###', '##....##', '.##..##.'],
+  ['########', '.######.', '..####..', '...##...'],
+  ['########', '##.##.##', '.######.', '##....##'],
+  ['########', '#.#..#.#', '########', '.##..##.'],
+  ['########', '###..###', '.######.', '##.##.##', '..####..'],
+  ['########', '##....##', '###..###', '.######.', '..####..'],
+  ['########', '.##..##.', '########', '##....##', '.######.'],
+  ['########', '####....', '.######.', '....####', '..####..'],
+  ['########', '#.####.#', '##....##', '.######.', '...##...'],
+  ['########', '##.##.##', '###..###', '.##..##.', '########'],
+  ['########', '.######.', '##.##.##', '###..###', '..####..'],
+  ['########', '#..##..#', '##.##.##', '.######.', '##....##'],
+];
+
+function genererGrilleNiveau(p: ParamsNiveau, pool: Couleur[], rng: Rng): Ligne[] {
+  const motif = MOTIFS_PLATEAU[(p.niveau - 1) % MOTIFS_PLATEAU.length];
+  const grille: Ligne[] = [];
+  for (let r = 0; r < p.lignes; r++) {
+    const masque = motif[r];
+    if (!masque) {
+      grille.push(genererLigne(r % 2 === 1, pool, rng));
+      continue;
+    }
+    grille.push({
+      decalee: r % 2 === 1,
+      cases: Array.from({ length: COLS }, (_, c) =>
+        masque[c] === '#' ? { couleur: couleurAleatoire(rng, pool) } : null),
+    });
+  }
+  return grille;
+}
+
 // Niveau DÉTERMINISTE : même numéro → même plateau pour tout le monde.
 export function creerNiveau(n: number): EtatShooter {
   const p = paramsNiveau(n);
   const rng = creerRng(900913 + n * 7919);
   const pool = Array.from({ length: p.nbCouleurs }, (_, i) => i as Couleur);
-  const grille: Ligne[] = [];
-  for (let r = 0; r < p.lignes; r++) grille.push(genererLigne(r % 2 === 1, pool, rng));
+  const grille = genererGrilleNiveau(p, pool, rng);
 
   // Capsules : jamais ligne 0 (une bulle du plafond ne peut pas tomber).
   // Débuts faciles = capsules en bord bas (on coupe au-dessus) ; ensuite de
@@ -321,10 +383,17 @@ export function creerNiveau(n: number): EtatShooter {
     // colonnes réparties sur la largeur (± un cran de hasard)
     let c = Math.floor(((i + 0.5) * COLS) / p.nbCapsules + (rng() - 0.5) * 2);
     c = Math.max(0, Math.min(COLS - 1, c));
-    // si la case (ou sa voisine) porte déjà une capsule, on décale
-    let essais = 0;
-    while (grille[r].cases[c]?.capsule && essais < COLS) { c = (c + 1) % COLS; essais++; }
-    grille[r].cases[c] = { couleur: 0, capsule: true };
+    // Avec les silhouettes ajourées, la capsule remplace toujours la perle
+    // disponible la plus proche (jamais un trou isolé ni une capsule existante).
+    const disponibles: Case[] = [];
+    for (let rr = 1; rr < grille.length; rr++) for (let cc = 0; cc < COLS; cc++) {
+      const b = grille[rr].cases[cc];
+      if (b && !b.capsule) disponibles.push({ r: rr, c: cc });
+    }
+    disponibles.sort((a, b) =>
+      (Math.abs(a.r - r) * COLS + Math.abs(a.c - c)) - (Math.abs(b.r - r) * COLS + Math.abs(b.c - c)));
+    const choisie = disponibles[0];
+    if (choisie) grille[choisie.r].cases[choisie.c] = { couleur: 0, capsule: true };
   }
 
   // --- Perles spéciales (déterministes) : on remplace des perles colorées ---
@@ -362,6 +431,12 @@ export function creerNiveau(n: number): EtatShooter {
     objectif: p.objectif,
     objProgres: 0,
     specialsAuto: false,
+    fever: 0,
+    swapBloqueTirs: 0,
+    bossPhase: 1,
+    bossCompteur: 0,
+    bossActionIndex: 0,
+    bossProchaineAction: 'givre',
   };
 }
 
@@ -495,6 +570,83 @@ export function ligneLaPlusBasse(grille: Ligne[]): number {
   return -1;
 }
 
+export function labelBossActionTir(action: BossActionTir): string {
+  switch (action) {
+    case 'givre': return 'Souffle givré';
+    case 'descente': return 'Pluie de perles';
+    case 'verrou-swap': return 'Brouilleur de couleurs';
+  }
+}
+
+// Active le pouvoir chargé par les matchs. Les pouvoirs offensifs renvoient une
+// munition de Fever : l'écran l'arme sans toucher au stock acheté du joueur.
+export function activerFever(etat: EtatShooter, pouvoir: PouvoirFever): { active: boolean; special: Special | null; label: string } {
+  if (etat.fever < FEVER_MAX) return { active: false, special: null, label: '' };
+  etat.fever = 0;
+  if (pouvoir === 'milk') {
+    if (etat.tirsParDescente > 0) etat.tirs = Math.max(0, etat.tirs - 2);
+    else if (etat.tirsRestants !== null) etat.tirsRestants += 1;
+    return { active: true, special: null, label: etat.tirsParDescente > 0 ? 'Descente retardée de 2 tirs !' : '+1 tir !' };
+  }
+  if (pouvoir === 'topping') {
+    return { active: true, special: 'bombe', label: 'Mini-bombe offerte !' };
+  }
+  if (pouvoir === 'signature') {
+    etat.graceChaine += 1;
+    return { active: true, special: 'arc', label: 'Arc-en-ciel + chaîne protégée !' };
+  }
+
+  const compte = new Map<Couleur, number>();
+  for (const ligne of etat.grille) for (const b of ligne.cases) {
+    if (b && !estBloc(b) && b.special !== 'arc') compte.set(b.couleur, (compte.get(b.couleur) ?? 0) + 1);
+  }
+  const dominante = [...compte.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (dominante !== undefined) {
+    etat.couleurCourante = dominante;
+    etat.couleurSuivante = dominante;
+  }
+  return { active: true, special: null, label: pouvoir === 'fruit' ? 'Double bille fruitée !' : 'Couleur dominante préparée !' };
+}
+
+function prochaineActionBoss(index: number): BossActionTir {
+  return (['givre', 'descente', 'verrou-swap'] as BossActionTir[])[index % 3];
+}
+
+function appliquerActionBoss(etat: EtatShooter, action: BossActionTir, rng: Rng) {
+  if (action === 'descente') {
+    etat.grille.unshift(genererLigne(!etat.grille[0]?.decalee, etat.couleursPool, rng));
+    return;
+  }
+  if (action === 'verrou-swap') {
+    etat.swapBloqueTirs = 2;
+    return;
+  }
+
+  // Le souffle givre d'abord les perles basses : la menace est visible et peut
+  // être cassée par un Tir parfait au lieu d'être une punition arbitraire.
+  const candidates: Bulle[] = [];
+  for (let r = etat.grille.length - 1; r >= 0; r--) {
+    for (const b of etat.grille[r].cases) if (b && !b.capsule && !b.special) candidates.push(b);
+  }
+  const n = Math.min(candidates.length, 1 + etat.bossPhase);
+  for (let i = 0; i < n; i++) {
+    candidates[i].special = 'givre';
+    candidates[i].pv = 2;
+  }
+}
+
+function clonerEtatShooter(etat: EtatShooter): EtatShooter {
+  return {
+    ...etat,
+    objectif: { ...etat.objectif },
+    couleursPool: [...etat.couleursPool],
+    grille: etat.grille.map((l) => ({
+      decalee: l.decalee,
+      cases: l.cases.map((b) => b ? { ...b } : null),
+    })),
+  };
+}
+
 // --- Résolution d'un tir -----------------------------------------------------
 
 // Tir complet : vol → pose (ou explosion) → éclatement → chute des orphelines
@@ -505,7 +657,9 @@ export function tirer(
   angle: number,
   rng: Rng = Math.random,
   special: Special | null = null,
+  tirParfaitDemande = false,
 ): ResultatTir {
+  if (etat.swapBloqueTirs > 0) etat.swapBloqueTirs--;
   const g = etat.grille;
   const { points, impact } = simulerVol(g, origine, angle);
   const rebondi = points.length > 2; // la polyligne contient un point par rebond
@@ -569,7 +723,7 @@ export function tirer(
       for (const caseG of groupe) {
         const b = bulleEn(g, caseG.r, caseG.c)!;
         // ❄️ givre : encaisse un coup et RESTE tant que pv > 1
-        if (b.special === 'givre' && (b.pv ?? 2) > 1) {
+        if (b.special === 'givre' && (b.pv ?? 2) > 1 && !tirParfaitDemande) {
           b.pv = (b.pv ?? 2) - 1;
           continue;
         }
@@ -578,6 +732,7 @@ export function tirer(
         g[caseG.r].cases[caseG.c] = null;
       }
       pts += (groupe.length * 10 + Math.max(0, groupe.length - 3) * 5) * multiplicateur;
+      if (tirParfaitDemande && eclatees.length) pts += 25 * multiplicateur;
       if (rebondi && eclatees.length) { rebond = true; pts = Math.round(pts * BONUS_REBOND); }
     } else if (etat.graceChaine > 0 && etat.chaine > 0) {
       etat.graceChaine--; // le copain de tir Signature pardonne ce raté
@@ -675,8 +830,42 @@ export function tirer(
     // 👹 chaque perle éclatée / tombée blesse le boss ; gros combos et explosions cognent plus fort
     const degats = eclatees.filter((x) => !estBloc(x.bulle)).length
       + tombees.filter((t) => !t.bulle.capsule).length
-      + (tailleGroupe >= 5 ? 3 : 0) + explosions * 2;
+      + (tailleGroupe >= 5 ? 3 : 0) + explosions * 2
+      + (tirParfaitDemande && eclatees.length ? 1 : 0);
     etat.objProgres += degats;
+  }
+
+  // Shaker Fever : un match charge, un rebond réussi accélère encore la jauge.
+  const feverAvant = etat.fever;
+  if (!special && tailleGroupe >= 3) {
+    etat.fever = Math.min(FEVER_MAX, etat.fever + 1 + (rebond ? 1 : 0));
+  }
+  const feverGagne = etat.fever - feverAvant;
+
+  // Boss Aventure : son attaque est annoncée plusieurs tirs à l'avance. Un
+  // rebond réussi ou un gros lâcher interrompt le compte à rebours.
+  let bossAction: BossActionTir | null = null;
+  let bossInterrompu = false;
+  if (obj.type === 'boss' && !objectifAtteint(etat)) {
+    const ratio = etat.objProgres / Math.max(1, obj.pv);
+    etat.bossPhase = ratio >= 0.66 ? 3 : ratio >= 0.33 ? 2 : 1;
+    const interruption = rebond || tombees.length >= GROS_LACHER;
+    if (interruption) {
+      bossInterrompu = etat.bossCompteur > 0;
+      etat.bossCompteur = 0;
+    } else {
+      etat.bossCompteur++;
+      const seuil = etat.bossPhase === 3 ? 2 : 3;
+      if (etat.bossCompteur >= seuil) {
+        bossAction = etat.bossProchaineAction;
+        appliquerActionBoss(etat, bossAction, rng);
+        etat.bossCompteur = 0;
+        etat.bossActionIndex++;
+        etat.bossProchaineAction = prochaineActionBoss(etat.bossActionIndex);
+        if (bossAction === 'descente') nouvelleLigne = true;
+      }
+    }
+    etat.perdu = ligneLaPlusBasse(g) >= LIGNE_LIMITE;
   }
 
   // Munitions : les tirs spéciaux ne consomment PAS la perle courante
@@ -697,14 +886,38 @@ export function tirer(
     nouvelleLigne, plateauNettoye, perdu: etat.perdu,
     explosions, bonusPop, grosLacher: tombees.length,
     objectifAtteint: objectifAtteint(etat),
+    tirParfait: tirParfaitDemande && eclatees.length > 0,
+    feverGagne,
+    bossAction,
+    bossInterrompu,
+  };
+}
+
+// Aperçu tactique sans mutation de la partie réelle. Il partage exactement la
+// même résolution que le tir final, donc la bille fantôme ne ment pas au joueur.
+export function previsualiserTir(
+  etat: EtatShooter,
+  origine: Point,
+  angle: number,
+  special: Special | null = null,
+): ApercuTir {
+  const copie = clonerEtatShooter(etat);
+  const res = tirer(copie, origine, angle, () => 0.5, special, false);
+  return {
+    pose: res.pose,
+    eclatees: res.eclatees.length,
+    tombees: res.tombees.length,
+    capsules: res.capsules,
   };
 }
 
 // Échange la perle courante et la suivante (bouton « swap »)
 export function echangerMunitions(etat: EtatShooter) {
+  if (etat.swapBloqueTirs > 0) return false;
   const t = etat.couleurCourante;
   etat.couleurCourante = etat.couleurSuivante;
   etat.couleurSuivante = t;
+  return true;
 }
 
 // Étoiles d'un niveau selon les tirs restants (≥35 % → 3★, ≥15 % → 2★, sinon 1★)
