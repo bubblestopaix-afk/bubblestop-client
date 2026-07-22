@@ -1,6 +1,6 @@
 // === 🔔 Rappel « active les notifications » ===
 // Un client qui refuse (ou ne voit jamais) la demande de notifications ne recevra
-// AUCUNE promo ni « commande prête ». Cette bannière s'affiche aux connectés tant
+// AUCUNE promo. Cette bannière s'affiche aux connectés tant
 // que la permission n'est pas accordée :
 //   - jamais demandée → bouton « Activer » (déclenche la popup système + enregistre le jeton)
 //   - refusée        → bouton « Ouvrir les réglages » (Linking.openSettings)
@@ -64,8 +64,8 @@ export default function RappelNotifs() {
       </View>
       <Text style={styles.texte}>
         {etat === 'denied'
-          ? 'Les notifications sont désactivées : tu ne reçois ni les offres ni le « commande prête ». Réactive-les dans les réglages.'
-          : 'Active les notifications pour recevoir les offres exclusives et savoir quand ta commande est prête.'}
+          ? 'Les notifications sont désactivées : tu ne reçois plus les offres exclusives. Réactive-les dans les réglages.'
+          : 'Active les notifications pour recevoir les offres exclusives Bubble Stop.'}
       </Text>
       <View style={styles.boutons}>
         <Pressable onPress={activer} disabled={enCours} style={styles.btnPlein}>

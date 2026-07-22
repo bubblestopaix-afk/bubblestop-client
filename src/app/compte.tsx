@@ -8,66 +8,36 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import { createURL } from 'expo-linking';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import type { Session } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
+import { connexionGoogleNative } from '@/lib/google-natif';
 import { enregistrerPush } from '@/lib/push';
-import { reclamerJetonEnAttente } from '@/lib/carte-temp';
 import { memoriserCodeParrain } from '@/lib/parrainage';
-import { lireCommandeMagasins, ecrireCommandeMagasin, lireJeuFlags, ecrireJeuFlags, JeuFlags } from '@/lib/app-config';
+import {
+  lireConfigCarteCadeau, ecrireConfigCarteCadeau,
+  lireJeuFlags, ecrireJeuFlags, ConfigCarteCadeau, JeuFlags,
+} from '@/lib/app-config';
+import {
+  ecrireFonctionnalite, EtatFonctionnalites, FonctionnaliteId,
+  lireFonctionnalites, REGISTRE_FONCTIONNALITES,
+} from '@/lib/fonctionnalites';
 import { offreEnCours, offreProgrammee, resumeRecurrence } from '@/lib/offres';
 import { useCatalogueCloud } from '@/data/catalogue-cloud';
 import { GoogleLogo } from '@/components/google-logo';
-import { MAGASINS, MagasinId, getMagasin, setMagasin } from '@/store/magasin';
+import { LogoBubbleStop } from '@/components/logo-bubblestop';
+import { AdminMiseAJour } from '@/components/admin-mise-a-jour';
+import { MAGASINS, MagasinId } from '@/store/magasin';
 import { C, F, R, OMBRE } from '@/constants/charte';
 import {
-  Carte, LigneMenu, ChampTexte, Message, BoutonPrimaire, BoutonGhost, TitreSection,
+  Carte, LigneMenu, ChampTexte, MascottePerle, Message, BoutonPrimaire, BoutonGhost, TitreKawaii, TitreSection,
 } from '@/components/ui-kit';
 import PictoOffre, { FOND_PICTO } from '@/components/pictos-offres';
 
-// === Choix de la boutique (Aix / Lyon / Toulouse) ===
-// Affiché à l'INSCRIPTION et modifiable dans « Mes informations » : c'est le client qui
-// choisit sa ville — avant, profils.magasin héritait de la caisse qui traitait son tampon
-// de bienvenue (un client Lyon se retrouvait « Toulouse », vécu 12/07).
-function ChoixBoutique({ valeur, onChange, label = 'Ta boutique' }: {
-  valeur: string | null; onChange: (id: MagasinId) => void; label?: string;
-}) {
-  return (
-    <View style={{ gap: 6 }}>
-      <Text style={stylesBoutique.label}>{label}</Text>
-      <View style={stylesBoutique.rangee}>
-        {MAGASINS.map((m) => (
-          <Pressable
-            key={m.id}
-            style={[stylesBoutique.chip, valeur === m.id && stylesBoutique.chipOn]}
-            onPress={() => onChange(m.id)}
-          >
-            <Text style={[stylesBoutique.chipTxt, valeur === m.id && stylesBoutique.chipTxtOn]}>
-              {m.nom}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  );
-}
-const stylesBoutique = StyleSheet.create({
-  label: { fontFamily: F.t700, fontSize: 13, color: C.violet },
-  rangee: { flexDirection: 'row', gap: 8 },
-  chip: {
-    flex: 1, paddingVertical: 10, borderRadius: R.pill, alignItems: 'center',
-    backgroundColor: C.lavande, borderWidth: 1.5, borderColor: 'transparent',
-  },
-  chipOn: { backgroundColor: C.vert, borderColor: C.vert },
-  chipTxt: { fontFamily: F.t700, fontSize: 13.5, color: C.violetProfond },
-  chipTxtOn: { color: C.violetProfond },
-});
-
 const URL_CONFIDENTIALITE = 'https://commande.bubblestop.fr/confidentialite';
 const EMAIL_CONTACT = 'contact@bubblestop.fr';
+type CibleMessageCaisse = MagasinId | 'toutes';
 
 // === Presets d'offres (admin) : modèles prêts à publier ===
 // Tap = pré-remplit titre + message (modifiables avant publication).
@@ -78,13 +48,15 @@ const PRESETS_OFFRES = [
     apercu: 'Remplir les heures creuses',
     titre: '⚡ Happy hour : -30 % de 15h à 17h',
     message: 'Aujourd\'hui seulement : -30 % sur toutes les boissons entre 15h et 17h. File en boutique !',
-    conseil: 'Adapte l\'horaire à ton heure creuse du jour. La remise s\'applique manuellement en caisse.',
+    conseil: 'Adapte l\'horaire à ton heure creuse. La caisse applique automatiquement la remise après le scan fidélité.',
+    remiseType: 'pourcent' as const,
+    remiseValeur: '30',
   },
   {
     id: 'install-appli', emoji: '📲', nom: 'Bonus install',
     apercu: 'Faire installer l\'appli (+1 tampon auto)',
     titre: '📲 Installe l\'appli = 1 tampon offert',
-    message: 'Télécharge l\'appli Bubble Stop et lie ta carte de fidélité : 1 tampon de bienvenue offert automatiquement. Commande en avance, suis tes tampons, profite des offres !',
+    message: 'Télécharge l\'appli Bubble Stop et lie ta carte de fidélité : 1 tampon de bienvenue offert automatiquement. Suis tes tampons et profite des offres !',
     conseil: 'Le tampon de bienvenue est crédité automatiquement à la liaison de la carte — aucune manip en caisse.',
   },
   {
@@ -99,7 +71,9 @@ const PRESETS_OFFRES = [
     apercu: 'Booster ton jour le plus creux',
     titre: '✌️ Mardi = tampons ×2',
     message: 'Tous les mardis, ta carte avance deux fois plus vite : 1 boisson achetée = 2 tampons. À demain ?',
-    conseil: 'Choisis ton jour le plus creux. En caisse : ajouter le 2e tampon manuellement.',
+    conseil: 'Choisis ton jour le plus creux. Le multiplicateur est appliqué automatiquement après le scan fidélité.',
+    remiseType: 'tampons' as const,
+    remiseValeur: '2',
   },
   {
     id: 'canicule', emoji: '☀️', nom: 'Canicule',
@@ -123,13 +97,6 @@ const PRESETS_OFFRES = [
     conseil: 'Coût faible (2 toppings) et fait découvrir la boutique à de nouveaux clients.',
   },
   {
-    id: 'precommande', emoji: '📲', nom: 'Click & collect',
-    apercu: 'Pousser la commande sur l\'appli',
-    titre: '📲 Commande sur l\'appli, zéro attente',
-    message: 'Commande en avance depuis l\'appli et récupère ta boisson sans faire la queue. Teste, tu vas adorer.',
-    conseil: 'À republier ~1×/mois pour installer le réflexe click & collect.',
-  },
-  {
     id: 'mystere', emoji: '🎁', nom: 'Boisson mystère',
     apercu: 'Fun + écouler une saveur',
     titre: '🎁 La boisson mystère est de retour',
@@ -140,14 +107,14 @@ const PRESETS_OFFRES = [
     id: 'parrainage', emoji: '🤝', nom: 'Parrainage',
     apercu: 'Tes clients recrutent pour toi',
     titre: '🤝 Amène un ami, gagnez 2 tampons',
-    message: 'Ton ami commande pour la 1ère fois en donnant ton numéro de carte ? Vous gagnez chacun 1 tampon !',
+    message: 'Ton ami fait son 1er achat en boutique avec ton numéro de carte ? Vous gagnez chacun 1 tampon !',
     conseil: 'En caisse : ajouter le tampon manuellement chez le parrain ET le filleul.',
   },
   {
     id: 'story', emoji: '📸', nom: 'Story = topping',
     apercu: 'De la pub gratuite par tes clients',
     titre: '📸 Ta story = 1 topping offert',
-    message: 'Poste ta boisson en story en nous identifiant, montre-la en caisse : topping offert sur ta prochaine commande.',
+    message: 'Poste ta boisson en story en nous identifiant, montre-la en caisse : topping offert sur ton prochain achat.',
     conseil: 'Contenu gratuit sur les réseaux — l\'équipe vérifie la story au comptoir.',
   },
   {
@@ -201,6 +168,11 @@ function mdpValide(mdp: string): boolean {
   return mdp.length >= 8 && /[a-z]/.test(mdp) && /[A-Z]/.test(mdp) && /[0-9]/.test(mdp);
 }
 
+function eurosPourSaisie(centimes: number): string {
+  const euros = centimes / 100;
+  return (Number.isInteger(euros) ? String(euros) : String(euros)).replace('.', ',');
+}
+
 // Confirmation destructive qui marche aussi sur web (Alert y est muet)
 function confirmer(titre: string, texte: string, onOk: () => void) {
   if (Platform.OS === 'web') {
@@ -249,14 +221,13 @@ export default function CompteScreen() {
   const [telFidelite, setTelFidelite] = useState('');
   const [dateNaissance, setDateNaissance] = useState(''); // JJ/MM/AAAA
   const [naissanceVerrou, setNaissanceVerrou] = useState(false); // true = déjà enregistrée → non modifiable
-  const [prenomSurTicket, setPrenomSurTicket] = useState(false);
-  const [magasinClient, setMagasinClient] = useState<string | null>(null);
-  // Boutique choisie à l'inscription (défaut = choix local de l'app, ex. onglet Commander)
-  const [magasinInscription, setMagasinInscription] = useState<MagasinId>(getMagasin());
+  // Activé par défaut pour les nouveaux comptes : le prénom peut ainsi être
+  // imprimé sur les tickets et les étiquettes sans réglage supplémentaire.
+  const [prenomSurTicket, setPrenomSurTicket] = useState(true);
   const [infosOk, setInfosOk] = useState(false);
   const [estAdmin, setEstAdmin] = useState(false);
-  // Section dépliée : null | 'profil' | 'email' | 'email-code' | 'mdp' | 'pin'
-  const [edition, setEdition] = useState<null | 'profil' | 'email' | 'email-code' | 'mdp' | 'pin'>(null);
+  // Section dépliée : profil ou sécurité du compte Supabase.
+  const [edition, setEdition] = useState<null | 'profil' | 'email' | 'email-code' | 'mdp'>(null);
   const [nouvelEmail, setNouvelEmail] = useState('');
   const [codeEmail, setCodeEmail] = useState('');
   const [nouveauMdp, setNouveauMdp] = useState('');
@@ -266,15 +237,13 @@ export default function CompteScreen() {
   useEffect(() => {
     if (!session) { setEstAdmin(false); return; }
     enregistrerPush();
-    supabase.from('profils').select('nom, numero_fidelite, est_admin, prenom_sur_ticket, magasin, date_naissance').eq('id', session.user.id).maybeSingle()
+    supabase.from('profils').select('nom, numero_fidelite, est_admin, prenom_sur_ticket, date_naissance').eq('id', session.user.id).maybeSingle()
       .then(({ data }) => {
         setPrenom(data?.nom ?? '');
         setTelFidelite(data?.numero_fidelite ?? '');
-        // Carte fidélité express : récupère auto les tampons d'un QR en attente dès qu'on a un numéro.
-        if (data?.numero_fidelite) reclamerJetonEnAttente(String(data.numero_fidelite)).catch(() => {});
-        setPrenomSurTicket(!!data?.prenom_sur_ticket);
+        // `false` explicite reste respecté pour un client qui a désactivé l'option.
+        setPrenomSurTicket(data?.prenom_sur_ticket !== false);
         setEstAdmin(!!data?.est_admin);
-        setMagasinClient(data?.magasin ?? null);
         // date_naissance (YYYY-MM-DD) → affichage JJ/MM/AAAA ; verrouillée si déjà saisie
         setDateNaissance(data?.date_naissance ? String(data.date_naissance).split('-').reverse().join('/') : '');
         setNaissanceVerrou(!!data?.date_naissance);
@@ -300,19 +269,36 @@ export default function CompteScreen() {
   const [offreCibleCats, setOffreCibleCats] = useState<string[]>([]);
   const { categories: catsCatalogue } = useCatalogueCloud(); // catégories du catalogue POS (fruit-tea…)
   const [offres, setOffres] = useState<any[]>([]);
-  const [cmdMap, setCmdMap] = useState<Record<string, boolean> | null>(null); // commande en ligne par magasin
-  const [cmdBusy, setCmdBusy] = useState<string | null>(null); // magasin en cours de bascule
+  // Registre central : tous les modules optionnels actuels et futurs apparaissent
+  // automatiquement dans le panneau « Fonctionnalités visibles ».
+  const [fonctionnalites, setFonctionnalites] = useState<EtatFonctionnalites | null>(null);
+  const [fonctionnaliteBusy, setFonctionnaliteBusy] = useState<FonctionnaliteId | null>(null);
+  const [fonctionnaliteEtat, setFonctionnaliteEtat] = useState<string | null>(null);
   // 🕹️ Jeu Boba Quest : interrupteurs clients / admin (déclarés AVANT le useEffect qui les charge)
   const [jeuFlags, setJeuFlags] = useState<JeuFlags | null>(null);
   const [jeuBusy, setJeuBusy] = useState(false);
+  // 💳 Paliers de bonus carte cadeau : configurables à distance par l'admin.
+  // Les montants restent des chaînes en euros pendant la saisie, puis sont validés
+  // et convertis en centimes uniquement au moment de l'enregistrement.
+  const [carteCadeauConfig, setCarteCadeauConfig] = useState<ConfigCarteCadeau | null>(null);
+  const [carteCadeauPaliers, setCarteCadeauPaliers] = useState<{ montant: string; bonus: string }[]>([]);
+  const [carteCadeauBusy, setCarteCadeauBusy] = useState(false);
+  const [carteCadeauEtat, setCarteCadeauEtat] = useState<string | null>(null);
   const [offreEtat, setOffreEtat] = useState<string | null>(null);
   // Preset sélectionné (pré-remplit les champs, modifiables ensuite)
   const [presetId, setPresetId] = useState<string | null>(null);
   const choisirPreset = (p: (typeof PRESETS_OFFRES)[number]) => {
-    if (presetId === p.id) { setPresetId(null); setOffreTitre(''); setOffreMessage(''); return; }
+    if (presetId === p.id) {
+      setPresetId(null); setOffreTitre(''); setOffreMessage('');
+      setOffreRemiseType(''); setOffreRemiseValeur(''); setOffreCibleCats([]);
+      return;
+    }
     setPresetId(p.id);
     setOffreTitre(p.titre);
     setOffreMessage(p.message);
+    setOffreRemiseType(('remiseType' in p ? p.remiseType : '') as '' | 'pourcent' | 'montant' | 'tampons');
+    setOffreRemiseValeur('remiseValeur' in p ? p.remiseValeur : '');
+    setOffreCibleCats([]);
     setOffreEtat(null);
   };
   const presetActif = PRESETS_OFFRES.find((p) => p.id === presetId);
@@ -320,21 +306,96 @@ export default function CompteScreen() {
     const { data } = await supabase.from('offres').select('*').order('created_at', { ascending: false }).limit(10);
     setOffres(data ?? []);
   };
-  useEffect(() => { if (estAdmin) { chargerOffres(); lireCommandeMagasins().then(setCmdMap); lireJeuFlags().then(setJeuFlags); } }, [estAdmin]);
+  const chargerConfigCarteCadeau = async () => {
+    setCarteCadeauEtat(null);
+    const config = await lireConfigCarteCadeau();
+    if (!config) {
+      setCarteCadeauEtat('Impossible de charger les paliers. Vérifie la connexion.');
+      return;
+    }
+    setCarteCadeauConfig(config);
+    setCarteCadeauPaliers(config.paliers.map((p) => ({
+      montant: eurosPourSaisie(p.des_centimes),
+      bonus: String(p.bonus_pct).replace('.', ','),
+    })));
+  };
+  useEffect(() => {
+    if (estAdmin) {
+      chargerOffres();
+      lireFonctionnalites().then(setFonctionnalites);
+      lireJeuFlags().then(setJeuFlags);
+      chargerConfigCarteCadeau();
+    }
+  }, [estAdmin]);
 
-  // Active / désactive la commande en ligne pour UN magasin (flag serveur app_config, par magasin).
-  const toggleCommande = async (magasin: string) => {
-    if (cmdMap === null || cmdBusy) return;
-    const nouveau = !cmdMap[magasin];
-    setCmdBusy(magasin);
-    setCmdMap({ ...cmdMap, [magasin]: nouveau }); // optimiste
-    const ok = await ecrireCommandeMagasin(magasin, nouveau);
-    if (!ok) setCmdMap((m) => ({ ...(m || {}), [magasin]: !nouveau })); // rollback si échec
-    setCmdBusy(null);
+  const modifierPalierCarteCadeau = (index: number, cle: 'montant' | 'bonus', valeur: string) => {
+    const nettoyee = valeur.replace(/[^0-9,.]/g, '').replace('.', ',');
+    setCarteCadeauPaliers((courants) => courants.map((p, i) => (
+      i === index ? { ...p, [cle]: nettoyee } : p
+    )));
+    setCarteCadeauEtat(null);
   };
 
-  // 🕹️ Jeu Boba Quest : DEUX interrupteurs serveur indépendants (demande Yoann) —
-  // visible pour les CLIENTS (actif) / visible pour les ADMINS (adminVisible).
+  const ajouterPalierCarteCadeau = () => {
+    if (carteCadeauPaliers.length >= 8) {
+      setCarteCadeauEtat('Maximum 8 paliers pour garder une offre lisible.');
+      return;
+    }
+    const dernier = carteCadeauPaliers
+      .map((p) => Number(p.montant.replace(',', '.')) || 0)
+      .sort((a, b) => b - a)[0] || 0;
+    setCarteCadeauPaliers((p) => [...p, {
+      montant: String(dernier > 0 ? dernier + 25 : 25).replace('.', ','),
+      bonus: '',
+    }]);
+    setCarteCadeauEtat(null);
+  };
+
+  const enregistrerPaliersCarteCadeau = async () => {
+    Keyboard.dismiss();
+    if (!carteCadeauConfig) {
+      setCarteCadeauEtat('Configuration indisponible. Recharge la page avant d’enregistrer.');
+      return;
+    }
+    const paliers = carteCadeauPaliers.map((p) => ({
+      des_centimes: Math.round(Number(p.montant.replace(',', '.')) * 100),
+      bonus_pct: Number(p.bonus.replace(',', '.')),
+    }));
+    if (paliers.some((p) => !Number.isFinite(p.des_centimes) || p.des_centimes < carteCadeauConfig.min_centimes)) {
+      setCarteCadeauEtat(`Chaque palier doit commencer à partir de ${(carteCadeauConfig.min_centimes / 100).toFixed(2).replace('.', ',')} €.`);
+      return;
+    }
+    if (paliers.some((p) => !Number.isFinite(p.bonus_pct) || p.bonus_pct <= 0 || p.bonus_pct > 100)) {
+      setCarteCadeauEtat('Chaque bonus doit être compris entre 0,1 % et 100 %.');
+      return;
+    }
+    const tries = [...paliers].sort((a, b) => a.des_centimes - b.des_centimes);
+    if (tries.some((p, i) => i > 0 && p.des_centimes === tries[i - 1].des_centimes)) {
+      setCarteCadeauEtat('Deux paliers ne peuvent pas commencer au même montant.');
+      return;
+    }
+    if (tries.some((p, i) => i > 0 && p.bonus_pct <= tries[i - 1].bonus_pct)) {
+      setCarteCadeauEtat('Le pourcentage doit augmenter avec le montant de recharge.');
+      return;
+    }
+    setCarteCadeauBusy(true);
+    setCarteCadeauEtat('Enregistrement…');
+    const ok = await ecrireConfigCarteCadeau({ ...carteCadeauConfig, paliers: tries });
+    if (ok) {
+      setCarteCadeauConfig({ ...carteCadeauConfig, paliers: tries });
+      setCarteCadeauPaliers(tries.map((p) => ({
+        montant: eurosPourSaisie(p.des_centimes),
+        bonus: String(p.bonus_pct).replace('.', ','),
+      })));
+      setCarteCadeauEtat('✓ Paliers enregistrés. Ils s’appliqueront aux prochaines recharges.');
+    } else {
+      setCarteCadeauEtat('Échec de l’enregistrement. Aucun palier n’a été modifié.');
+    }
+    setCarteCadeauBusy(false);
+  };
+
+  // 🕹️ Visibilité admin / accès individuels. Le flag « tous les clients » reste
+  // piloté par le registre central.
   const toggleJeu = async (cle: keyof JeuFlags) => {
     if (jeuFlags === null || jeuBusy) return;
     const nouveau = { ...jeuFlags, [cle]: !jeuFlags[cle] };
@@ -343,6 +404,35 @@ export default function CompteScreen() {
     const ok = await ecrireJeuFlags({ [cle]: nouveau[cle] });
     if (!ok) setJeuFlags(jeuFlags); // rollback si échec
     setJeuBusy(false);
+  };
+
+  const basculerFonctionnalite = async (id: FonctionnaliteId, actif: boolean) => {
+    if (!fonctionnalites || fonctionnaliteBusy) return;
+    if ((id === 'jeu' && jeuBusy) || (id === 'carte_cadeau' && carteCadeauBusy)) return;
+    const precedent = fonctionnalites;
+    const suivant = { ...precedent, [id]: actif };
+    setFonctionnalites(suivant);
+    setFonctionnaliteBusy(id);
+    if (id === 'jeu') setJeuBusy(true);
+    if (id === 'carte_cadeau') setCarteCadeauBusy(true);
+    setFonctionnaliteEtat(actif ? 'Activation…' : 'Masquage…');
+    const ok = await ecrireFonctionnalite(id, actif);
+    if (ok) {
+      // Les panneaux détaillés reflètent immédiatement la même source de vérité.
+      if (id === 'jeu') setJeuFlags((courant) => courant ? { ...courant, actif } : courant);
+      if (id === 'carte_cadeau') {
+        setCarteCadeauConfig((courant) => courant ? { ...courant, actif } : courant);
+      }
+      setFonctionnaliteEtat(actif
+        ? '✓ Fonction visible. Les clients la verront au prochain écran ou sous 30 secondes.'
+        : '✓ Fonction masquée. Les données existantes restent conservées.');
+    } else {
+      setFonctionnalites(precedent);
+      setFonctionnaliteEtat('Échec de l’enregistrement. La visibilité n’a pas changé.');
+    }
+    setFonctionnaliteBusy(null);
+    if (id === 'jeu') setJeuBusy(false);
+    if (id === 'carte_cadeau') setCarteCadeauBusy(false);
   };
 
   // 'HH:MM' toléré en saisie : '16', '16h', '16h30', '16:30' → normalisé ou null si invalide
@@ -429,27 +519,49 @@ export default function CompteScreen() {
     }
   };
 
-  // === Admin : message affiché en gros sur l'écran pickup de la caisse ===
-  const [msgCaisseMag, setMsgCaisseMag] = useState<MagasinId>('aix');
+  // === Admin : message prioritaire affiché au premier plan sur la caisse ===
+  const [msgCaisseMag, setMsgCaisseMag] = useState<CibleMessageCaisse>('toutes');
   const [msgCaisseTexte, setMsgCaisseTexte] = useState('');
   const [msgCaisseEtat, setMsgCaisseEtat] = useState<string | null>(null);
-  const chargerMessageCaisse = async (mag: MagasinId) => {
+  const [msgCaisseBusy, setMsgCaisseBusy] = useState(false);
+  const chargerMessageCaisse = async (mag: CibleMessageCaisse) => {
+    if (mag === 'toutes') {
+      // Le mode diffusion est volontairement un nouveau message : ne pas préremplir
+      // avec le texte d'une boutique et risquer d'écraser les deux autres par mégarde.
+      setMsgCaisseTexte('');
+      return;
+    }
     const { data } = await supabase.from('messages_caisse').select('message, actif').eq('magasin', mag).maybeSingle();
     setMsgCaisseTexte(data?.actif ? (data?.message ?? '') : '');
   };
   useEffect(() => { if (estAdmin) chargerMessageCaisse(msgCaisseMag); }, [estAdmin, msgCaisseMag]);
   const enregistrerMessageCaisse = async (effacer: boolean) => {
+    const texte = msgCaisseTexte.trim();
+    if (!effacer && !texte) return;
+    const cibles = msgCaisseMag === 'toutes' ? MAGASINS.map((m) => m.id) : [msgCaisseMag];
+    const updatedAt = new Date().toISOString();
+    setMsgCaisseBusy(true);
     setMsgCaisseEtat(effacer ? 'Effacement…' : 'Envoi…');
-    const { error } = await supabase.from('messages_caisse').upsert({
-      magasin: msgCaisseMag,
-      message: effacer ? null : msgCaisseTexte.trim(),
-      actif: !effacer,
-      updated_at: new Date().toISOString(),
-    });
-    if (error) { setMsgCaisseEtat(String(error.message)); return; }
-    if (effacer) setMsgCaisseTexte('');
-    setMsgCaisseEtat(effacer ? '✅ Message retiré de la caisse' : '✅ Message affiché à la caisse');
-    setTimeout(() => setMsgCaisseEtat(null), 3500);
+    try {
+      const { error } = await supabase.from('messages_caisse').upsert(
+        cibles.map((magasin) => ({
+          magasin,
+          message: effacer ? null : texte,
+          actif: !effacer,
+          updated_at: updatedAt,
+        })),
+        { onConflict: 'magasin' },
+      );
+      if (error) { setMsgCaisseEtat(String(error.message)); return; }
+      if (effacer || msgCaisseMag === 'toutes') setMsgCaisseTexte('');
+      const cible = msgCaisseMag === 'toutes' ? 'les 3 caisses' : (MAGASINS.find((m) => m.id === msgCaisseMag)?.nom ?? 'la caisse');
+      setMsgCaisseEtat(effacer ? `✅ Message retiré sur ${cible}` : `✅ Message envoyé au premier plan sur ${cible}`);
+      setTimeout(() => setMsgCaisseEtat(null), 3500);
+    } catch (e: any) {
+      setMsgCaisseEtat(String(e?.message ?? e));
+    } finally {
+      setMsgCaisseBusy(false);
+    }
   };
 
   const basculerOffre = async (o: any) => {
@@ -482,8 +594,6 @@ export default function CompteScreen() {
       nom: prenom.trim() || null,
       prenom_sur_ticket: prenomSurTicket,
     };
-    // Boutique : choisie/modifiée librement par le client (offres et infos locales)
-    if (magasinClient) maj.magasin = magasinClient;
     // Date de naissance : enregistrée UNE seule fois, ensuite non modifiable
     if (!naissanceVerrou) maj.date_naissance = naissanceIso;
 
@@ -494,8 +604,6 @@ export default function CompteScreen() {
         return;
       }
       if (!naissanceVerrou && naissanceIso) setNaissanceVerrou(true); // verrouille après 1er enregistrement
-      // L'app locale suit la boutique du profil (onglet Commander, catalogue, horaires)
-      if (magasinClient && MAGASINS.some((m) => m.id === magasinClient)) setMagasin(magasinClient as MagasinId);
       setInfosOk(true);
       setTimeout(() => setInfosOk(false), 2000);
     };
@@ -516,47 +624,6 @@ export default function CompteScreen() {
     setEdition(null);
     setNouvelEmail(''); setCodeEmail(''); setNouveauMdp(''); setNouveauMdp2('');
     setInfoMsg(null);
-  };
-
-  // === Changement du PIN fidélité (appliqué par la caisse sous ~1 min) ===
-  const [ancienPin, setAncienPin] = useState('');
-  const [nouveauPin, setNouveauPin] = useState('');
-  const [pinMsg, setPinMsg] = useState<string | null>(null);
-  // Affiche le résultat de la dernière demande (rempli par la caisse)
-  useEffect(() => {
-    if (!session || !telFidelite) return;
-    supabase.from('fidelite_pin_demandes')
-      .select('statut, raison, created_at')
-      .eq('telephone', telFidelite) // SA carte uniquement (la colonne DB garde son nom historique)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.statut === 'refusee') {
-          setPinMsg(data.raison === 'pin-incorrect'
-            ? '⚠️ Dernière demande refusée : ancien PIN incorrect.'
-            : '⚠️ Dernière demande refusée — vérifie ton numéro de carte.');
-        }
-      });
-  }, [session, telFidelite]);
-
-  const envoyerDemandePin = async () => {
-    const t = telFidelite.replace(/\D/g, '');
-    // Un numéro de carte = TOUJOURS 8 chiffres (l'ancien seuil `< 6` datait de l'ère téléphone)
-    if (t.length !== 8) { setPinMsg('Active d\'abord ta carte (onglet Fidélité).'); return; }
-    if (!/^\d{4}$/.test(nouveauPin)) { setPinMsg('Le nouveau PIN doit faire 4 chiffres.'); return; }
-    setPinMsg(null);
-    const { error } = await supabase.from('fidelite_pin_demandes').insert({
-      telephone: t,
-      ancien_pin: ancienPin.trim() || null,
-      nouveau_pin: nouveauPin,
-    });
-    if (error) {
-      setPinMsg(String(error.message));
-    } else {
-      setAncienPin(''); setNouveauPin(''); setEdition(null);
-      setPinMsg('✓ Demande envoyée — ton PIN sera mis à jour en boutique d\'ici quelques minutes.');
-    }
   };
 
   // 1. Demande de changement d'email → Supabase envoie un code au nouvel email
@@ -654,9 +721,9 @@ export default function CompteScreen() {
     }
   };
 
-  // === Connexion / inscription via Google (OAuth Supabase) ===
+  // === Connexion / inscription via Google ===
   // Web/PWA : redirection de la page puis retour (session lue dans l'URL).
-  // Natif : ouverture de la page de consentement Google.
+  // Natif : une seule feuille Google native, puis échange direct du jeton avec Supabase.
   const loginGoogle = async () => {
     setMessage(null);
     try {
@@ -667,35 +734,9 @@ export default function CompteScreen() {
         if (error) throw error;
         return;
       }
-      // Natif : on ouvre Google dans une session navigateur et on CAPTE le retour deep-link
-      // (sinon le navigateur retombe sur le site web et l'app ne reçoit jamais la session).
-      const redirectTo = createURL('/'); // ex. bubblestop://
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo, skipBrowserRedirect: true },
-      });
-      if (error) throw error;
-      if (!data?.url) throw new Error('URL OAuth introuvable');
-      const res = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-      if (res.type !== 'success' || !res.url) return; // annulé par l'utilisateur
-      // Récupère la session depuis l'URL de retour : ?code= (PKCE) ou #access_token= (implicite).
-      const retour = res.url;
-      const lire = (s: string): Record<string, string> => {
-        const out: Record<string, string> = {};
-        s.split('&').forEach((kv) => { const [k, v] = kv.split('='); if (k) out[decodeURIComponent(k)] = decodeURIComponent(v || ''); });
-        return out;
-      };
-      const q = lire(retour.includes('?') ? retour.split('?')[1].split('#')[0] : '');
-      if (q.code) {
-        const { error: e2 } = await supabase.auth.exchangeCodeForSession(q.code);
-        if (e2) throw e2;
-      } else {
-        const h = lire(retour.includes('#') ? retour.split('#')[1] : '');
-        if (h.access_token && h.refresh_token) {
-          const { error: e3 } = await supabase.auth.setSession({ access_token: h.access_token, refresh_token: h.refresh_token });
-          if (e3) throw e3;
-        }
-      }
+      const resultatNatif = await connexionGoogleNative();
+      if (resultatNatif.ok || resultatNatif.annule) return;
+      throw new Error(resultatNatif.message);
     } catch (e: any) {
       setMessage(String(e?.message ?? e));
     }
@@ -758,13 +799,18 @@ export default function CompteScreen() {
         setMessage('Renseigne ta date de naissance (JJ/MM/AAAA).');
         return;
       }
+      const parrain = codeParrain.replace(/\D/g, '');
+      if (parrain && parrain.length !== 8) {
+        setMessage('Le numéro fidélité de ton parrain doit contenir exactement 8 chiffres. Laisse le champ vide si tu n’en as pas.');
+        return;
+      }
     }
     setEnCours(true);
     try {
       if (mode === 'inscription') {
         // Code parrain (optionnel) : mémorisé AVANT la création du compte — il sera
         // appliqué tout seul à la 1ère session (best effort, jamais bloquant).
-        if (codeParrain.replace(/\D/g, '').length >= 6) {
+        if (codeParrain.replace(/\D/g, '').length === 8) {
           try { await memoriserCodeParrain(codeParrain); } catch (e) { /* best effort */ }
         }
         // 1. Création du compte auth
@@ -787,10 +833,9 @@ export default function CompteScreen() {
             nom: nom.trim() || null,
             email: mail,
             date_naissance: naissanceIso,
-            magasin: magasinInscription, // boutique CHOISIE par le client (fix « Lyon → Toulouse »)
+            prenom_sur_ticket: true,
           });
           if (errProfil) throw errProfil;
-          setMagasin(magasinInscription);
         } else {
           // Confirmation email activée : un code a été envoyé, on le demande ici
           setMode('confirmation');
@@ -837,9 +882,8 @@ export default function CompteScreen() {
           nom: nom.trim() || null,
           email: mail,
           date_naissance: naissanceVersIso(dateNaissance),
-          magasin: magasinInscription, // boutique CHOISIE par le client
+          prenom_sur_ticket: true,
         });
-        setMagasin(magasinInscription);
       }
       setCodeReset('');
       setMode('connexion'); // la session est active → l'écran compte s'affiche
@@ -919,7 +963,7 @@ export default function CompteScreen() {
   const supprimerCompte = () => {
     confirmer(
       'Supprimer mon compte',
-      'Ton compte, tes commandes et ta carte seront supprimés définitivement. Cette action est irréversible.',
+      'Ton compte et les données personnelles qui lui sont directement rattachées seront supprimés. Les justificatifs soumis à une obligation légale peuvent être conservés sans accès au compte.',
       async () => {
         try {
           const { data, error } = await supabase.functions.invoke('supprimer-compte');
@@ -944,24 +988,22 @@ export default function CompteScreen() {
   // === Connecté : hub du compte ===
   if (session) {
     const initiale = (prenom || session.user.email || '?').trim().charAt(0).toUpperCase();
-    const nomMagasin = magasinClient ? (MAGASINS.find((m) => m.id === magasinClient)?.nom || magasinClient) : null;
     return (
       <View style={styles.fond}>
-        {/* KAV indispensable (rejet App Store 4.0 iPad) : les champs number-pad du bas
-            (PIN, codes) n'ont pas de touche retour et masquaient leurs boutons. */}
+        {/* KAV indispensable (rejet App Store 4.0 iPad) : les champs de codes n'ont
+            pas toujours de touche retour et peuvent masquer leurs boutons. */}
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           contentContainerStyle={[styles.contenu, { paddingTop: insets.top + 18 }]}
           keyboardShouldPersistTaps="handled">
-          <Text style={styles.titre}>Mon compte</Text>
+          <TitreKawaii texte="Mon compte" taille={26} />
 
           {/* === En-tête profil === */}
           <Carte style={styles.profil}>
-            <View style={styles.avatar}><Text style={styles.avatarTxt}>{initiale}</Text></View>
+            <MascottePerle taille={52} />
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={styles.profilNom}>{prenom || 'Mon profil'}</Text>
               <Text style={styles.profilEmail} numberOfLines={1}>{session.user.email}</Text>
-              {!!nomMagasin && <Text style={styles.profilMagasin}>📍 {nomMagasin}</Text>}
             </View>
           </Carte>
 
@@ -970,7 +1012,7 @@ export default function CompteScreen() {
           <Carte style={{ paddingVertical: 4 }}>
             <LigneMenu
               titre="Mes informations"
-              sousTitre="Prénom, numéro de carte, prénom sur les tickets"
+              sousTitre="Prénom, numéro de carte, tickets et étiquettes"
               onPress={() => (edition === 'profil' ? fermerEdition() : setEdition('profil'))}
             />
             {edition === 'profil' && (
@@ -1006,7 +1048,7 @@ export default function CompteScreen() {
                   <Text style={styles.aideChamp}>🔒 Date de naissance enregistrée — non modifiable.</Text>
                 )}
                 <View style={styles.ligneSwitch}>
-                  <Text style={styles.ligneSwitchTxt}>Afficher mon prénom sur mes tickets</Text>
+                  <Text style={styles.ligneSwitchTxt}>Afficher mon prénom sur mes tickets et étiquettes</Text>
                   <Switch
                     value={prenomSurTicket}
                     onValueChange={setPrenomSurTicket}
@@ -1014,9 +1056,6 @@ export default function CompteScreen() {
                     thumbColor="#fff"
                   />
                 </View>
-                {/* Boutique : le client choisit SA ville (avant : héritée de la caisse qui
-                    traitait son bonus de bienvenue → clients Lyon marqués « Toulouse ») */}
-                <ChoixBoutique valeur={magasinClient} onChange={(id) => setMagasinClient(id)} label="Ma boutique" />
                 <BoutonPrimaire titre={infosOk ? '✓ Enregistré' : 'Enregistrer'} onPress={enregistrerInfos} />
               </View>
             )}
@@ -1024,11 +1063,6 @@ export default function CompteScreen() {
               titre="Ma carte de fidélité"
               sousTitre="QR, tampons et boissons offertes"
               onPress={() => router.push('/explore' as any)}
-            />
-            <LigneMenu
-              titre="Mes commandes"
-              sousTitre="Suivi et historique"
-              onPress={() => router.push('/commander/mes-commandes' as any)}
               separateur={false}
             />
           </Carte>
@@ -1102,39 +1136,6 @@ export default function CompteScreen() {
               </View>
             )}
 
-            <LigneMenu
-              titre="Code PIN fidélité"
-              sousTitre="Utilisé en caisse avec ton numéro"
-              onPress={() => {
-                if (edition === 'pin') { fermerEdition(); return; }
-                setEdition('pin'); setPinMsg(null);
-              }}
-              separateur={false}
-            />
-            {edition === 'pin' && (
-              <View style={styles.depli}>
-                <ChampTexte
-                  label="Ancien PIN (vide si jamais défini)"
-                  value={ancienPin}
-                  onChangeText={setAncienPin}
-                  placeholder="••••"
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  secureTextEntry
-                />
-                <ChampTexte
-                  label="Nouveau PIN (4 chiffres)"
-                  value={nouveauPin}
-                  onChangeText={setNouveauPin}
-                  placeholder="••••"
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  secureTextEntry
-                />
-                <BoutonPrimaire titre="Changer mon PIN" onPress={envoyerDemandePin} />
-              </View>
-            )}
-            {!!pinMsg && <View style={{ paddingBottom: 12 }}><Message texte={pinMsg} /></View>}
             {!!infoMsg && <View style={{ paddingBottom: 12 }}><Message texte={infoMsg} type={infoMsg.startsWith('✓') ? 'ok' : 'info'} /></View>}
           </Carte>
 
@@ -1154,59 +1155,72 @@ export default function CompteScreen() {
           </Carte>
 
           <BoutonGhost titre="Se déconnecter" onPress={deconnexion} />
-          <BoutonGhost titre="Supprimer mon compte" onPress={supprimerCompte} danger />
 
           {/* === Section ADMIN === */}
           {estAdmin && (
             <>
               <TitreSection texte="🛠️ Admin" />
-              <Carte style={{ gap: 10 }}>
-                <BoutonPrimaire
-                  titre="📋 Toutes les commandes (3 magasins)"
-                  onPress={() => router.push('/commander/admin-commandes' as any)}
-                />
-              </Carte>
 
-              {/* Commande en ligne : activable PAR MAGASIN (l'appli sert d'abord à la fidélité) */}
-              <Carte style={{ gap: 10 }}>
-                <Text style={styles.adminTitre}>Commande en ligne (par magasin)</Text>
+              {/* Registre central : ce bloc se complète automatiquement lorsqu'une future
+                  fonctionnalité optionnelle est déclarée dans lib/fonctionnalites.ts. */}
+              <Carte style={{ gap: 11 }}>
+                <Text style={styles.adminTitre}>👁️ Fonctionnalités visibles</Text>
                 <Text style={styles.cmdToggleSous}>
-                  Active la commande dans l'appli pour les clients d'un magasin. Désactivée = fidélité uniquement.
+                  Ces réglages agissent à distance, sans nouvelle version sur les stores.
+                  Fidélité, parrainage, accueil et compte restent toujours accessibles.
                 </Text>
-                {MAGASINS.map((m) => (
-                  <View key={m.id} style={styles.cmdMagLigne}>
-                    <Text style={styles.cmdMagNom}>{m.nom}</Text>
+                {fonctionnalites ? REGISTRE_FONCTIONNALITES.map((fonctionnalite) => (
+                  <View key={fonctionnalite.id} style={styles.fonctionnaliteLigne}>
+                    <View style={{ flex: 1, paddingRight: 12, gap: 2 }}>
+                      <Text style={styles.cmdMagNom}>{fonctionnalite.titre}</Text>
+                      <Text style={styles.cmdToggleSous}>{fonctionnalite.description}</Text>
+                    </View>
                     <Switch
-                      value={!!cmdMap?.[m.id]}
-                      onValueChange={() => toggleCommande(m.id)}
-                      disabled={cmdMap === null || cmdBusy === m.id}
+                      value={fonctionnalites[fonctionnalite.id]}
+                      onValueChange={(valeur) => basculerFonctionnalite(fonctionnalite.id, valeur)}
+                      disabled={fonctionnaliteBusy !== null
+                        || (fonctionnalite.id === 'jeu' && jeuBusy)
+                        || (fonctionnalite.id === 'carte_cadeau' && carteCadeauBusy)}
                       trackColor={{ true: C.vert, false: '#C9C2D6' }}
                       thumbColor="#fff"
                     />
                   </View>
-                ))}
+                )) : (
+                  <ActivityIndicator color={C.violet} />
+                )}
+                {fonctionnaliteEtat && (
+                  <Message
+                    texte={fonctionnaliteEtat}
+                    type={fonctionnaliteEtat.startsWith('✓') ? 'ok' : fonctionnaliteEtat.startsWith('Échec') ? 'erreur' : 'info'}
+                  />
+                )}
+                <Text style={styles.carteCadeauDirect}>
+                  Toute future fonction optionnelle devra être inscrite dans ce registre avant publication.
+                </Text>
               </Carte>
 
-              {/* 🕹️ Jeu Boba Quest : deux interrupteurs indépendants (clients / admin) */}
+              <AdminMiseAJour />
+
+              {/* 🕹️ Le toggle « tous les clients » est dans le registre. Ici, on garde
+                  l'accès admin et le coupe-circuit des autorisations individuelles. */}
               <Carte style={{ gap: 10 }}>
-                <Text style={styles.adminTitre}>🕹️ Jeu Boba Quest</Text>
+                <Text style={styles.adminTitre}>🕹️ Boba Quest · accès avancés</Text>
                 <Text style={styles.cmdToggleSous}>
-                  Deux interrupteurs indépendants : l'onglet jeu peut être ouvert aux clients,
-                  ou visible seulement pour toi (pour tester), ou coupé partout. La progression
-                  des joueurs n'est jamais effacée — caché ≠ remis à zéro.
+                  Les accès individuels sont accordés membre par membre depuis l’app stock.
+                  Couper ce réglage les suspend tous sans effacer leur progression.
                 </Text>
-                <View style={styles.cmdMagLigne}>
-                  <Text style={styles.cmdMagNom}>Visible pour les clients</Text>
+                <View style={styles.fonctionnaliteLigne}>
+                  <Text style={[styles.cmdMagNom, { flex: 1 }]}>Accès individuels actifs</Text>
                   <Switch
-                    value={!!jeuFlags?.actif}
-                    onValueChange={() => toggleJeu('actif')}
+                    value={!!jeuFlags?.selectionActive}
+                    onValueChange={() => toggleJeu('selectionActive')}
                     disabled={jeuFlags === null || jeuBusy}
                     trackColor={{ true: C.vert, false: '#C9C2D6' }}
                     thumbColor="#fff"
                   />
                 </View>
-                <View style={styles.cmdMagLigne}>
-                  <Text style={styles.cmdMagNom}>Visible pour l'admin (moi)</Text>
+                <View style={styles.fonctionnaliteLigne}>
+                  <Text style={[styles.cmdMagNom, { flex: 1 }]}>Visible pour l’admin</Text>
                   <Switch
                     value={!!jeuFlags?.adminVisible}
                     onValueChange={() => toggleJeu('adminVisible')}
@@ -1217,11 +1231,105 @@ export default function CompteScreen() {
                 </View>
               </Carte>
 
+              {/* 💳 Bonus de recharge : configuration LIVE lue par solde-api. */}
+              <Carte style={{ gap: 12 }}>
+                <Text style={styles.adminTitre}>💳 Carte cadeau · bonus de recharge</Text>
+                <Text style={styles.cmdToggleSous}>
+                  Choisis le montant de chaque palier et le pourcentage offert. Le solde payé
+                  et son bonus sont crédités sur le même compte fidélité. Modifier ces valeurs
+                  ne change jamais les soldes déjà acquis.
+                </Text>
+                {carteCadeauConfig ? (
+                  <>
+                    <Text style={styles.carteCadeauDirect}>
+                      Visibilité pilotée dans « Fonctionnalités visibles » ci-dessus.
+                    </Text>
+                    <View style={styles.carteCadeauMinimum}>
+                      <Text style={styles.carteCadeauMinimumLabel}>Recharge minimum</Text>
+                      <Text style={styles.carteCadeauMinimumValeur}>
+                        {(carteCadeauConfig.min_centimes / 100).toFixed(2).replace('.', ',')} €
+                      </Text>
+                    </View>
+                    {carteCadeauPaliers.length === 0 && (
+                      <Message texte="Aucun bonus configuré : les recharges créditeront uniquement le montant payé." />
+                    )}
+                    {carteCadeauPaliers.map((palier, index) => (
+                      <View key={index} style={styles.carteCadeauPalier}>
+                        <View style={{ flex: 1 }}>
+                          <ChampTexte
+                            label={`Palier ${index + 1} · dès (€)`}
+                            value={palier.montant}
+                            onChangeText={(v) => modifierPalierCarteCadeau(index, 'montant', v)}
+                            placeholder="25"
+                            keyboardType="decimal-pad"
+                            returnKeyType="done"
+                            onSubmitEditing={Keyboard.dismiss}
+                            maxLength={8}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <ChampTexte
+                            label="Bonus offert (%)"
+                            value={palier.bonus}
+                            onChangeText={(v) => modifierPalierCarteCadeau(index, 'bonus', v)}
+                            placeholder="10"
+                            keyboardType="decimal-pad"
+                            returnKeyType="done"
+                            onSubmitEditing={Keyboard.dismiss}
+                            maxLength={6}
+                          />
+                        </View>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Supprimer le palier ${index + 1}`}
+                          hitSlop={8}
+                          style={styles.carteCadeauSupprimer}
+                          onPress={() => {
+                            setCarteCadeauPaliers((p) => p.filter((_, i) => i !== index));
+                            setCarteCadeauEtat(null);
+                          }}>
+                          <Text style={styles.carteCadeauSupprimerTexte}>×</Text>
+                        </Pressable>
+                      </View>
+                    ))}
+                    <BoutonGhost titre="+ Ajouter un palier" onPress={ajouterPalierCarteCadeau} />
+                    <Text style={styles.carteCadeauAide}>
+                      Exemple : 25 € + 10 % = 27,50 € crédités. Le bonus doit progresser avec
+                      les montants. Le meilleur palier atteint est appliqué une seule fois.
+                    </Text>
+                    {carteCadeauEtat && (
+                      <Message
+                        texte={carteCadeauEtat}
+                        type={carteCadeauEtat.startsWith('✓') ? 'ok' : carteCadeauEtat.startsWith('Échec') || carteCadeauEtat.startsWith('Impossible') ? 'erreur' : 'info'}
+                      />
+                    )}
+                    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                      <BoutonPrimaire
+                        titre="Enregistrer les paliers"
+                        onPress={enregistrerPaliersCarteCadeau}
+                        loading={carteCadeauBusy}
+                        style={{ flex: 1 }}
+                      />
+                      <BoutonGhost titre="Fermer le clavier" onPress={Keyboard.dismiss} />
+                    </View>
+                    <Text style={styles.carteCadeauDirect}>
+                      ⚡ Réglage immédiat : les prochaines recharges utilisent ces valeurs sans mise à jour de l’app.
+                    </Text>
+                  </>
+                ) : (
+                  <View style={{ gap: 8 }}>
+                    <ActivityIndicator color={C.violet} />
+                    {carteCadeauEtat && <Message texte={carteCadeauEtat} type="erreur" />}
+                    <BoutonGhost titre="Réessayer" onPress={chargerConfigCarteCadeau} />
+                  </View>
+                )}
+              </Carte>
+
               {/* Offres / annonces */}
               <Carte style={{ gap: 10 }}>
                 <Text style={styles.adminTitre}>Offres & annonces</Text>
                 <Text style={styles.cmdToggleSous}>
-                  Publiée = visible sur l'accueil de l'appli · « + push » = notification à tous les clients.
+                  Publiée = visible sur l'accueil · « + push » = notification à tous · tout avantage automatique exige un scan fidélité.
                 </Text>
 
                 {/* === Modèles prêts à publier (pictos maison, scroll horizontal) === */}
@@ -1305,11 +1413,11 @@ export default function CompteScreen() {
 
                 {/* === 💶 Remise automatique en caisse (contenu structuré de l'offre) === */}
                 <View style={styles.progBloc}>
-                  <Text style={styles.progTitre}>💶 Remise automatique en caisse (optionnel)</Text>
+                  <Text style={styles.progTitre}>🎟️ Avantage fidélité automatique en caisse (optionnel)</Text>
                   <Text style={styles.progAide}>
-                    La caisse applique la remise TOUTE SEULE pendant la fenêtre de l'offre
-                    (caisse + borne, ligne dédiée sur le ticket). Sans réglage, l'offre est
-                    purement informative et l'employé applique la remise à la main.
+                    La caisse applique l'avantage TOUTE SEULE pendant la fenêtre, mais uniquement
+                    après le scan du QR fidélité (caisse + borne, ligne dédiée sur le ticket).
+                    Sans scan : aucun avantage. Sans réglage : annonce purement informative.
                   </Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                     {([['', 'Aucune'], ['pourcent', '− %'], ['montant', '− € / boisson'], ['tampons', '🎟️ Tampons ×N']] as ['' | 'pourcent' | 'montant' | 'tampons', string][]).map(([t, nom]) => (
@@ -1323,7 +1431,8 @@ export default function CompteScreen() {
                   </View>
                   {offreRemiseType === 'tampons' && (
                     <Text style={styles.progAide}>
-                      🎟️ Chaque boisson payée crédite N tampons (borne + caisse, automatique).
+                      🎟️ Après le scan fidélité, chaque boisson payée crédite N tampons
+                      (borne + caisse, automatique).
                       Le bonus se cumule sur la carte pour la prochaine visite — les boissons
                       offertes n'en gagnent pas.
                     </Text>
@@ -1380,7 +1489,7 @@ export default function CompteScreen() {
                       )}
                       {o.remise_type === 'tampons' && Number(o.remise_valeur) >= 2 && (
                         <Text style={styles.offreLigneSous} numberOfLines={1}>
-                          🎟️ Tampons ×{Math.round(Number(o.remise_valeur))} sur toute la commande · auto borne + caisse
+                          🎟️ Tampons ×{Math.round(Number(o.remise_valeur))} sur tout le ticket · scan fidélité requis
                         </Text>
                       )}
                       {(o.remise_type === 'pourcent' || o.remise_type === 'montant') && Number(o.remise_valeur) > 0 && (
@@ -1392,7 +1501,7 @@ export default function CompteScreen() {
                           {Array.isArray(o.cible_categories) && o.cible_categories.length
                             ? o.cible_categories.map((id: string) => catsCatalogue.find((c: any) => c.id === id)?.nom || id).join(', ')
                             : 'toute la carte'}
-                          {' · appliquée auto en caisse'}
+                          {' · appliquée auto après scan fidélité'}
                         </Text>
                       )}
                       <Text style={styles.offreLigneSous} numberOfLines={1}>
@@ -1411,11 +1520,14 @@ export default function CompteScreen() {
                 ))}
               </Carte>
 
-              {/* Message affiché EN GROS sur l'écran pickup de la caisse */}
+              {/* Message prioritaire affiché au premier plan sur les caisses */}
               <Carte style={{ gap: 10 }}>
-                <Text style={styles.adminTitre}>📢 Message à la caisse (pickup)</Text>
+                <Text style={styles.adminTitre}>📢 Message prioritaire aux caisses</Text>
+                <Text style={styles.cmdToggleSous}>
+                  Une fenêtre passe au premier plan sous quelques secondes. Le caissier touche « OK, fermer » pour reprendre la caisse ; modifier ou renvoyer le message la fera réapparaître.
+                </Text>
                 <View style={styles.msgCaisseMags}>
-                  {MAGASINS.map((m) => (
+                  {([{ id: 'toutes', nom: 'Toutes les caisses' }, ...MAGASINS] as { id: CibleMessageCaisse; nom: string }[]).map((m) => (
                     <Pressable
                       key={m.id}
                       style={[styles.msgCaisseChip, msgCaisseMag === m.id && styles.msgCaisseChipActif]}
@@ -1433,14 +1545,15 @@ export default function CompteScreen() {
                   placeholder="Ex : Pensez à proposer la nouvelle saveur matcha fraise !"
                   placeholderTextColor={C.texte3}
                   multiline
-                  maxLength={200}
+                  maxLength={500}
                 />
                 {msgCaisseEtat && <Message texte={msgCaisseEtat} />}
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <BoutonPrimaire
-                    titre="Afficher à la caisse"
+                    titre={msgCaisseMag === 'toutes' ? 'Afficher sur les 3 caisses' : 'Afficher sur cette caisse'}
                     onPress={() => enregistrerMessageCaisse(false)}
-                    disabled={!msgCaisseTexte.trim()}
+                    disabled={!msgCaisseTexte.trim() || msgCaisseBusy}
+                    loading={msgCaisseBusy}
                     style={{ flex: 1 }}
                   />
                   <BoutonGhost titre="Retirer" onPress={() => enregistrerMessageCaisse(true)} style={{ alignSelf: 'center' }} />
@@ -1448,6 +1561,21 @@ export default function CompteScreen() {
               </Carte>
             </>
           )}
+
+          {/* La suppression reste disponible (RGPD / stores), mais volontairement
+              isolée de la déconnexion pour éviter tout appui accidentel. */}
+          <View style={styles.zoneSensible}>
+            <TitreSection texte="Zone sensible" />
+            <Carte style={{ paddingVertical: 4 }}>
+              <LigneMenu
+                titre="Supprimer définitivement mon compte"
+                sousTitre="Action irréversible, avec une confirmation supplémentaire"
+                onPress={supprimerCompte}
+                danger
+                separateur={false}
+              />
+            </Carte>
+          </View>
         </ScrollView>
         </KeyboardAvoidingView>
       </View>
@@ -1460,7 +1588,13 @@ export default function CompteScreen() {
       <View style={styles.fond}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={[styles.contenuAuth, { paddingTop: insets.top + 18 }]} keyboardShouldPersistTaps="handled">
-            <Text style={styles.logoAuth}>BUBBLE STOP</Text>
+            <View
+              style={styles.logoAuth}
+              accessible
+              accessibilityRole="image"
+              accessibilityLabel="Logo Bubble Stop">
+              <LogoBubbleStop largeur={205} />
+            </View>
             <Carte style={styles.carteAuth}>
               <Text style={styles.titreAuth}>Confirme ton compte</Text>
               <Text style={styles.aideAuth}>Entre le code reçu par email.</Text>
@@ -1494,7 +1628,13 @@ export default function CompteScreen() {
       <View style={styles.fond}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={[styles.contenuAuth, { paddingTop: insets.top + 18 }]} keyboardShouldPersistTaps="handled">
-            <Text style={styles.logoAuth}>BUBBLE STOP</Text>
+            <View
+              style={styles.logoAuth}
+              accessible
+              accessibilityRole="image"
+              accessibilityLabel="Logo Bubble Stop">
+              <LogoBubbleStop largeur={205} />
+            </View>
             <Carte style={styles.carteAuth}>
               <Text style={styles.titreAuth}>Mot de passe oublié</Text>
 
@@ -1552,7 +1692,13 @@ export default function CompteScreen() {
     <View style={styles.fond}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={[styles.contenuAuth, { paddingTop: insets.top + 18 }]} keyboardShouldPersistTaps="handled">
-          <Text style={styles.logoAuth}>BUBBLE STOP</Text>
+          <View
+            style={styles.logoAuth}
+            accessible
+            accessibilityRole="image"
+            accessibilityLabel="Logo Bubble Stop">
+            <LogoBubbleStop largeur={205} />
+          </View>
 
           <Carte style={styles.carteAuth}>
             {/* Bascule connexion / inscription */}
@@ -1593,22 +1739,21 @@ export default function CompteScreen() {
                 />
                 <Text style={styles.reglesMdp}>🎂 Une grande boisson (taille L) offerte le jour de ton anniversaire. Non modifiable une fois enregistrée.</Text>
                 <ChampTexte
+                  label="Numéro fidélité de ton parrain (optionnel)"
                   value={codeParrain}
-                  onChangeText={(v) => setCodeParrain(v.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="Code parrain (optionnel)"
+                  onChangeText={(v) => {
+                    const code = v.replace(/\D/g, '').slice(0, 8);
+                    setCodeParrain(code);
+                    if (code.length === 8) Keyboard.dismiss();
+                  }}
+                  placeholder="8 chiffres, ex. 12345678"
                   keyboardType="number-pad"
-                  maxLength={10}
+                  maxLength={8}
                   returnKeyType="done"
                   onSubmitEditing={() => Keyboard.dismiss()}
                 />
                 <Text style={styles.aideChamp}>
-                  🤝 Un ami t'a parrainé ? Entre son code (= son numéro de fidélité) : vous serez récompensés en tampons après ta première commande.
-                </Text>
-                {/* Boutique du client : choisie PAR LE CLIENT (modifiable ensuite dans Mes informations) */}
-                <ChoixBoutique valeur={magasinInscription} onChange={setMagasinInscription} />
-                <Text style={styles.aideChamp}>
-                  📍 Ta boutique habituelle — pour tes offres et infos locales. Modifiable à tout
-                  moment, et ta carte de fidélité marche dans TOUTES les boutiques Bubble Stop.
+                  🤝 Demande à ton parrain le numéro à 8 chiffres affiché sous son QR dans Fidélité → Parrainage. C'est son code parrain — n'entre pas ton propre numéro. Les bonus arrivent après ton premier achat en boutique.
                 </Text>
               </>
             )}
@@ -1678,19 +1823,41 @@ const styles = StyleSheet.create({
   avatarTxt: { fontFamily: F.titre, fontSize: 22, color: '#fff' },
   profilNom: { fontFamily: F.t800, fontSize: 17, color: C.texte },
   profilEmail: { fontFamily: F.t400, fontSize: 13, color: C.texte2 },
-  profilMagasin: { fontFamily: F.t700, fontSize: 12, color: C.violetClair, marginTop: 2 },
 
   // Sections dépliables
   depli: { gap: 12, paddingBottom: 16, paddingTop: 4 },
   aideChamp: { fontFamily: F.t400, fontSize: 12, color: C.texte3, lineHeight: 17 },
   ligneSwitch: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   ligneSwitchTxt: { flex: 1, fontFamily: F.t600, fontSize: 14, color: C.texte },
+  zoneSensible: { marginTop: 28, gap: 12 },
 
   // Admin
   adminTitre: { fontFamily: F.titre, fontSize: 15.5, color: C.violet },
   cmdToggleSous: { fontFamily: F.t600, fontSize: 12.5, color: C.texte2, lineHeight: 17 },
   cmdMagLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
   cmdMagNom: { fontFamily: F.t700, fontSize: 15, color: C.texte },
+  fonctionnaliteLigne: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.bord,
+  },
+  carteCadeauMinimum: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: C.vertPale, borderRadius: 13, paddingVertical: 10, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: C.vert,
+  },
+  carteCadeauMinimumLabel: { fontFamily: F.t700, fontSize: 13, color: C.violetProfond },
+  carteCadeauMinimumValeur: { fontFamily: F.titre, fontSize: 15, color: C.violet },
+  carteCadeauPalier: {
+    flexDirection: 'row', alignItems: 'flex-end', gap: 8,
+    backgroundColor: C.fond, borderRadius: 14, padding: 10,
+  },
+  carteCadeauSupprimer: {
+    width: 32, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.dangerPale,
+  },
+  carteCadeauSupprimerTexte: { fontFamily: F.t800, fontSize: 21, color: C.danger, lineHeight: 23 },
+  carteCadeauAide: { fontFamily: F.t400, fontSize: 11.5, color: C.texte3, lineHeight: 16 },
+  carteCadeauDirect: { fontFamily: F.t600, fontSize: 11.5, color: C.vertFonce, lineHeight: 16, textAlign: 'center' },
   // Presets d'offres (pictos SVG maison — charte)
   presetsAide: { fontFamily: F.t600, fontSize: 12.5, color: C.texte3, marginBottom: -2 },
   presetsRail: { gap: 9, paddingVertical: 2, paddingRight: 6 },
@@ -1735,7 +1902,7 @@ const styles = StyleSheet.create({
 
   // Écrans d'authentification
   contenuAuth: { flexGrow: 1, justifyContent: 'center', padding: 22, gap: 18, paddingBottom: 40 },
-  logoAuth: { fontFamily: F.titre, fontSize: 28, color: C.violet, textAlign: 'center', letterSpacing: 0.5 },
+  logoAuth: { alignItems: 'center', justifyContent: 'center' },
   carteAuth: { gap: 13 },
   titreAuth: { fontFamily: F.t800, fontSize: 19, color: C.texte, textAlign: 'center' },
   aideAuth: { fontFamily: F.t400, fontSize: 14, color: C.texte2, textAlign: 'center', lineHeight: 20 },

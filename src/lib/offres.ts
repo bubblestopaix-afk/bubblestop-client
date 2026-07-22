@@ -21,6 +21,7 @@ export type Offre = {
   push_auto?: boolean | null;
   dernier_push_auto?: string | null;
   // Contenu structuré : remise appliquée AUTOMATIQUEMENT par la caisse (≥ POS 0.28.138)
+  // Les avantages structurés sont réservés aux commandes avec fidélité scannée.
   // 'tampons' (≥ POS 0.28.159) : PAS une remise en € — chaque boisson payée crédite
   // remise_valeur tampons (×2, ×3…), borne + caisse, cumulés pour la prochaine visite.
   remise_type?: 'pourcent' | 'montant' | 'tampons' | null; // −% | −€/boisson | tampons ×N

@@ -7,12 +7,13 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
-import { C, F, R, OMBRE } from '@/constants/charte';
+import { BORD, C, F, OMBRE, R } from '@/constants/charte';
 import { BOUTIQUE, Gain } from '@/components/jeu/economie';
 import { Icone } from '@/components/jeu/icones';
 import {
   BandeauPreview, BoutonJeu, EnTeteJeu, formatNb, IconePerle,
 } from '@/components/jeu/ui-jeu';
+import { hapticSucces } from '@/lib/juice';
 import { acheterBoutique, restantCeMois, useBobaQuest, utiliserGain } from '@/store/jeu';
 
 const ORIGINES: Record<Gain['origine'], string> = {
@@ -20,6 +21,7 @@ const ORIGINES: Record<Gain['origine'], string> = {
   collection: 'Collection complète',
   boutique: 'Boutique',
   roulette: 'Roulette du mois',
+  quete: 'Quête « Mon premier tampon »',
 };
 
 export default function BoutiqueScreen() {
@@ -27,11 +29,6 @@ export default function BoutiqueScreen() {
   const etat = useBobaQuest();
   const [celebration, setCelebration] = useState<Gain | null>(null);
   const [detail, setDetail] = useState<Gain | null>(null);
-  const objectif = BOUTIQUE
-    .filter((p) => restantCeMois(p.id, etat) > 0)
-    .sort((a, b) => Math.max(0, a.cout - etat.perles) - Math.max(0, b.cout - etat.perles))[0];
-  const manqueObjectif = objectif ? Math.max(0, objectif.cout - etat.perles) : 0;
-  const partiesEstimees = Math.max(1, Math.ceil(manqueObjectif / 200));
 
   return (
     <View style={[styles.fond, { paddingTop: insets.top + 10 }]}>
@@ -43,30 +40,6 @@ export default function BoutiqueScreen() {
         <Text style={styles.pitch}>
           Échange tes perles contre de vrais prix Bubble Stop
         </Text>
-
-        {objectif && (
-          <View style={styles.objectif} accessibilityRole="summary">
-            <View style={styles.objectifHaut}>
-              <Icone nom="cible" taille={21} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.objectifLabel}>Ton prochain objectif</Text>
-                <Text style={styles.objectifPrix}>{objectif.label}</Text>
-              </View>
-              <View style={styles.objectifCout}>
-                <IconePerle taille={15} />
-                <Text style={styles.objectifCoutTxt}>{formatNb(objectif.cout)}</Text>
-              </View>
-            </View>
-            <View style={styles.barre}>
-              <View style={[styles.barreRemplie, { width: `${Math.min(100, etat.perles / objectif.cout * 100)}%` }]} />
-            </View>
-            <Text style={styles.objectifAide}>
-              {manqueObjectif === 0
-                ? 'Tu peux le récupérer maintenant.'
-                : `Encore ${formatNb(manqueObjectif)} perles · environ ${partiesEstimees} partie${partiesEstimees > 1 ? 's' : ''} réussie${partiesEstimees > 1 ? 's' : ''} à ~200 perles`}
-            </Text>
-          </View>
-        )}
 
         {BOUTIQUE.map((p) => {
           const restant = restantCeMois(p.id, etat);
@@ -97,14 +70,18 @@ export default function BoutiqueScreen() {
               <View style={styles.barre}>
                 <View style={[styles.barreRemplie, { width: `${progression * 100}%` }]} />
               </View>
-              <BoutonJeu
-                titre={plafonne
-                  ? 'Reviens le mois prochain'
-                  : possible ? 'Échanger' : `Encore ${formatNb(p.cout - etat.perles)} perles`}
-                disabled={!possible}
-                onPress={() => { const g = acheterBoutique(p.id); if (g) setCelebration(g); }}
-                style={possible ? { backgroundColor: C.vert } : undefined}
-              />
+              {possible ? (
+                <BoutonJeu
+                  titre="Échanger"
+                  onPress={() => { const g = acheterBoutique(p.id); if (g) { setCelebration(g); hapticSucces(); } }}
+                />
+              ) : (
+                <View style={styles.indispo} accessibilityRole="text">
+                  <Text style={styles.indispoTxt}>
+                    {plafonne ? 'Reviens le mois prochain' : `Encore ${formatNb(p.cout - etat.perles)} perles`}
+                  </Text>
+                </View>
+              )}
             </View>
           );
         })}
@@ -151,8 +128,7 @@ export default function BoutiqueScreen() {
               <Text style={styles.modalTitre}>Prix débloqué !</Text>
               <Text style={styles.modalLabel}>{celebration.label}</Text>
               <Text style={styles.modalTexte}>
-                Il est dans « Mes prix » juste en dessous. En version finale, il sera
-                crédité sur ta carte et validé en caisse.
+                Il est maintenant disponible dans « Mes prix » juste en dessous.
               </Text>
               <BoutonJeu titre="Parfait !" onPress={() => setCelebration(null)} style={{ alignSelf: 'stretch' }} />
             </View>
@@ -168,16 +144,15 @@ export default function BoutiqueScreen() {
               <Icone nom="cadeau" taille={38} />
               <Text style={styles.modalLabel}>{detail.label}</Text>
               <Text style={styles.modalTexte}>
-                Comment ça marchera : ton prix apparaîtra sur ta carte de fidélité
-                et l'équipe le validera en caisse en scannant ton QR — comme les
-                boissons offertes aujourd'hui.
+                Présente ce prix à l’équipe en caisse depuis ta carte de fidélité,
+                comme pour une boisson offerte.
               </Text>
               {detail.statut === 'a_reclamer' && (
                 <Pressable
                   onPress={() => { utiliserGain(detail.id); setDetail(null); }}
                   style={styles.btnUtilise}
                 >
-                  <Text style={styles.btnUtiliseTxt}>(Preview) Marquer comme utilisé</Text>
+                  <Text style={styles.btnUtiliseTxt}>Marquer comme utilisé</Text>
                 </Pressable>
               )}
               <BoutonJeu titre="Fermer" onPress={() => setDetail(null)} style={{ alignSelf: 'stretch' }} />
@@ -193,16 +168,6 @@ const styles = StyleSheet.create({
   fond: { flex: 1, backgroundColor: C.fond },
   contenu: { padding: 18, gap: 14, paddingBottom: 34 },
   pitch: { fontFamily: F.t700, fontSize: 14.5, color: C.texte2, textAlign: 'center' },
-  objectif: {
-    backgroundColor: C.vertPale, borderRadius: R.carte, padding: 16, gap: 10,
-    borderWidth: 1.5, borderColor: C.vert,
-  },
-  objectifHaut: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  objectifLabel: { fontFamily: F.t700, fontSize: 11.5, color: C.vertFonce },
-  objectifPrix: { fontFamily: F.titre, fontSize: 17, color: C.violetProfond, marginTop: 1 },
-  objectifCout: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  objectifCoutTxt: { fontFamily: F.t800, fontSize: 13.5, color: C.violetProfond },
-  objectifAide: { fontFamily: F.t600, fontSize: 12.5, lineHeight: 18, color: C.texte2 },
   // 🗓️ pastille « plafond mensuel » intégrée à chaque carte
   mois: {
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
@@ -212,9 +177,12 @@ const styles = StyleSheet.create({
   moisPlein: { backgroundColor: C.fond, borderColor: C.bord },
   moisTxt: { fontFamily: F.t700, fontSize: 11.5 },
 
-  palier: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12, ...OMBRE },
+  palier: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
+  },
   palierHaut: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  palierLabel: { fontFamily: F.t800, fontSize: 16.5, color: C.texte },
+  palierLabel: { fontFamily: F.titre, fontSize: 16.5, color: C.violet },
   palierDetail: { fontFamily: F.t600, fontSize: 12.5, color: C.texte2, marginTop: 2 },
   cout: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -222,6 +190,8 @@ const styles = StyleSheet.create({
   },
   coutTxt: { fontFamily: F.t800, fontSize: 13.5, color: C.violetProfond },
   barre: { height: 8, borderRadius: 4, backgroundColor: C.lavande, overflow: 'hidden' },
+  indispo: { backgroundColor: C.lavande, borderRadius: 14, padding: 12, alignItems: 'center' },
+  indispoTxt: { fontFamily: F.t800, fontSize: 13.5, color: C.texte3 },
   barreRemplie: { height: 8, borderRadius: 4, backgroundColor: C.vert },
 
   sectionTitre: { fontFamily: F.titre, fontSize: 18, color: C.violet },
@@ -229,13 +199,15 @@ const styles = StyleSheet.create({
 
   vide: {
     backgroundColor: C.carte, borderRadius: R.carte, padding: 22,
-    alignItems: 'center', gap: 8, ...OMBRE,
+    alignItems: 'center', gap: 8,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
   videTxt: { fontFamily: F.t600, fontSize: 13, color: C.texte2, textAlign: 'center', lineHeight: 19 },
 
   gain: {
-    backgroundColor: C.carte, borderRadius: 16, padding: 14,
-    flexDirection: 'row', alignItems: 'center', gap: 10, ...OMBRE,
+    backgroundColor: C.carte, borderRadius: R.btn + 2, padding: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
   gainLabel: { fontFamily: F.t700, fontSize: 14.5, color: C.texte },
   gainUtilise: { color: C.texte3, textDecorationLine: 'line-through' },
@@ -250,8 +222,9 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', padding: 28,
   },
   modalCarte: {
-    backgroundColor: C.carte, borderRadius: 24, padding: 24,
-    alignItems: 'center', gap: 12, alignSelf: 'stretch', ...OMBRE,
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 24,
+    alignItems: 'center', gap: 12, alignSelf: 'stretch',
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
   modalTitre: { fontFamily: F.titre, fontSize: 22, color: C.violet },
   modalLabel: { fontFamily: F.t800, fontSize: 16, color: C.vertFonce, textAlign: 'center' },

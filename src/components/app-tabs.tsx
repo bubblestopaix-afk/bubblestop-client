@@ -1,20 +1,15 @@
 import { Tabs } from 'expo-router';
 
 import { C, F } from '@/constants/charte';
-import { IconeAccueil, IconeCommander, IconeCompte, IconeFidelite, IconeOffres, TEINTE_ACTIVE } from '@/components/tab-icons';
-import { usePanier } from '@/store/panier';
-import { useCommandeEnLigne } from '@/lib/app-config';
+import { IconeAccueil, IconeCarteCadeau, IconeCompte, IconeFidelite, TEINTE_ACTIVE } from '@/components/tab-icons';
+import { useFonctionnalite } from '@/lib/fonctionnalites';
 
-// Barre d'onglets (5, style app food) : Accueil · Commander · Fidélité · Offres · Compte.
+// Barre d'onglets : Accueil · Fidélité · Cadeau (si activé) · Compte.
+// Les offres restent consultables depuis l'Accueil, mais n'occupent plus un onglet.
 // Design clair fixe — icônes dans tab-icons.tsx.
 export default function AppTabs() {
-  // Badge panier sur l'onglet Commander (compteur visible partout)
-  const nbArticles = usePanier().reduce((s, l) => s + (l.quantite || 1), 0);
-  // Commande en ligne activée (flag serveur) OU admin → onglet visible. Sinon masqué
-  // (l'appli sert d'abord à la fidélité). OFF par défaut tant que le flag n'est pas chargé.
-  const { actif, admin } = useCommandeEnLigne();
-  const montrerCommander = actif || admin;
-
+  const carteCadeau = useFonctionnalite('carte_cadeau');
+  const afficherCarteCadeau = carteCadeau.charge && carteCadeau.actif;
   return (
     <Tabs
       screenOptions={{
@@ -33,15 +28,21 @@ export default function AppTabs() {
       />
       <Tabs.Screen
         name="commander"
-        options={montrerCommander ? {
+        options={{
+          // Décision produit 15/07/2026 : commande retirée pour tous, admins compris.
+          // La route reste enregistrée mais cachée ; son layout redirige aussi les anciens liens.
+          // ⚠️ PAS de `href` ici : expo-router crash si href + tabBarButton sont combinés.
           title: 'Commander',
-          tabBarBadge: nbArticles > 0 ? nbArticles : undefined,
-          tabBarBadgeStyle: { backgroundColor: C.vert, color: C.violetProfond, fontFamily: F.t800 },
-          tabBarIcon: ({ color, size, focused }) => <IconeCommander color={color} size={size} focused={focused} />,
-        } : {
-          // Commande désactivée (flag serveur OFF) → onglet masqué. ⚠️ PAS de `href` ici
-          // (expo-router crash si href + tabBarButton ensemble) : on masque via tabBarButton.
-          title: 'Commander',
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none' },
+        }}
+      />
+      {/* Menu vitrine (/menu) — consultable depuis les photos de l'accueil, sans
+          panier ni commande. Route cachée dans la barre, comme les autres détails. */}
+      <Tabs.Screen
+        name="menu"
+        options={{
+          tabBarStyle: { display: 'none' },
           tabBarButton: () => null,
           tabBarItemStyle: { display: 'none' },
         }}
@@ -54,10 +55,23 @@ export default function AppTabs() {
         }}
       />
       <Tabs.Screen
+        name="carte-cadeau"
+        options={afficherCarteCadeau ? {
+          title: 'Cadeau',
+          tabBarIcon: ({ color, size, focused }) => <IconeCarteCadeau color={color} size={size} focused={focused} />,
+        } : {
+          // Toggle admin OFF : onglet absent sans combiner `href` et tabBarButton.
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
         name="offres"
         options={{
-          title: 'Offres',
-          tabBarIcon: ({ color, size, focused }) => <IconeOffres color={color} size={size} focused={focused} />,
+          // Les cartes de l'accueil ouvrent toujours /offres pour afficher le détail.
+          // La route reste enregistrée mais n'est plus un onglet redondant.
+          tabBarButton: () => null,
+          tabBarItemStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen
@@ -67,30 +81,26 @@ export default function AppTabs() {
           tabBarIcon: ({ color, size, focused }) => <IconeCompte color={color} size={size} focused={focused} />,
         }}
       />
-      {/* Réclamation d'une carte fidélité temporaire (/c?t=<jeton>) — route accessible (deep link)
-          mais PAS un onglet. ⚠️ expo-router INTERDIT `href` + `tabBarButton` ENSEMBLE (il throw
-          « Cannot use `href` and `tabBarButton` together » → crash au lancement). On masque donc
-          UNIQUEMENT via tabBarButton + tabBarItemStyle, SANS href. */}
+      {/* Ancienne carte retirée : /c reste uniquement comme garde-route pour rediriger les
+          anciens liens vers Fidélité. Elle ne doit jamais devenir un onglet. */}
       <Tabs.Screen
         name="c"
         options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
-      {/* Lien/QR de parrainage (/p?c=<code>) — même traitement que /c (route sans onglet). */}
+      {/* Lien/QR de parrainage (/p?c=<code>) — route sans onglet. */}
       <Tabs.Screen
         name="p"
         options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
       />
       {/* 🕹️ Boba Quest (/jeu) — le jeu à collection, ouvert depuis l'accueil.
-          Route SANS onglet (même pattern que /c et /p : jamais de `href` ici). */}
+          Route SANS onglet (même pattern que /p : jamais de `href` ici). */}
       <Tabs.Screen
         name="jeu"
-        options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
-      />
-      {/* 💳 Carte cadeau / solde prépayé (/carte-cadeau) — ouvert depuis Ma carte (explore).
-          Route SANS onglet (même pattern que /c et /p : jamais de `href` ici). */}
-      <Tabs.Screen
-        name="carte-cadeau"
-        options={{ tabBarButton: () => null, tabBarItemStyle: { display: 'none' } }}
+        options={{
+          // plein écran : pas d'onglets client dans le jeu
+          tabBarStyle: { display: 'none' },
+          tabBarButton: () => null, tabBarItemStyle: { display: 'none' },
+        }}
       />
     </Tabs>
   );

@@ -9,6 +9,7 @@ create table public.profils (
   nom text,
   telephone text,
   numero_fidelite text unique, -- même numéro que le QR du POS
+  prenom_sur_ticket boolean not null default true,
   created_at timestamptz not null default now()
 );
 

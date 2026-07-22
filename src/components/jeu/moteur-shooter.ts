@@ -38,7 +38,9 @@ export type BossActionTir = 'givre' | 'descente' | 'verrou-swap';
 //  givre  = perle colorée sous givre : 2 coups avant d'éclater ;
 //  arc    = joker : rejoint n'importe quelle couleur ;
 //  bonus  = perle étoilée : +points quand elle éclate.
-export type SpecialBulle = 'glacon' | 'bombe' | 'givre' | 'arc' | 'bonus';
+// 'etoile' = SUPERNOVA : éclatée → toutes les perles de SA couleur partent avec elle.
+// 'tir' = perle-cadeau : éclatée ou tombée → +1 tir (mode aventure uniquement).
+export type SpecialBulle = 'glacon' | 'bombe' | 'givre' | 'arc' | 'bonus' | 'etoile' | 'tir';
 export type Bulle = {
   couleur: Couleur;
   capsule?: boolean;         // capsule → couleur ignorée (objectif à libérer)
@@ -81,6 +83,8 @@ export type EtatShooter = {
   objectif: Objectif;           // but du niveau
   objProgres: number;           // avancement vers l'objectif (tomber/couleur)
   specialsAuto: boolean;        // semer bonus/bombes au fil du jeu (infini)
+  tirsMax: number | null;       // budget initial du niveau (aventure) — null en infini
+  rush: RushEtat | null;        // 🔥 mini-objectif surprise de mi-niveau (aventure)
   fever: number;                // 0..FEVER_MAX, pouvoir du copain prêt au maximum
   swapBloqueTirs: number;       // boss : échange courant/suivant temporairement verrouillé
   bossPhase: 1 | 2 | 3;         // boss Aventure : cadence plus agressive selon ses PV
@@ -88,6 +92,18 @@ export type EtatShooter = {
   bossActionIndex: number;      // rotation déterministe des attaques du boss
   bossProchaineAction: BossActionTir;
 };
+
+// 🔥 RUSH : à mi-niveau, défi éclair « éclate N perles <couleur> en 3 tirs »
+// → réussi = +150 points et +2 tirs. Déclenché une seule fois par niveau.
+export type RushEtat = {
+  couleur: Couleur;
+  cible: number;
+  progres: number;
+  tirsFenetre: number;                    // tirs restants pour réussir
+  statut: 'active' | 'reussi' | 'rate';
+};
+export const RUSH_POINTS = 150;
+export const RUSH_TIRS_BONUS = 2;
 
 // Résolution d'un tir : tout ce qu'il faut pour animer côté UI.
 export type ResultatTir = {
@@ -111,6 +127,11 @@ export type ResultatTir = {
   feverGagne: number;           // progression gagnée sur ce tir
   bossAction: BossActionTir | null;
   bossInterrompu: boolean;
+  etoiles: number;              // 🌟 SUPERNOVA déclenchées ce tir
+  tirsBonus: number;            // 🎁 perles « +1 tir » encaissées ce tir
+  tirEnOr: boolean;             // 🏅 c'était le DERNIER tir → points ×2 si utile
+  rushDebut: boolean;           // 🔥 le RUSH vient de se déclencher
+  rushFin: 'reussi' | 'rate' | null; // 🔥 issue du RUSH sur ce tir
 };
 
 export type ApercuTir = {
@@ -192,6 +213,11 @@ export function objectifCible(o: Objectif): number {
 // Le niveau est-il gagné ?
 export function objectifAtteint(etat: EtatShooter): boolean {
   const o = etat.objectif;
+  // En Aventure, nettoyer entièrement le plateau est toujours une victoire :
+  // il ne doit jamais rester une partie impossible avec un objectif chiffré
+  // incomplet (ex. 7/15 perles tombées alors qu'il n'y a plus rien à tirer).
+  // L'Infini est exclu : son plateau vide est régénéré pour continuer la partie.
+  if (!etat.regenerer && o.type !== 'score' && plateauEstVide(etat.grille)) return true;
   switch (o.type) {
     case 'score': return false;                             // infini : jamais
     case 'capsules': return nbCapsules(etat.grille) === 0;  // toutes libérées
@@ -208,9 +234,48 @@ export function objectifLabel(o: Objectif, couleurNom?: (c: Couleur) => string):
     case 'score': return 'Fais le meilleur score';
     case 'capsules': return 'Libère les capsules';
     case 'nettoyer': return 'Vide tout le plateau';
-    case 'tomber': return `Fais tomber ${o.cible} perles`;
+    case 'tomber': return `Détache ${o.cible} perles`;
     case 'couleur': return `Éclate ${o.cible} perles ${couleurNom ? couleurNom(o.couleur) : ''}`.trim();
     case 'boss': return 'Vaincs le boss 👹';
+  }
+}
+
+// Aide contextuelle affichée quand la partie approche de sa fin. Elle explique
+// surtout le VERBE de l'objectif (tomber ≠ éclater) au moment où il reste encore
+// assez de temps pour corriger sa stratégie.
+export function alerteObjectif(
+  etat: EtatShooter,
+  couleurNom?: (c: Couleur) => string,
+): string | null {
+  const o = etat.objectif;
+  if (o.type === 'score' || objectifAtteint(etat)) return null;
+
+  let elementsRestants = 0;
+  for (const ligne of etat.grille) for (const b of ligne.cases) if (b) elementsRestants++;
+  const peuDeTirs = etat.tirsRestants !== null && etat.tirsRestants <= 5;
+  const plateauPresqueVide = !etat.regenerer && elementsRestants <= 10;
+  if (!peuDeTirs && !plateauPresqueVide) return null;
+
+  switch (o.type) {
+    case 'capsules': {
+      const restant = nbCapsules(etat.grille);
+      return `Encore ${restant} capsule${restant > 1 ? 's' : ''} à LIBÉRER — coupe les perles qui ${restant > 1 ? 'les retiennent' : 'la retiennent'} au plafond.`;
+    }
+    case 'nettoyer':
+      return `Encore ${elementsRestants} perle${elementsRestants > 1 ? 's' : ''} sur le plateau — enlève-les toutes.`;
+    case 'tomber': {
+      const restant = Math.max(0, o.cible - etat.objProgres);
+      return `Encore ${restant} perle${restant > 1 ? 's' : ''} à faire TOMBER — coupe leur attache au plafond, ne les éclate pas.`;
+    }
+    case 'couleur': {
+      const restant = Math.max(0, o.cible - etat.objProgres);
+      const nom = couleurNom ? ` ${couleurNom(o.couleur)}` : '';
+      return `Encore ${restant} perle${restant > 1 ? 's' : ''}${nom} à ÉCLATER — forme des groupes d'au moins 3.`;
+    }
+    case 'boss': {
+      const restant = Math.max(0, o.pv - etat.objProgres);
+      return `Encore ${restant} PV au boss — vise de gros groupes et les rebonds.`;
+    }
   }
 }
 
@@ -253,6 +318,8 @@ export function creerPartieInfini(rng: Rng = Math.random): EtatShooter {
     tirs: 0,
     tirsParDescente: 6,
     tirsRestants: null,
+    tirsMax: null,
+    rush: null,
     regenerer: true,
     couleursPool: pool,
     chaine: 0,
@@ -291,6 +358,8 @@ export type ParamsNiveau = {
   nbGivre: number;
   nbArc: number;
   nbBonus: number;
+  nbEtoiles: number;      // 🌟 SUPERNOVA (rare : la cible prioritaire du plateau)
+  nbTirsPlus: number;     // 🎁 perles « +1 tir »
 };
 
 // L'objectif tourne selon le niveau, en introduisant les buts progressivement.
@@ -299,7 +368,11 @@ function objectifNiveau(n: number, nbCouleurs: number): Objectif {
   if (n % 5 === 0) return { type: 'boss', pv: 26 + n * 4 }; // 👹 niveaux boss (tous les 5)
   switch (n % 4) {
     case 1: return { type: 'capsules' };
-    case 2: return { type: 'tomber', cible: 12 + Math.floor(n / 2) };
+    // Une chute ne compte QUE les perles détachées du plafond, pas les groupes
+    // éclatés. Le vieux 12 + n/2 demandait 15 chutes dès le niveau 6 sur un
+    // plateau de 28 perles : possible en théorie, mais contraire à la silhouette
+    // et incompréhensible en jeu. Cible courte, progressive et plafonnée.
+    case 2: return { type: 'tomber', cible: Math.min(12, 6 + Math.floor(n / 3)) };
     case 3: return { type: 'couleur', couleur: (n % nbCouleurs) as Couleur, cible: 10 + Math.floor(n / 3) };
     default: return { type: 'nettoyer' };
   }
@@ -314,19 +387,23 @@ export function paramsNiveau(n: number): ParamsNiveau {
   const nbCapsules = objectif.type === 'capsules'
     ? Math.min(1 + Math.floor((n - 1) / 6), 3) + (boss ? 1 : 0)
     : 0;
-  const tirsMax = 28 - Math.min(12, Math.floor(n / 2)) + nbCapsules * 4
+  // ⏱️ Rythme resserré (Shooter v2, 19/07/2026) : 25 tirs de base au lieu de 28 —
+  // chaque tir compte, les perles « +1 tir » et le RUSH rendent le budget vivant.
+  const tirsMax = 25 - Math.min(12, Math.floor(n / 2)) + nbCapsules * 4
     + (objectif.type === 'tomber' || objectif.type === 'nettoyer' ? 6 : 0)
     + (objectif.type === 'boss' ? 12 : 0);
-  const tirsParDescente = n <= 6 ? 0 : n <= 14 ? 9 : 7;
+  const tirsParDescente = n <= 6 ? 0 : n <= 14 ? 8 : 6;
   // perles spéciales, introduites progressivement
   const nbGlacons = objectif.type === 'nettoyer' ? 0 : n >= 4 ? Math.min(1 + Math.floor((n - 4) / 3), 4) : 0;
   const nbBombes = n >= 6 ? Math.min(1 + Math.floor((n - 6) / 4), 3) : 0;
   const nbGivre = n >= 8 ? Math.min(1 + Math.floor((n - 8) / 4), 3) : 0;
   const nbArc = n >= 5 && n % 3 === 0 ? 1 : 0;
   const nbBonus = n >= 3 ? Math.min(1 + Math.floor((n - 3) / 3), 3) : 0;
+  const nbEtoiles = n >= 6 && n % 2 === 0 ? 1 : 0;       // 🌟 un niveau sur deux dès le 6
+  const nbTirsPlus = n >= 5 ? Math.min(1 + Math.floor((n - 5) / 6), 2) : 0; // 🎁
   return {
     niveau: n, boss, lignes, nbCouleurs, nbCapsules, tirsMax, tirsParDescente,
-    objectif, nbGlacons, nbBombes, nbGivre, nbArc, nbBonus,
+    objectif, nbGlacons, nbBombes, nbGivre, nbArc, nbBonus, nbEtoiles, nbTirsPlus,
   };
 }
 
@@ -411,6 +488,8 @@ export function creerNiveau(n: number): EtatShooter {
   for (let i = 0; i < p.nbGivre; i++) poserSpecial(0, (b) => { b.special = 'givre'; b.pv = 2; });
   for (let i = 0; i < p.nbArc; i++) poserSpecial(0, (b) => { b.special = 'arc'; });
   for (let i = 0; i < p.nbBonus; i++) poserSpecial(0, (b) => { b.special = 'bonus'; });
+  for (let i = 0; i < p.nbEtoiles; i++) poserSpecial(0, (b) => { b.special = 'etoile'; });
+  for (let i = 0; i < p.nbTirsPlus; i++) poserSpecial(0, (b) => { b.special = 'tir'; });
 
   return {
     grille,
@@ -418,6 +497,8 @@ export function creerNiveau(n: number): EtatShooter {
     tirs: 0,
     tirsParDescente: p.tirsParDescente,
     tirsRestants: p.tirsMax,
+    tirsMax: p.tirsMax,
+    rush: null,
     regenerer: p.objectif.type === 'boss', // 👹 le boss : plateau qui se régénère (on cogne sans fin)
     couleursPool: pool,
     chaine: 0,
@@ -639,6 +720,7 @@ function clonerEtatShooter(etat: EtatShooter): EtatShooter {
   return {
     ...etat,
     objectif: { ...etat.objectif },
+    rush: etat.rush ? { ...etat.rush } : null,
     couleursPool: [...etat.couleursPool],
     grille: etat.grille.map((l) => ({
       decalee: l.decalee,
@@ -663,6 +745,8 @@ export function tirer(
   const g = etat.grille;
   const { points, impact } = simulerVol(g, origine, angle);
   const rebondi = points.length > 2; // la polyligne contient un point par rebond
+  // 🏅 TIR EN OR : c'est le tout dernier tir du budget → points ×2 s'il est utile
+  const tirEnOr = etat.tirsRestants === 1;
 
   let pts = 0;
   let capsules = 0;
@@ -767,6 +851,35 @@ export function tirer(
     }
   }
 
+  // 🌟 SUPERNOVA : chaque perle ÉTOILE éclatée emporte TOUTES les perles de sa
+  // couleur encore sur le plateau (blocs et capsules résistent). Les étoiles
+  // révélées par le souffle s'enchaînent — une couleur n'est balayée qu'une fois.
+  let etoiles = 0;
+  if (eclatees.length) {
+    const fileEtoiles: Couleur[] = eclatees
+      .filter((e) => e.bulle.special === 'etoile')
+      .map((e) => e.bulle.couleur);
+    const couleursBalayees = new Set<Couleur>();
+    while (fileEtoiles.length) {
+      const coul = fileEtoiles.pop()!;
+      if (couleursBalayees.has(coul)) continue;
+      couleursBalayees.add(coul);
+      etoiles++;
+      for (let r = 0; r < g.length; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const b = g[r].cases[c];
+          if (!b || b.capsule || estBloc(b) || b.special === 'arc') continue;
+          if (b.couleur !== coul) continue;
+          if (b.special === 'etoile') fileEtoiles.push(b.couleur);
+          eclatees.push({ pos: { r, c }, bulle: b });
+          if (b.special === 'bonus') { pts += BONUS_POINTS; bonusPop++; }
+          g[r].cases[c] = null;
+          pts += 12 * multiplicateur;
+        }
+      }
+    }
+  }
+
   // Orphelines (après éclatement OU explosion) : les capsules se LIBÈRENT ici
   if (eclatees.length) {
     for (const caseO of orphelines(g)) {
@@ -811,8 +924,61 @@ export function tirer(
   // Tirs restants (aventure)
   if (etat.tirsRestants !== null) etat.tirsRestants = Math.max(0, etat.tirsRestants - 1);
 
+  // 🎁 Perles « +1 tir » encaissées (éclatées OU tombées) — aventure uniquement
+  const tirsBonus = etat.tirsRestants !== null
+    ? eclatees.filter((x) => x.bulle.special === 'tir').length
+      + tombees.filter((x) => x.bulle.special === 'tir').length
+    : 0;
+  if (tirsBonus > 0 && etat.tirsRestants !== null) etat.tirsRestants += tirsBonus;
+
+  // 🔥 RUSH de mi-niveau : suivi du défi actif, puis déclenchement unique
+  let rushDebut = false;
+  let rushFin: 'reussi' | 'rate' | null = null;
+  if (etat.rush && etat.rush.statut === 'active') {
+    const compteRush = (arr: { bulle: Bulle }[]) => arr.filter((x) =>
+      !x.bulle.capsule && !estBloc(x.bulle) && x.bulle.special !== 'arc'
+      && x.bulle.couleur === etat.rush!.couleur).length;
+    etat.rush.progres += compteRush(eclatees) + compteRush(tombees);
+    etat.rush.tirsFenetre--;
+    if (etat.rush.progres >= etat.rush.cible) {
+      etat.rush.statut = 'reussi';
+      rushFin = 'reussi';
+      pts += RUSH_POINTS;
+      if (etat.tirsRestants !== null) etat.tirsRestants += RUSH_TIRS_BONUS;
+    } else if (etat.rush.tirsFenetre <= 0) {
+      etat.rush.statut = 'rate';
+      rushFin = 'rate';
+    }
+  } else if (!etat.rush && etat.tirsMax !== null && etat.tirsRestants !== null
+    && etat.objectif.type !== 'boss' && !etat.perdu
+    && etat.tirsRestants <= Math.floor(etat.tirsMax / 2) && etat.tirsRestants > 4) {
+    // couleur la plus présente = défi lisible ; il faut assez de matière pour être jouable
+    const comptes = new Map<Couleur, number>();
+    for (const l of g) for (const b of l.cases) {
+      if (b && !b.capsule && !estBloc(b) && b.special !== 'arc') {
+        comptes.set(b.couleur, (comptes.get(b.couleur) ?? 0) + 1);
+      }
+    }
+    let meilleure: Couleur | null = null;
+    let dispo = 0;
+    for (const [coul, nb] of comptes) if (nb > dispo) { dispo = nb; meilleure = coul; }
+    if (meilleure !== null && dispo >= 6) {
+      etat.rush = {
+        couleur: meilleure,
+        cible: Math.min(8, Math.max(5, Math.floor(dispo * 0.6))),
+        progres: 0,
+        tirsFenetre: 3,
+        statut: 'active',
+      };
+      rushDebut = true;
+    }
+  }
+
   // Perdu ? (le plateau a atteint la limite)
   etat.perdu = ligneLaPlusBasse(g) >= LIGNE_LIMITE;
+
+  // 🏅 TIR EN OR réussi : le dernier tir du budget paie double
+  if (tirEnOr && pts > 0) pts *= 2;
 
   etat.score += pts;
   etat.detruites += eclatees.length + tombees.length;
@@ -890,6 +1056,11 @@ export function tirer(
     feverGagne,
     bossAction,
     bossInterrompu,
+    etoiles,
+    tirsBonus,
+    tirEnOr: tirEnOr && pts > 0,
+    rushDebut,
+    rushFin,
   };
 }
 

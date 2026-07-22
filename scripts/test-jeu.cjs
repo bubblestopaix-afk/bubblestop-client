@@ -9,8 +9,6 @@ const sortie = fs.mkdtempSync(path.join(os.tmpdir(), 'boba-quest-tests-'));
 
 try {
   execFileSync(path.join(racine, 'node_modules', '.bin', 'tsc'), [
-    '--ignoreConfig',
-    '--ignoreDeprecations', '6.0',
     '--outDir', sortie,
     '--rootDir', path.join(racine, 'src/components/jeu'),
     '--module', 'commonjs',
@@ -21,13 +19,11 @@ try {
     path.join(racine, 'src/components/jeu/economie.ts'),
     path.join(racine, 'src/components/jeu/arene.ts'),
     path.join(racine, 'src/components/jeu/moteur-shooter.ts'),
-    path.join(racine, 'src/components/jeu/sauvegarde-jeu.ts'),
   ], { cwd: racine, stdio: 'pipe' });
 
   const shooter = require(path.join(sortie, 'moteur-shooter.js'));
   const arene = require(path.join(sortie, 'arene.js'));
   const economie = require(path.join(sortie, 'economie.js'));
-  const sauvegarde = require(path.join(sortie, 'sauvegarde-jeu.js'));
 
   // Les 12 premiers niveaux ont bien 12 silhouettes distinctes et jouables.
   const silhouettes = new Set();
@@ -99,115 +95,186 @@ try {
   arene.jouerRound(boss, 0, () => 0.3, 0);
   assert.ok(boss.equipes.b[0].bossPhase >= 2, 'phase 2 du boss non déclenchée');
 
-  // Un soin actif est borné à 25 % des PV max et ne cumule pas la régénération
-  // passive de la panoplie Sucré pendant la même action.
-  const soinDirect = arene.creerCombat(
-    ['nuage'], ['boba'], 1,
-    { nuage: ['paille-caramel', 'couvercle-nappe', 'sablier'] },
-  );
-  soinDirect.equipes.a[0].pv = 1;
-  const evtsSoin = arene.jouerRound(soinDirect, 1, () => 0.3, 0);
-  const soinsDirects = evtsSoin.filter((e) => e.t === 'soin' && e.cote === 'a');
-  assert.equal(soinsDirects.length, 1, 'un soin actif ne doit pas déclencher une régénération bonus');
-  assert.ok(
-    soinsDirects[0].valeur <= Math.round(soinDirect.equipes.a[0].pvMax * arene.SOIN_DIRECT_MAX_PV_PCT / 100),
-    'soin direct supérieur au plafond',
-  );
+  // --- 🔥 Série quotidienne + 🎯 quête « premier tampon » (Claude JEU, 18/07/2026) ---
+  assert.equal(economie.multSerie(0), 1); assert.equal(economie.multSerie(2), 1);
+  assert.equal(economie.multSerie(3), 1.1); assert.equal(economie.multSerie(7), 1.2);
+  assert.equal(economie.multSerie(14), 1.3); assert.equal(economie.multSerie(99), 1.3);
+  const j1 = economie.serieApresTick({ jours: 0, dernierJour: '' }, '2026-07-18', '2026-07-17');
+  assert.ok(j1 && j1.serie.jours === 1 && j1.perles === economie.SERIE_PERLES[0] && !j1.capsuleDoree, 'série J1');
+  const j2 = economie.serieApresTick(j1.serie, '2026-07-19', '2026-07-18');
+  assert.ok(j2 && j2.serie.jours === 2 && j2.perles === economie.SERIE_PERLES[1], 'série J2 consécutive');
+  assert.equal(economie.serieApresTick(j2.serie, '2026-07-19', '2026-07-18'), null, 'série idempotente le même jour');
+  const cassee = economie.serieApresTick(j2.serie, '2026-07-25', '2026-07-24');
+  assert.ok(cassee && cassee.serie.jours === 1, 'série cassée repart à 1 sans malus');
+  const j7 = economie.serieApresTick({ jours: 6, dernierJour: '2026-07-23' }, '2026-07-24', '2026-07-23');
+  assert.ok(j7 && j7.capsuleDoree && j7.perles === 0 && j7.serie.jours === 7, 'J7 = capsule dorée');
+  const j14 = economie.serieApresTick({ jours: 13, dernierJour: '2026-07-30' }, '2026-07-31', '2026-07-30');
+  assert.ok(j14 && j14.capsuleDoree && j14.serie.jours === 14, 'J14 = capsule dorée (cycle hebdo)');
 
-  // Le vol de vie d'une zone est consolidé en un seul soin et plafonné à 12 %
-  // des PV max, même si les trois cibles sont touchées.
-  const volZone = arene.creerCombat(
-    ['popping'], ['fraisy', 'fraisy', 'fraisy'], 1,
-    { popping: ['paille-caramel'] },
-  );
-  volZone.equipes.a[0].pv = 1;
-  const evtsVol = arene.jouerRound(volZone, 1, () => 0.3, 0);
-  const soinsVol = evtsVol.filter((e) => e.t === 'soin' && e.cote === 'a');
-  assert.equal(soinsVol.length, 1, 'le vol de vie de zone doit être consolidé');
-  assert.ok(
-    soinsVol[0].valeur <= Math.round(volZone.equipes.a[0].pvMax * arene.VOL_DE_VIE_MAX_PV_PCT_ACTION / 100),
-    'vol de vie supérieur au plafond par action',
-  );
+  let q = { etape: 0, progres: 0, reclamee: false };
+  q = economie.queteApresCredit(q, 'capsules', 1);
+  assert.ok(q.etape === 0 && q.progres === 0, 'quête : étape hors ordre ignorée');
+  q = economie.queteApresCredit(q, 'niveaux', 1);
+  assert.equal(q.progres, 1, 'quête : crédite l étape courante');
+  q = economie.queteApresCredit(q, 'niveaux', 2);
+  assert.ok(q.etape === 1 && q.progres === 0, 'quête : passage à l étape suivante');
+  for (const e of economie.QUETE_TAMPON.slice(1)) q = economie.queteApresCredit(q, e.id, e.cible);
+  assert.ok(q.etape === economie.QUETE_TAMPON.length && !q.reclamee, 'quête complète');
+  const figee = economie.queteApresCredit({ ...q, reclamee: true }, 'perles', 999);
+  assert.ok(figee.reclamee === true, 'quête réclamée figée');
 
-  // La régénération passive reste bornée à 10 PV même quand passif et panoplie
-  // Royale s'additionnent au-delà de cette valeur.
-  const regen = arene.creerCombat(
-    ['mochito'], ['boba'], 1,
-    { mochito: ['paille-royale', 'couvercle-royal', 'grigri'] },
-  );
-  regen.equipes.a[0].pv = 1;
-  const evtsRegen = arene.jouerRound(regen, 0, () => 0.3, 0);
-  const soinsRegen = evtsRegen.filter((e) => e.t === 'soin' && e.cote === 'a');
-  assert.equal(soinsRegen.length, 1, 'la régénération passive doit être consolidée');
-  assert.ok(soinsRegen[0].valeur <= arene.REGEN_MAX_PAR_ACTION, 'régénération passive supérieure au plafond');
+  // --- 🎯 Timing « tap parfait » + parade parfaite (Claude JEU, combats v2, 18/07/2026) ---
+  assert.equal(arene.timingDepuisPosition(0.5), 'parfait', 'centre = parfait');
+  assert.equal(arene.timingDepuisPosition(0.5 + arene.TIMING_ZONE_OR / 2), 'parfait', 'bord doré inclus');
+  assert.equal(arene.timingDepuisPosition(0.5 + arene.TIMING_ZONE_VERT / 2), 'bien', 'bord vert inclus');
+  assert.equal(arene.timingDepuisPosition(0.05), 'rate', 'début de piste = raté');
+  assert.equal(arene.timingDepuisPosition(1), 'rate', 'fin de piste (trop tard) = raté');
+  assert.ok(arene.TIMING_MULT.parfait > arene.TIMING_MULT.bien && arene.TIMING_MULT.bien > 1
+    && arene.TIMING_MULT.rate < 1, 'multiplicateurs ordonnés : parfait > bien > 1 > raté');
+  assert.ok(arene.GARDE_PARFAITE > arene.GARDE_REDUCTION, 'parade parfaite > garde normale');
 
-  // La Signature Milk rend désormais 20 % des PV max et ne déclenche pas une
-  // seconde régénération passive sur la même action.
-  const signatureSoin = arene.creerCombat(
-    ['classico'], ['boba'], 1,
-    { classico: ['paille-royale', 'couvercle-royal', 'grigri'] },
-  );
-  signatureSoin.equipes.a[0].pv = 1;
-  signatureSoin.equipes.a[0].charge = arene.CHARGE_MAX;
-  const evtsSignature = arene.jouerRound(signatureSoin, 'signature', () => 0.3, 0);
-  const soinsSignature = evtsSignature.filter((e) => e.t === 'soin' && e.cote === 'a');
-  assert.equal(soinsSignature.length, 1, 'la Signature Milk ne doit pas doubler son soin');
-  assert.ok(
-    soinsSignature[0].valeur <= Math.round(signatureSoin.equipes.a[0].pvMax * 0.2),
-    'soin de la Signature Milk supérieur à 20 %',
-  );
+  // Un round joué avec timing « parfait » ne peut pas rater et tape plus fort qu'en « raté »
+  // (rng forcé : pas de crit, variance médiane). La garde parfaite applique bien −70 %.
+  const rngFixe = () => 0.5;
+  const cA = arene.creerCombat(['bubble-master'], ['bubble-master'], 1);
+  const cB = arene.creerCombat(['bubble-master'], ['bubble-master'], 1);
+  arene.jouerRound(cA, 0, rngFixe, 0, 'parfait');
+  arene.jouerRound(cB, 0, rngFixe, 0, 'rate');
+  const degatsParfait = cA.equipes.b[0].pvMax - cA.equipes.b[0].pv;
+  const degatsRate = cB.equipes.b[0].pvMax - cB.equipes.b[0].pv;
+  assert.ok(degatsParfait > degatsRate, 'parfait doit taper plus fort que raté');
+  const cG = arene.creerCombat(['bubble-master'], ['bubble-master'], 1);
+  arene.jouerRound(cG, 'garde', rngFixe, 0, 'parfait');
+  assert.equal(cG.equipes.a[0].charge >= 2, true, 'parade parfaite : jauge +2');
 
-  // Économie capsules : poids cohérents et garanties anti-malchance réellement
-  // respectées par la fonction de tirage minimale.
-  for (const conf of Object.values(economie.CAPSULES)) {
-    assert.equal(Object.values(conf.poids).reduce((s, n) => s + n, 0), 100, 'poids de capsule incohérents');
+  // --- 💪 Entraînement des cartes + retente tournoi (Claude JEU, 19/07/2026) ---
+  assert.equal(economie.multNiveauCarte(1), 1, 'niveau 1 = stats de base');
+  assert.ok(Math.abs(economie.multNiveauCarte(10) - 1.54) < 1e-9, 'niveau 10 = +54 %');
+  assert.equal(economie.multNiveauCarte(99), economie.multNiveauCarte(economie.NIVEAU_CARTE_MAX), 'multiplicateur plafonné');
+  assert.ok(economie.coutNiveauCarte('commun', 1) < economie.coutNiveauCarte('legendaire', 1), 'légendaire plus cher');
+  assert.ok(economie.coutNiveauCarte('commun', 9) > economie.coutNiveauCarte('commun', 1), 'coût croissant');
+  assert.equal(economie.doublonsPourNiveau(4), 1); assert.equal(economie.doublonsPourNiveau(7), 2);
+  assert.equal(economie.doublonsPourNiveau(10), 3); assert.equal(economie.doublonsPourNiveau(5), 0);
+  const base = arene.creerCombattant('classico');
+  const nv5 = arene.creerCombattant('classico', 1, [], 5);
+  assert.ok(nv5.pvMax > base.pvMax && nv5.atk > base.atk, 'le niveau augmente PV et ATQ');
+  assert.equal(nv5.vit, base.vit, 'la VIT ne change pas avec le niveau');
+  assert.equal(nv5.niveau, 5, 'niveau posé sur le combattant');
+  const cNv = arene.creerCombat(['classico'], ['classico'], 1, {}, {}, undefined, { classico: 10 });
+  assert.ok(cNv.equipes.a[0].pvMax > cNv.equipes.b[0].pvMax, 'niveauxA appliqués au seul côté joueur');
+  assert.ok(economie.TOURNOI_RETENTE_PERLES > 0, 'retente tournoi définie');
+
+  // --- 🎯 Défensif : un tir du shooter consomme EXACTEMENT 1 tir restant ---
+  const nvS = shooter.creerNiveau(4);
+  const lanceurTest = { x: shooter.LARGEUR_TERRAIN / 2, y: shooter.LIGNE_LIMITE * shooter.LIGNE_H + 1.6 };
+  const tirsAvant = nvS.tirsRestants;
+  shooter.tirer(nvS, lanceurTest, -Math.PI / 2, () => 0.5);
+  assert.equal(nvS.tirsRestants, tirsAvant - 1, 'un tir = un seul tir décompté');
+
+  // --- 🌟 Shooter v2 : supernova, +1 tir, tir en or, rush (19/07/2026) ---
+  const compteSpecial = (etatNv, sp) => {
+    let n = 0;
+    for (const l of etatNv.grille) for (const b of l.cases) if (b && b.special === sp) n++;
+    return n;
+  };
+  const nivSix = shooter.creerNiveau(6);
+  assert.ok(compteSpecial(nivSix, 'etoile') >= 1, 'niveau 6 : au moins une SUPERNOVA');
+  assert.deepEqual(nivSix.objectif, { type: 'tomber', cible: 8 }, 'niveau 6 : objectif de chute court et réaliste');
+  assert.equal(shooter.objectifLabel(nivSix.objectif), 'Détache 8 perles', 'objectif de chute compréhensible dans le HUD');
+  assert.deepEqual(shooter.paramsNiveau(14).objectif, { type: 'tomber', cible: 10 }, 'objectif de chute progressif');
+  assert.deepEqual(shooter.paramsNiveau(22).objectif, { type: 'tomber', cible: 12 }, 'objectif de chute plafonné');
+  const nivCinq = shooter.creerNiveau(5);
+  assert.ok(compteSpecial(nivCinq, 'tir') >= 1, 'niveau 5 : au moins une perle +1 tir');
+  assert.equal(nivCinq.tirsMax, nivCinq.tirsRestants, 'tirsMax mémorisé au départ');
+  assert.equal(nivCinq.rush, null, 'pas de rush au départ');
+  const infini = shooter.creerPartieInfini(() => 0.5);
+  assert.equal(infini.tirsMax, null, 'infini : pas de budget de tirs');
+  // Le TIR EN OR ne se déclare jamais tant qu'il reste plus d'un tir
+  const nvOr = shooter.creerNiveau(4);
+  const resOr = shooter.tirer(nvOr, lanceurTest, -Math.PI / 2, () => 0.5);
+  assert.equal(resOr.tirEnOr, false, 'pas de tir en or avec un budget plein');
+  assert.equal(typeof resOr.etoiles, 'number');
+  assert.equal(typeof resOr.tirsBonus, 'number');
+  assert.ok(resOr.rushFin === null, 'pas de rush résolu au premier tir');
+
+  // Vider le plateau gagne toujours un niveau Aventure, même si l'objectif
+  // chiffré n'est pas terminé : sinon le joueur reste bloqué sans cible.
+  const nvVide = shooter.creerNiveau(6);
+  nvVide.grille = [{
+    decalee: false,
+    cases: Array.from({ length: shooter.COLS }, (_, i) => i === 4 ? { couleur: 0 } : null),
+  }];
+  nvVide.objectif = { type: 'tomber', cible: 15 };
+  nvVide.objProgres = 7;
+  nvVide.tirsRestants = 19;
+  const resVide = shooter.tirer(nvVide, lanceurTest, -Math.PI / 2, () => 0.5, 'bombe');
+  assert.equal(resVide.plateauNettoye, true, 'la dernière perle doit vider le plateau');
+  assert.equal(resVide.objectifAtteint, true, 'un plateau vide doit conclure le niveau en victoire');
+  assert.equal(nvVide.objProgres, 7, 'la victoire de nettoyage ne falsifie pas la progression affichée');
+
+  // L'aide de fin de niveau explique l'action attendue quand le plateau ou les
+  // tirs s'épuisent, puis disparaît dès que l'objectif est atteint.
+  const nvAlerte = shooter.creerNiveau(6);
+  assert.equal(shooter.alerteObjectif(nvAlerte), null, "pas d'alerte envahissante au début du niveau");
+  nvAlerte.grille = [{
+    decalee: false,
+    cases: Array.from({ length: shooter.COLS }, () => ({ couleur: 0 })),
+  }];
+  nvAlerte.objectif = { type: 'tomber', cible: 15 };
+  nvAlerte.objProgres = 7;
+  nvAlerte.tirsRestants = 19;
+  const aideTomber = shooter.alerteObjectif(nvAlerte);
+  assert.ok(aideTomber?.includes('Encore 8 perles') && aideTomber.includes('plafond') && aideTomber.includes("ne les éclate pas"),
+    "l'alerte doit expliquer comment faire tomber les perles");
+  nvAlerte.objProgres = 15;
+  assert.equal(shooter.alerteObjectif(nvAlerte), null, "l'alerte disparaît quand l'objectif est rempli");
+
+  const nvAlerteTirs = shooter.creerNiveau(7);
+  nvAlerteTirs.tirsRestants = 5;
+  nvAlerteTirs.objectif = { type: 'couleur', couleur: 2, cible: 12 };
+  nvAlerteTirs.objProgres = 9;
+  assert.ok(shooter.alerteObjectif(nvAlerteTirs, () => 'jaunes')?.includes("groupes d'au moins 3"),
+    "l'alerte couleur doit expliquer comment éclater les perles");
+
+  // --- ⚡ Combo de parfaits + 🔥 série de victoires (Combats v3, 19/07/2026) ---
+  assert.equal(arene.multCombo(0), 1, 'sans combo = neutre');
+  assert.ok(arene.multCombo(1) > 1 && arene.multCombo(3) > arene.multCombo(1), 'le combo monte');
+  assert.equal(arene.multCombo(99), arene.multCombo(arene.COMBO_PARFAIT_MAX), 'combo plafonné');
+  const cCombo0 = arene.creerCombat(['bubble-master'], ['bubble-master'], 1);
+  const cCombo3 = arene.creerCombat(['bubble-master'], ['bubble-master'], 1);
+  arene.jouerRound(cCombo0, 0, () => 0.5, 0, 'parfait', 0);
+  arene.jouerRound(cCombo3, 0, () => 0.5, 0, 'parfait', 3);
+  const dg0 = cCombo0.equipes.b[0].pvMax - cCombo0.equipes.b[0].pv;
+  const dg3 = cCombo3.equipes.b[0].pvMax - cCombo3.equipes.b[0].pv;
+  assert.ok(dg3 > dg0, 'un combo en banque tape plus fort');
+  assert.equal(economie.multSerieVictoires(0), 1, 'série 0 = ×1');
+  assert.ok(Math.abs(economie.multSerieVictoires(2) - 1.3) < 1e-9, 'série 2 = ×1,3');
+  assert.equal(economie.multSerieVictoires(99), economie.multSerieVictoires(economie.SERIE_V_MAX), 'série plafonnée');
+
+  // --- 🩸 Visée blessée : barre plus rapide + zones plus étroites -------------------
+  assert.equal(arene.viseeBlessure(100, 100), 0, 'pleine forme = 0');
+  assert.equal(arene.viseeBlessure(0, 100), 1, 'à terre = 1');
+  assert.ok(arene.viseeDuree(0) === arene.VISEE_DUREE_BASE && arene.viseeDuree(1) === arene.VISEE_DUREE_MIN
+    && arene.viseeDuree(0.5) < arene.viseeDuree(0), 'la barre accélère avec la blessure');
+  const zSain = arene.viseeZones(0), zBlesse = arene.viseeZones(0.9);
+  assert.ok(zBlesse.or < zSain.or && zBlesse.vert < zSain.vert, 'les zones rétrécissent');
+  const posLimite = 0.5 + zSain.or / 2 - 0.001; // parfait en pleine forme…
+  assert.equal(arene.timingDepuisPosition(posLimite), 'parfait');
+  assert.equal(arene.timingDepuisPosition(posLimite, zBlesse), 'bien', '…mais plus quand on est blessé');
+
+  // --- 💧 Fatigue de soin : chaque soin successif rend moins ------------------------
+  assert.equal(arene.multFatigueSoin(0), 1, '1er soin = plein');
+  assert.ok(Math.abs(arene.multFatigueSoin(1) - 0.75) < 1e-9, '2e soin = 75 %');
+  assert.equal(arene.multFatigueSoin(99), arene.FATIGUE_SOIN_PLANCHER, 'plancher à 40 %');
+  const cSoin = arene.creerCombat(['lacto'], ['bubble-master'], 1);
+  cSoin.equipes.a[0].pvMax = 1000; // assez de marge pour survivre aux ripostes…
+  cSoin.equipes.a[0].pv = 200;     // …tout en restant blessé (les soins s'appliquent)
+  const gains = [];
+  for (let i = 0; i < 2; i++) {
+    const evts = arene.jouerRound(cSoin, 1, () => 0.5, 0);
+    for (const e of evts) if (e.t === 'soin' && e.cote === 'a') gains.push(e.valeur);
   }
-  const garantiEpique = economie.tirerCapsuleMin('classique', 'epique', () => 0);
-  assert.equal(garantiEpique.rarete, 'epique', 'le pity épique forcé ne doit pas devenir une légendaire artificielle');
-  assert.equal(economie.CAPSULES.classique.cout, 600);
-  assert.equal(economie.CAPSULES.doree.cout, 1800);
-  assert.equal(economie.capsulePremiereVictoireNiveau(1, false), 'classique');
-  assert.equal(economie.capsulePremiereVictoireNiveau(4, false), 'classique');
-  assert.equal(economie.capsulePremiereVictoireNiveau(5, true), 'doree');
-  assert.equal(economie.capsulePremiereVictoireNiveau(7, false), null);
-  assert.equal(economie.capsulePremiereVictoireNiveau(8, false), 'classique');
-
-  const nouveauProtege = economie.protegerNouveauCollectible(
-    economie.trouverCollectible('boba'), { boba: 1 }, 'classique', null, () => 0,
-  );
-  assert.equal(nouveauProtege.id, 'classico', 'les trois premiers tirages doivent pouvoir éviter un doublon');
-
-  const trocMemeRarete = economie.trocDuJour(
-    '2026-07-12', ['boba'], ['taro-queen', 'classico'],
-  );
-  assert.deepEqual(trocMemeRarete, { veut: 'boba', offre: 'classico' }, 'le troc doit rester dans la même rareté');
-  assert.equal(economie.trocDuJour('2026-07-12', ['boba'], ['taro-queen']), null, 'un commun ne doit pas acheter une légendaire');
-  assert.equal(Object.keys(economie.MISSIONS_CARTES).length, economie.COLLECTIBLES.length, 'une mission est requise pour chaque carte');
-  assert.equal(economie.rangMaitrise(1), 'bronze');
-  assert.equal(economie.rangMaitrise(2), 'argent');
-  assert.equal(economie.rangMaitrise(3), 'or');
-  assert.equal(economie.rangMaitrise(5), 'holo');
-  assert.equal(
-    economie.carteVedetteSemaine('2026-S28').id,
-    economie.carteVedetteSemaine('2026-S28').id,
-    'la vedette hebdomadaire doit être déterministe',
-  );
-  assert.equal(new Set(economie.BOUTIQUE.map((p) => p.id)).size, economie.BOUTIQUE.length, 'ids boutique dupliqués');
-  assert.ok(economie.BOUTIQUE.every((p) => p.parMois >= 1), 'plafond mensuel boutique invalide');
-
-  // Migration v1 → v3 : les joueurs existants ayant déjà une collection ne
-  // revoient pas l'onboarding, tandis qu'une vraie sauvegarde vierge le conserve.
-  assert.equal(sauvegarde.VERSION_SAUVEGARDE, 3);
-  assert.equal(sauvegarde.onboardingTermineApresMigration({ capsulesOuvertes: 0, collection: {} }), false);
-  assert.equal(sauvegarde.onboardingTermineApresMigration({ capsulesOuvertes: 1, collection: {} }), true);
-  assert.equal(sauvegarde.onboardingTermineApresMigration({ collection: { boba: 1 } }), true);
-  assert.equal(sauvegarde.onboardingTermineApresMigration({ onboardingTermine: false, capsulesOuvertes: 8 }), false);
-  assert.deepEqual(sauvegarde.missionsCartesApresMigration(null), {});
-  assert.deepEqual(
-    sauvegarde.missionsCartesApresMigration({ boba: { progres: 2.9, reclamee: true }, invalide: 'x' }),
-    { boba: { progres: 2, reclamee: true } },
-  );
-  assert.deepEqual(sauvegarde.prestigeApresMigration({ boba: true, theo: false }), { boba: true });
+  assert.ok(gains.length >= 2 && gains[1] < gains[0], 'le 2e soin rend moins que le 1er');
 
   console.log('Boba Quest : tests moteurs OK');
 } finally {

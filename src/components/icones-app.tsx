@@ -38,7 +38,7 @@ function Glyphe({ nom }: { nom: IconeAppNom }) {
           <Line x1={5.6} y1={16} x2={12} y2={16} strokeWidth={1.4} strokeLinecap="round" />
         </G>
       );
-    // 🎟️ Ticket / carte express — ticket cranté
+    // 🎟️ Carte de fidélité / ticket — ticket cranté
     case 'ticket':
       return (
         <G stroke={VIOLET} strokeWidth={1.7} strokeLinejoin="round">

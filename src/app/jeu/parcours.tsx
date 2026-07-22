@@ -6,9 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 
-import { C, F, R, OMBRE } from '@/constants/charte';
-import { capsulePremiereVictoireNiveau } from '@/components/jeu/economie';
-import { paramsNiveau } from '@/components/jeu/moteur-shooter';
+import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
+import { Etincelle } from '@/components/ui-kit';
+import { objectifLabel, paramsNiveau } from '@/components/jeu/moteur-shooter';
 import { Icone } from '@/components/jeu/icones';
 import { EnTeteJeu } from '@/components/jeu/ui-jeu';
 import { etoilesDuNiveau, useBobaQuest } from '@/store/jeu';
@@ -31,14 +31,61 @@ export default function ParcoursScreen() {
         <EnTeteJeu titre="Aventure" onRetour={() => router.back()} perles={etat.perles} />
         <Text style={styles.pitch}>
           Libère les capsules : coupe les perles qui les retiennent, en tirs limités.
-          Garde des tirs pour gagner 1 à 3 étoiles. Les 4 premiers niveaux offrent une capsule,
-          puis une classique tous les 2 niveaux ; chaque boss offre une dorée.
+          Boss tous les 5 niveaux = capsule dorée !
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: 6 }}>
-        <Carte nbAffiches={nbAffiches} courant={courant} xPour={xPour} etoiles={(n) => etoilesDuNiveau(n, etat)} />
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, paddingTop: 10, paddingHorizontal: 16, gap: 12 }}>
+        <View style={styles.vallee}>
+          <View style={styles.valleePill}><Text style={styles.valleePillTxt}>Vallée des Perles</Text></View>
+          <Etincelle taille={13} style={{ position: 'absolute', top: 54, left: 18 }} />
+          <Etincelle taille={9} couleur="#CBB6E8" style={{ position: 'absolute', top: 120, right: 16 }} />
+          <Carte nbAffiches={nbAffiches} courant={courant} xPour={xPour} etoiles={(n) => etoilesDuNiveau(n, etat)} />
+        </View>
+
+        {/* Carte du niveau courant (maquette 3a : Objectif · Munitions · étoiles · CTA candy) */}
+        <CarteNiveau n={courant} etoiles={etoilesDuNiveau(courant, etat)} />
       </ScrollView>
+    </View>
+  );
+}
+
+function EtoileNiveau({ pleine }: { pleine: boolean }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24">
+      <Path d="M12 3l2.5 5.5 6 .6-4.5 4 1.3 5.9L12 21l-5.3 2.9 1.3-5.9-4.5-4 6-.6Z" fill={pleine ? '#f2da33' : '#e4ddef'} />
+    </Svg>
+  );
+}
+
+function CarteNiveau({ n, etoiles }: { n: number; etoiles: number }) {
+  const p = paramsNiveau(n);
+  return (
+    <View style={styles.nivCarte}>
+      <View style={styles.nivHaut}>
+        <Text style={styles.nivTitre}>Niveau {n}</Text>
+        <View style={{ flexDirection: 'row', gap: 2 }}>
+          {[1, 2, 3].map((i) => <EtoileNiveau key={i} pleine={i <= etoiles} />)}
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={styles.nivInfo}>
+          <Text style={styles.nivInfoLabel}>Objectif</Text>
+          <Text style={styles.nivInfoVal} numberOfLines={1}>{objectifLabel(p.objectif).replace(' 👹', '')}</Text>
+        </View>
+        <View style={styles.nivInfo}>
+          <Text style={styles.nivInfoLabel}>Munitions</Text>
+          <Text style={styles.nivInfoVal}>{p.tirsMax} tirs</Text>
+        </View>
+      </View>
+      <Pressable
+        style={styles.nivCta}
+        onPress={() => router.push(`/jeu/shooter?niveau=${n}` as any)}
+        accessibilityRole="button"
+        accessibilityLabel={`Jouer le niveau ${n}`}
+      >
+        <Text style={styles.nivCtaTxt}>Jouer le niveau {n} ›</Text>
+      </Pressable>
     </View>
   );
 }
@@ -83,7 +130,7 @@ function ChercheminSvg({ nbAffiches, xPour, hauteur }: {
       viewBox="0 0 100 100" preserveAspectRatio="none"
       style={StyleSheet.absoluteFill}
     >
-      <Path d={dChemin} stroke="#DED5EC" strokeWidth={1.2} strokeDasharray="2 1.6" fill="none" />
+      <Path d={dChemin} stroke="rgba(255,255,255,0.5)" strokeWidth={1} strokeDasharray="0.1 1.8" strokeLinecap="round" fill="none" />
     </Svg>
   );
 }
@@ -93,21 +140,11 @@ function Noeud({ n, boss, fait, jouable, courant, etoiles, xFrac, y }: {
   etoiles: number; xFrac: number; y: number;
 }) {
   const taille = boss ? 74 : 62;
-  const recompense = capsulePremiereVictoireNiveau(n, boss);
-  const labelRecompense = recompense === 'doree'
-    ? 'capsule dorée'
-    : recompense === 'classique' ? 'capsule classique' : 'bonus de perles';
   return (
-    <View style={{ position: 'absolute', top: y, left: `${xFrac * 100}%`, marginLeft: -85, alignItems: 'center', width: 170 }}>
+    <View style={{ position: 'absolute', top: y, left: `${xFrac * 100}%`, marginLeft: -taille / 2, alignItems: 'center', width: taille }}>
       <Pressable
         disabled={!jouable}
         onPress={() => router.push(`/jeu/shooter?niveau=${n}` as any)}
-        accessibilityRole="button"
-        accessibilityLabel={jouable
-          ? `Niveau ${n}${boss ? ', boss' : ''}${fait ? `, terminé avec ${etoiles} étoiles` : `, première victoire : ${labelRecompense}`}`
-          : `Niveau ${n}, verrouillé`}
-        accessibilityHint={jouable ? 'Lance ce niveau de Perle Rush' : undefined}
-        accessibilityState={{ disabled: !jouable }}
         style={[
           styles.noeud,
           { width: taille, height: taille, borderRadius: taille / 2 },
@@ -122,7 +159,7 @@ function Noeud({ n, boss, fait, jouable, courant, etoiles, xFrac, y }: {
           <Text style={[
             styles.noeudNb,
             fait && { color: '#fff' },
-            courant && !fait && { color: C.violetProfond },
+            courant && !fait && { color: '#fff' },
           ]}>
             {n}
           </Text>
@@ -136,12 +173,7 @@ function Noeud({ n, boss, fait, jouable, courant, etoiles, xFrac, y }: {
           <View key={i} style={{ opacity: fait ? (i <= etoiles ? 1 : 0.2) : 0 }}><Icone nom="etoile" taille={12} /></View>
         ))}
       </View>
-      {courant && (
-        <View style={styles.chipJoue}>
-          <Icone nom={recompense ? 'cadeau' : 'perles-multi'} taille={11} />
-          <Text style={styles.chipJoueTxt}>JOUER · {labelRecompense}</Text>
-        </View>
-      )}
+      {courant && <View style={styles.chipJoue}><Text style={styles.chipJoueTxt}>JOUER</Text></View>}
     </View>
   );
 }
@@ -153,19 +185,47 @@ const styles = StyleSheet.create({
     marginTop: 10, marginBottom: 4, textAlign: 'center',
   },
 
-  noeud: {
-    backgroundColor: C.carte, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: C.bord, ...OMBRE,
+  // Vallée des Perles : carte au trésor violette immersive
+  vallee: {
+    backgroundColor: C.violet, borderRadius: R.carte, paddingVertical: 14,
+    overflow: 'hidden', ...OMBRE_VIOLETTE,
   },
-  noeudFait: { backgroundColor: C.violetClair, borderColor: C.violet },
-  noeudCourant: { borderColor: C.vert, backgroundColor: C.vertPale },
-  noeudVerrou: { backgroundColor: C.lavande, borderColor: C.bord, opacity: 0.75 },
+  valleePill: {
+    alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)', borderRadius: R.pill,
+    paddingVertical: 6, paddingHorizontal: 16, marginBottom: 4, zIndex: 2,
+  },
+  valleePillTxt: { fontFamily: F.titre, fontSize: 14.5, color: '#fff' },
+
+  noeud: {
+    backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: '#fff',
+  },
+  noeudFait: { backgroundColor: C.vert, borderColor: '#fff' },
+  noeudCourant: { backgroundColor: C.rose, borderColor: '#fff' },
+  noeudVerrou: { backgroundColor: 'rgba(255,255,255,0.35)', borderColor: 'rgba(255,255,255,0.55)' },
   noeudBoss: { borderColor: C.jaune },
   noeudNb: { fontFamily: F.titre, fontSize: 21, color: C.violet },
 
   chipJoue: {
-    marginTop: 4, backgroundColor: C.vert, borderRadius: R.pill,
-    paddingVertical: 3, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 4,
+    marginTop: 4, backgroundColor: '#fff', borderRadius: R.pill,
+    paddingVertical: 3, paddingHorizontal: 10,
   },
-  chipJoueTxt: { fontFamily: F.t800, fontSize: 10.5, color: C.violetProfond },
+  chipJoueTxt: { fontFamily: F.titre, fontSize: 10.5, color: C.violet },
+
+  // Carte « Niveau N » (maquette 3a)
+  nivCarte: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 11,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
+  },
+  nivHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  nivTitre: { fontFamily: F.titre, fontSize: 18, color: C.violet },
+  nivInfo: { flex: 1, backgroundColor: C.fond, borderRadius: 14, paddingVertical: 9, paddingHorizontal: 11, gap: 1 },
+  nivInfoLabel: { fontFamily: F.t600, fontSize: 11, color: '#9384AC' },
+  nivInfoVal: { fontFamily: F.t800, fontSize: 13, color: C.texte },
+  nivCta: {
+    backgroundColor: C.vert, borderRadius: R.btn, paddingVertical: 14, alignItems: 'center',
+    borderBottomWidth: 5, borderBottomColor: '#6F8F1F',
+  },
+  nivCtaTxt: { fontFamily: F.titre, fontSize: 17, color: '#2C380C' },
 });

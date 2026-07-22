@@ -3,24 +3,24 @@ import { AppState, Platform } from 'react-native';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { PaytoneOne_400Regular } from '@expo-google-fonts/paytone-one';
+import { Fredoka_600SemiBold } from '@expo-google-fonts/fredoka';
 import {
-  Outfit_400Regular, Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
+  Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
 } from '@expo-google-fonts/outfit';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { GardeMiseAJour } from '@/components/garde-mise-a-jour';
 import AppTabs from '@/components/app-tabs';
 import { GateNaissance } from '@/components/gate-naissance';
 import { supabase } from '@/lib/supabase';
-import { reclamerJetonEnAttente } from '@/lib/carte-temp';
 import { appliquerParrainEnAttente } from '@/lib/parrainage';
 import { enregistrerPush } from '@/lib/push';
-import { getMagasin } from '@/store/magasin';
 
 export default function TabLayout() {
-  // Polices DA : Paytone One (titres) + Outfit (textes)
+  // Polices DA kawaii : Fredoka (titres) + Outfit (textes) + Paytone One (logo)
   const [polices] = useFonts({
-    PaytoneOne_400Regular,
-    Outfit_400Regular, Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
+    Fredoka_600SemiBold, PaytoneOne_400Regular,
+    Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold, Outfit_800ExtraBold,
   });
 
   // Utilisateur connecté SANS date de naissance → on bloque sur l'écran de saisie.
@@ -68,11 +68,7 @@ export default function TabLayout() {
         // Code parrain scanné AVANT l'inscription (/p?c=…) → appliqué dès la connexion.
         appliquerParrainEnAttente().catch(() => {});
         const { data: prof } = await supabase.from('profils')
-          .select('id, date_naissance, numero_fidelite').eq('id', session.user.id).maybeSingle();
-        // Carte fidélité express : un jeton en attente + un numéro → on récupère les tampons auto.
-        if ((prof as any)?.numero_fidelite) {
-          reclamerJetonEnAttente(String((prof as any).numero_fidelite)).catch(() => {});
-        }
+          .select('id, date_naissance').eq('id', session.user.id).maybeSingle();
         if (!prof) {
           // Nouveau compte (souvent Google/Apple) : on crée la ligne, sans date → gate.
           await supabase.from('profils').insert({
@@ -80,9 +76,7 @@ export default function TabLayout() {
             email: session.user.email,
             nom: (session.user.user_metadata as any)?.full_name || null,
             app_utilisee: true,
-            // Boutique par défaut = choix local de l'app (modifiable dans Compte → Mes
-            // informations). Évite qu'une caisse d'une AUTRE ville la fixe à sa place.
-            magasin: getMagasin(),
+            prenom_sur_ticket: true,
           });
           setNaissanceUserId(session.user.id);
         } else {
@@ -110,6 +104,7 @@ export default function TabLayout() {
     <ThemeProvider value={DefaultTheme}>
       <AnimatedSplashOverlay />
       <AppTabs />
+      <GardeMiseAJour />
       {naissanceUserId && (
         <GateNaissance userId={naissanceUserId} onDone={() => setNaissanceUserId(null)} />
       )}

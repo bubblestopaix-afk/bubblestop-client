@@ -1,0 +1,55 @@
+/* ============================================================
+   Bubble Stop — Effects: shadows, textures, motifs, motion
+   ============================================================ */
+
+:root {
+  /* ---------- Shadows ----------
+     Soft and violet-tinted. NB: the logo itself NEVER takes a
+     shadow (charter rule). Cards on the carte are flat/textured;
+     these shadows are for interactive UI (buttons, popovers, kits). */
+  --shadow-xs:   0 1px 2px rgba(42, 26, 71, 0.08);
+  --shadow-sm:   0 2px 6px rgba(42, 26, 71, 0.10);
+  --shadow-md:   0 8px 20px rgba(42, 26, 71, 0.12);
+  --shadow-lg:   0 18px 42px rgba(42, 26, 71, 0.18);
+  --shadow-pop:  0 14px 30px rgba(76, 45, 119, 0.28);
+  --shadow-pill: 0 4px 0 rgba(42, 26, 71, 0.14);   /* chunky "candy" drop on pills/buttons */
+  --shadow-inset:inset 0 2px 4px rgba(42, 26, 71, 0.10);
+
+  /* ---------- Paper-grid texture ----------
+     The carte's signature surface: warm off-white paper crossed by a
+     faint grid, with a soft diagonal sheen suggesting crumpled stock.
+     Apply with the .bs-paper utility (below) or compose manually. */
+  --grid-size: 22px; /* @kind spacing */
+  --grid-stroke: rgba(99, 62, 144, 0.07); /* @kind color */
+  --paper-tint: var(--bs-paper); /* @kind color */
+
+  /* ---------- Motion ----------
+     Friendly & bouncy — youthful brand. Keep it subtle. */
+  --dur-fast:   140ms; /* @kind other */
+  --dur-base:   240ms; /* @kind other */
+  --dur-slow:   420ms; /* @kind other */
+  --ease-out:   cubic-bezier(0.22, 1, 0.36, 1); /* @kind other */
+  --ease-bounce:cubic-bezier(0.34, 1.56, 0.64, 1);  /* @kind other */
+  --ease-soft:  cubic-bezier(0.4, 0, 0.2, 1); /* @kind other */
+}
+
+/* ---------- Paper-grid surface utility ---------- */
+.bs-paper {
+  background-color: var(--paper-tint);
+  background-image:
+    /* soft crumpled sheen */
+    radial-gradient(120% 80% at 18% 8%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 55%),
+    linear-gradient(135deg, rgba(99,62,144,0.05) 0%, rgba(255,255,255,0) 30%, rgba(99,62,144,0.04) 100%),
+    /* the grid */
+    repeating-linear-gradient(0deg, var(--grid-stroke) 0 1px, transparent 1px var(--grid-size)),
+    repeating-linear-gradient(90deg, var(--grid-stroke) 0 1px, transparent 1px var(--grid-size));
+  background-blend-mode: normal, normal, normal, normal;
+}
+
+/* ---------- Brand violet field with subtle wave glow ---------- */
+.bs-field {
+  background-color: var(--bs-violet);
+  background-image:
+    radial-gradient(140% 60% at 50% -10%, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 60%),
+    radial-gradient(120% 70% at 50% 115%, rgba(38,22,61,0.45) 0%, rgba(38,22,61,0) 55%);
+}

@@ -9,10 +9,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Svg, { Circle, G, Path, Text as SvgText } from 'react-native-svg';
 
-import { C, F, R, OMBRE } from '@/constants/charte';
+import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
+import { Etincelle } from '@/components/ui-kit';
 import { ROULETTE, SegmentRoulette } from '@/components/jeu/economie';
 import { Icone } from '@/components/jeu/icones';
 import { BandeauPreview, BoutonJeu, EnTeteJeu } from '@/components/jeu/ui-jeu';
+import { hapticSucces } from '@/lib/juice';
 import { appliquerRoulette, rouletteDispo, tournerRoulette, useBobaQuest } from '@/store/jeu';
 
 const TAILLE = 310;
@@ -47,6 +49,7 @@ export default function RouletteScreen() {
       appliquerRoulette(seg);
       setGain(seg);
       setEnCours(false);
+      hapticSucces();
     });
   };
 
@@ -66,12 +69,16 @@ export default function RouletteScreen() {
           Un tour gratuit chaque mois — et tu gagnes à tous les coups
         </Text>
 
-        {/* === La roue === */}
-        <View style={styles.roueZone}>
+        {/* === La roue (écrin violet immersif, DA kawaii) === */}
+        <View style={styles.roueCarte}>
+          <Etincelle taille={14} style={{ position: 'absolute', top: 16, left: 16 }} />
+          <Etincelle taille={9} couleur="#CBB6E8" style={{ position: 'absolute', bottom: 26, right: 18 }} />
+          <View style={styles.rouePill}><Text style={styles.rouePillTxt}>Toujours gagnante · 1 tour / mois</Text></View>
+          <View style={styles.roueZone}>
           {/* flèche */}
           <View style={styles.fleche}>
             <Svg width={34} height={26} viewBox="0 0 34 26">
-              <Path d="M17 26 L4 4 Q17 -2 30 4 Z" fill="#D2588A" stroke="#fff" strokeWidth={2.4} />
+              <Path d="M17 26 L4 4 Q17 -2 30 4 Z" fill="#fff" stroke="#fff" strokeWidth={2.4} />
             </Svg>
           </View>
           <Animated.View
@@ -82,6 +89,10 @@ export default function RouletteScreen() {
           >
             <Roue />
           </Animated.View>
+          </View>
+          <Text style={styles.roueNote}>
+            {dispo ? "Ton tour gratuit t'attend" : 'Reviens le 1er du mois pour ton tour gratuit'}
+          </Text>
         </View>
 
         {dispo ? (
@@ -89,7 +100,6 @@ export default function RouletteScreen() {
             titre={enCours ? 'La roue tourne…' : 'Lancer ma roue du mois !'}
             onPress={lancer}
             disabled={enCours}
-            style={{ backgroundColor: C.vert }}
           />
         ) : (
           <View style={styles.dejaCarte}>
@@ -148,7 +158,7 @@ function Roue() {
   };
   return (
     <Svg width={TAILLE} height={TAILLE} viewBox={`0 0 ${TAILLE} ${TAILLE}`}>
-      <Circle cx={cx} cy={cy} r={RAYON_ROUE + 4} fill="#2A1D46" />
+      <Circle cx={cx} cy={cy} r={RAYON_ROUE + 10} fill="#FFFFFF" />
       {ROULETTE.map((seg, i) => {
         const a0 = i * 45, a1 = (i + 1) * 45, centre = i * 45 + 22.5;
         const p0 = pt(a0, RAYON_ROUE), p1 = pt(a1, RAYON_ROUE);
@@ -171,8 +181,8 @@ function Roue() {
           </G>
         );
       })}
-      {/* moyeu */}
-      <Circle cx={cx} cy={cy} r={26} fill="#fff" stroke="#2A1D46" strokeWidth={3} />
+      {/* moyeu cerclé de jaune perle */}
+      <Circle cx={cx} cy={cy} r={26} fill="#fff" stroke={C.jaune} strokeWidth={5} />
       <Circle cx={cx} cy={cy} r={12} fill="#4c2d77" />
       <Circle cx={cx - 4} cy={cy - 4} r={3.4} fill="#fff" opacity={0.5} />
     </Svg>
@@ -184,14 +194,26 @@ const styles = StyleSheet.create({
   contenu: { padding: 18, gap: 16, paddingBottom: 34, alignItems: 'stretch' },
   pitch: { fontFamily: F.t700, fontSize: 14.5, color: C.texte2, textAlign: 'center' },
 
-  roueZone: { alignItems: 'center', paddingTop: 10 },
+  roueCarte: {
+    backgroundColor: C.violet, borderRadius: R.carte, paddingVertical: 18,
+    gap: 12, overflow: 'hidden', ...OMBRE_VIOLETTE,
+  },
+  rouePill: {
+    alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)', borderRadius: R.pill,
+    paddingVertical: 6, paddingHorizontal: 16,
+  },
+  rouePillTxt: { fontFamily: F.titre, fontSize: 13.5, color: '#fff' },
+  roueNote: { fontFamily: F.t600, fontSize: 12.5, color: C.surViolet, textAlign: 'center' },
+  roueZone: { alignItems: 'center', paddingTop: 2 },
   fleche: { zIndex: 3, marginBottom: -13 },
 
   dejaCarte: {
     backgroundColor: C.carte, borderRadius: R.carte, padding: 18,
-    alignItems: 'center', gap: 6, ...OMBRE,
+    alignItems: 'center', gap: 6,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
-  dejaTitre: { fontFamily: F.t800, fontSize: 15.5, color: C.texte },
+  dejaTitre: { fontFamily: F.titre, fontSize: 15.5, color: C.violet },
   dejaTitreRang: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dejaGain: { fontFamily: F.t700, fontSize: 13.5, color: C.vertFonce },
   dejaProchain: { fontFamily: F.t600, fontSize: 13, color: C.texte2 },
@@ -203,8 +225,9 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', padding: 28,
   },
   gainCarte: {
-    backgroundColor: C.carte, borderRadius: 24, padding: 24,
-    alignItems: 'center', gap: 12, alignSelf: 'stretch', ...OMBRE,
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 24,
+    alignItems: 'center', gap: 12, alignSelf: 'stretch',
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
   gainTitre: { fontFamily: F.titre, fontSize: 24, color: C.violet },
   gainPill: { borderRadius: R.pill, paddingVertical: 10, paddingHorizontal: 18 },

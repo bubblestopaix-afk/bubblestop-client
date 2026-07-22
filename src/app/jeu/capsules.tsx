@@ -9,21 +9,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 
-import { C, F, R, OMBRE } from '@/constants/charte';
+import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
+import { Etincelle } from '@/components/ui-kit';
+import { hapticLeger, hapticLourd, hapticMoyen, hapticSucces } from '@/lib/juice';
 import PastilleCollectible from '@/components/jeu/collectibles';
 import {
-  CAPSULES, Collectible, PITY_EPIQUE, PITY_LEGENDAIRE, rangMaitrise, RARETES, SETS, TypeCapsule,
+  CAPSULES, Collectible, PITY_EPIQUE, PITY_LEGENDAIRE, RARETES, SETS, TypeCapsule,
 } from '@/components/jeu/economie';
 import { Icone, IconeEmoji, IconeNom } from '@/components/jeu/icones';
 import {
-  BandeauPreview, BoutonJeu, ChipRarete, EnTeteJeu, formatNb, IconePerle,
+  Confettis, BandeauPreview, BoutonJeu, ChipRarete, EnTeteJeu, formatNb, IconePerle,
 } from '@/components/jeu/ui-jeu';
 import { ouvrirCapsule, pityRestant, useBobaQuest } from '@/store/jeu';
 
 const VIOLET = '#4c2d77';
 
 type Resultat = {
-  collectible: Collectible; doublon: boolean; perlesRendues: number; prestigeNouveau: boolean;
+  collectible: Collectible; doublon: boolean; perlesRendues: number;
   type: TypeCapsule; premiere: boolean;
 };
 
@@ -33,8 +35,6 @@ export default function CapsulesScreen() {
 
   const [enCours, setEnCours] = useState<TypeCapsule | null>(null);
   const [resultat, setResultat] = useState<Resultat | null>(null);
-  const aucuneCapsuleGratuite = etat.capsulesGratuites + etat.capsulesDoreesGratuites === 0;
-  const manqueClassique = Math.max(0, CAPSULES.classique.cout - etat.perles);
   const wobble = useRef(new Animated.Value(0)).current;
   const chute = useRef(new Animated.Value(0)).current;
 
@@ -56,8 +56,16 @@ export default function CapsulesScreen() {
       Animated.timing(wobble, { toValue: 0, duration: 60, useNativeDriver: true }),
       Animated.timing(chute, { toValue: 1, duration: 650, easing: Easing.bounce, useNativeDriver: true }),
     ]).start(() => {
-      setResultat({ ...res, type, premiere });
-      setEnCours(null);
+      // 🎊 Cérémonie : petit suspense dosé par la rareté avant la révélation,
+      // puis retour haptique proportionnel (léger → lourd).
+      const attente = { commun: 150, rare: 380, epique: 720, legendaire: 1050 }[res.collectible.rarete] ?? 150;
+      setTimeout(() => {
+        setResultat({ ...res, type, premiere });
+        setEnCours(null);
+        if (res.collectible.rarete === 'legendaire' || res.collectible.rarete === 'epique') hapticLourd();
+        else if (res.collectible.rarete === 'rare') hapticMoyen();
+        else hapticLeger();
+      }, attente);
     });
   };
 
@@ -85,8 +93,17 @@ export default function CapsulesScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.contenu}>
-        {/* === La machine === */}
+        {/* === La machine (maquette 3b : pill gratuites + étincelles) === */}
         <View style={styles.machineCarte}>
+          <Etincelle taille={13} style={{ position: 'absolute', top: 26, left: 24, opacity: 0.85 }} />
+          <Etincelle taille={10} couleur={C.rose} style={{ position: 'absolute', top: 40, right: 28, opacity: 0.7 }} />
+          {etat.capsulesGratuites + etat.capsulesDoreesGratuites > 0 && (
+            <View style={styles.gratuitesPill}>
+              <Text style={styles.gratuitesPillTxt}>
+                {etat.capsulesGratuites + etat.capsulesDoreesGratuites} CAPSULE{etat.capsulesGratuites + etat.capsulesDoreesGratuites > 1 ? 'S' : ''} GRATUITE{etat.capsulesGratuites + etat.capsulesDoreesGratuites > 1 ? 'S' : ''}
+              </Text>
+            </View>
+          )}
           <Animated.View style={{
             transform: [{ rotate: wobble.interpolate({ inputRange: [-1, 1], outputRange: ['-3deg', '3deg'] }) }],
           }}>
@@ -130,11 +147,6 @@ export default function CapsulesScreen() {
             Chaque capsule ouverte te rapproche d'un drop garanti — la garantie
             tombe même en cas de malchance.
           </Text>
-          {etat.capsulesOuvertes < 3 && (
-            <Text style={styles.pityAide}>
-              Départ protégé : encore {3 - etat.capsulesOuvertes} nouveau{3 - etat.capsulesOuvertes > 1 ? 'x' : ''} garanti{3 - etat.capsulesOuvertes > 1 ? 's' : ''}, sans doublon.
-            </Text>
-          )}
         </View>
 
         {/* === Les deux capsules === */}
@@ -184,28 +196,10 @@ export default function CapsulesScreen() {
           );
         })}
 
-        {aucuneCapsuleGratuite && manqueClassique > 0 && (
-          <View style={styles.zeroAction}>
-            <View style={styles.zeroActionTitre}>
-              <Icone nom="cible" taille={20} />
-              <Text style={styles.zeroTitre}>Il te manque {formatNb(manqueClassique)} perles</Text>
-            </View>
-            <Text style={styles.zeroTexte}>
-              Termine un niveau d’Aventure : tu gagneras des perles, et les paliers marqués d’un cadeau offrent aussi une capsule à la première victoire.
-            </Text>
-            <BoutonJeu
-              titre="Jouer pour gagner des perles"
-              onPress={() => router.push('/jeu/parcours' as any)}
-              accessibilityHint="Ouvre le parcours Aventure"
-              style={{ alignSelf: 'stretch', backgroundColor: C.vert }}
-            />
-          </View>
-        )}
-
         <Text style={styles.astuce}>
-          Les perles se gagnent en jouant à Perle Rush. Les récompenses de
-          capsule sont indiquées directement sur le parcours ; les doublons sont
-          convertis en perles et débloquent la maîtrise visuelle.
+          Les perles se gagnent en jouant à Perle Rush — et les perles dorées
+          du plateau contiennent des capsules gratuites. Les doublons sont
+          convertis en perles automatiquement.
         </Text>
         <BandeauPreview />
       </ScrollView>
@@ -287,9 +281,7 @@ function BarrePity({ nom, titre, restant, total, couleur, fond }: {
 
 // Carte de révélation du collectible (rayons + rareté + phrase)
 function Reveal({ resultat }: { resultat: Resultat }) {
-  const { collectible, doublon, perlesRendues, prestigeNouveau } = resultat;
-  const etat = useBobaQuest();
-  const maitrise = rangMaitrise(etat.collection[collectible.id] || 1);
+  const { collectible, doublon, perlesRendues } = resultat;
   const set = SETS[collectible.set];
   const rarete = RARETES[collectible.rarete];
   const zoom = useRef(new Animated.Value(0)).current;
@@ -307,6 +299,7 @@ function Reveal({ resultat }: { resultat: Resultat }) {
   return (
     <Animated.View style={[styles.reveal, { transform: [{ scale: zoom }] }, legendaire && styles.revealLegendaire]}>
       <View style={styles.rayonsBoite} pointerEvents="none">
+              {(resultat.collectible.rarete === 'epique' || resultat.collectible.rarete === 'legendaire') && <Confettis hauteur={320} />}
         <Animated.View style={{
           transform: [{ rotate: rayons.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }],
         }}>
@@ -325,14 +318,9 @@ function Reveal({ resultat }: { resultat: Resultat }) {
         </Animated.View>
       </View>
       <Text style={styles.revealNouveau}>
-        {prestigeNouveau ? '✦ VERSION PRESTIGE ✦' : doublon ? 'DOUBLON' : legendaire ? '✦ LÉGENDAIRE ✦' : 'NOUVEAU !'}
+        {doublon ? 'DOUBLON' : legendaire ? '✦ LÉGENDAIRE ✦' : 'NOUVEAU !'}
       </Text>
-      <PastilleCollectible
-        id={collectible.id}
-        taille={130}
-        maitrise={maitrise}
-        prestige={etat.prestige[collectible.id] === true}
-      />
+      <PastilleCollectible id={collectible.id} taille={130} />
       <Text style={styles.revealNom}>{collectible.nom}</Text>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <ChipRarete nom={rarete.nom} couleur={rarete.couleur} />
@@ -345,11 +333,7 @@ function Reveal({ resultat }: { resultat: Resultat }) {
       {doublon && (
         <View style={styles.doublon}>
           <IconePerle taille={16} />
-          <Text style={styles.doublonTxt}>
-            {prestigeNouveau
-              ? `Variante brillante ajoutée · +${formatNb(perlesRendues)} perles`
-              : `Maîtrise ${maitrise === 'holo' ? 'Holo' : maitrise === 'or' ? 'Or' : maitrise === 'argent' ? 'Argent' : 'Bronze'} · +${formatNb(perlesRendues)} perles`}
-          </Text>
+          <Text style={styles.doublonTxt}>Déjà dans ta collec' → +{formatNb(perlesRendues)} perles</Text>
         </View>
       )}
     </Animated.View>
@@ -390,13 +374,21 @@ const styles = StyleSheet.create({
   contenu: { padding: 18, gap: 14, paddingBottom: 34 },
 
   machineCarte: {
-    backgroundColor: C.carte, borderRadius: R.carte, padding: 18,
-    alignItems: 'center', gap: 4, ...OMBRE,
+    backgroundColor: C.violet, borderRadius: R.carte, padding: 18,
+    alignItems: 'center', gap: 4, overflow: 'hidden', ...OMBRE_VIOLETTE,
   },
   capsuleTombee: { position: 'absolute', bottom: 46 },
-  machineTexte: { fontFamily: F.t600, fontSize: 13, color: C.texte2, marginTop: 8 },
+  gratuitesPill: {
+    backgroundColor: '#EC647B', borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 12,
+    borderBottomWidth: 3, borderBottomColor: '#B83A52', marginBottom: 6,
+  },
+  gratuitesPillTxt: { fontFamily: F.t800, fontSize: 10.5, color: '#fff', letterSpacing: 0.5 },
+  machineTexte: { fontFamily: F.t600, fontSize: 13, color: C.surViolet, marginTop: 8 },
 
-  pityCarte: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12, ...OMBRE },
+  pityCarte: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
+  },
   pityHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   pityTitreRang: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pityTitre: { fontFamily: F.t800, fontSize: 13.5, color: C.texte },
@@ -405,31 +397,27 @@ const styles = StyleSheet.create({
   pityRempli: { height: 9, borderRadius: 5 },
   pityAide: { fontFamily: F.t600, fontSize: 11.5, color: C.texte3, lineHeight: 16 },
 
-  offre: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12, ...OMBRE },
-  offreDoree: { borderWidth: 2, borderColor: C.jaune },
+  offre: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12,
+    borderWidth: BORD.largeur, borderColor: C.violetClair, ...OMBRE,
+  },
+  offreDoree: { borderColor: C.jaune },
   offreHaut: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  offreTitre: { fontFamily: F.t800, fontSize: 16.5, color: C.texte },
+  offreTitre: { fontFamily: F.titre, fontSize: 16.5, color: C.violet },
   offreOdds: { fontFamily: F.t600, fontSize: 12, color: C.texte2, marginTop: 2 },
 
   btnAchat: {
     backgroundColor: C.vert, borderRadius: R.btn + 2, paddingVertical: 13,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    borderBottomWidth: 5, borderBottomColor: '#6F8F1F',
   },
-  btnAchatTxt: { fontFamily: F.t800, fontSize: 15.5, color: C.violetProfond },
+  btnAchatTxt: { fontFamily: F.titre, fontSize: 15.5, color: '#2C380C' },
   btnAchatCout: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: 'rgba(255,255,255,0.55)', borderRadius: R.pill,
     paddingVertical: 4, paddingHorizontal: 10,
   },
   btnAchatCoutTxt: { fontFamily: F.t800, fontSize: 13.5, color: C.violetProfond },
-
-  zeroAction: {
-    backgroundColor: C.vertPale, borderRadius: R.carte, padding: 16, gap: 9,
-    borderWidth: 1.5, borderColor: C.vert,
-  },
-  zeroActionTitre: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  zeroTitre: { fontFamily: F.t800, fontSize: 15, color: C.violetProfond },
-  zeroTexte: { fontFamily: F.t600, fontSize: 12.5, lineHeight: 18, color: C.texte2 },
 
   astuce: { fontFamily: F.t600, fontSize: 12.5, color: C.texte2, lineHeight: 18, textAlign: 'center' },
 
@@ -438,10 +426,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', gap: 18,
   },
   reveal: {
-    backgroundColor: C.carte, borderRadius: 26, padding: 24, marginHorizontal: 30,
-    alignItems: 'center', gap: 10, alignSelf: 'stretch', overflow: 'hidden', ...OMBRE,
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 24, marginHorizontal: 30,
+    alignItems: 'center', gap: 10, alignSelf: 'stretch', overflow: 'hidden',
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
-  revealLegendaire: { borderWidth: 3, borderColor: '#F3A0BD' },
+  revealLegendaire: { borderColor: C.rose },
   rayonsBoite: {
     ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', top: -20,
   },

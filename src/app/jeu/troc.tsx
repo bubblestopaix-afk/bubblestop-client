@@ -7,7 +7,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
-import { C, F, R, OMBRE } from '@/constants/charte';
+import { BORD, C, F, R, OMBRE } from '@/constants/charte';
 import PastilleCollectible from '@/components/jeu/collectibles';
 import { trouverCollectible } from '@/components/jeu/economie';
 import { Icone } from '@/components/jeu/icones';
@@ -31,7 +31,7 @@ export default function TrocScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.contenu}>
-        <Text style={styles.pitch}>Transforme un doublon en carte manquante de la même rareté.</Text>
+        <Text style={styles.pitch}>Transforme tes doublons en cartes qui te manquent.</Text>
 
         {/* === Échange du jour === */}
         <View style={styles.carte}>
@@ -58,12 +58,12 @@ export default function TrocScreen() {
                   <View style={styles.neuf}><Text style={styles.neufTxt}>NOUVEAU</Text></View>
                 </View>
               </View>
-              <BoutonJeu titre="Échanger" onPress={faire} style={{ alignSelf: 'stretch', backgroundColor: C.vert }} />
+              <BoutonJeu titre="Échanger" onPress={faire} style={{ alignSelf: 'stretch' }} />
             </>
           ) : (
             <Text style={styles.vide}>
-              Il te faut un doublon et une carte manquante de la même rareté. Une commune ne peut
-              donc jamais être échangée contre une légendaire.
+              Il te faut au moins un doublon ET une carte manquante pour échanger. Ouvre des capsules
+              pour accumuler des doublons à troquer !
             </Text>
           )}
           <Text style={styles.aide}>Sam (démo) · Bientôt : échange avec de vrais amis par QR, avec l'arrivée des duels.</Text>
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   contenu: { padding: 18, gap: 14, paddingBottom: 34 },
   pitch: { fontFamily: F.t700, fontSize: 14.5, color: C.texte2, textAlign: 'center' },
 
-  carte: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12, ...OMBRE },
+  carte: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12, borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE },
   carteTitre: { fontFamily: F.t800, fontSize: 16, color: C.texte },
 
   echangeRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
   dblNom: { fontFamily: F.t700, fontSize: 10.5, color: C.texte },
 
   modalFond: { flex: 1, backgroundColor: 'rgba(42,29,70,0.6)', alignItems: 'center', justifyContent: 'center', padding: 26 },
-  modalCarte: { backgroundColor: C.carte, borderRadius: 24, padding: 24, alignItems: 'center', gap: 10, alignSelf: 'stretch', ...OMBRE },
+  modalCarte: { backgroundColor: C.carte, borderRadius: 24, padding: 24, alignItems: 'center', gap: 10, alignSelf: 'stretch', borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE },
   modalTitre: { fontFamily: F.titre, fontSize: 22, color: C.violet },
   modalNom: { fontFamily: F.titre, fontSize: 20, color: C.violet },
   modalTexte: { fontFamily: F.t400, fontSize: 13.5, color: C.texte2, textAlign: 'center', lineHeight: 20 },

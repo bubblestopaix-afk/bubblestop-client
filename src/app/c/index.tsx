@@ -1,8 +1,6 @@
-import { useLocalSearchParams } from 'expo-router';
-import ReclamerCarte from '@/components/reclamer-carte';
+import { Redirect } from 'expo-router';
 
-// Route STATIQUE /c?t=<jeton> — c'est elle qu'utilise le QR de la borne (robuste en lien direct).
-export default function ReclamerCarteParQuery() {
-  const { t } = useLocalSearchParams<{ t?: string }>();
-  return <ReclamerCarte token={String(t || '')} />;
+// Compatibilité avec les anciens liens /c?t=… : la fonctionnalité n'est plus proposée.
+export default function AncienLienCarteRetire() {
+  return <Redirect href="/explore" />;
 }

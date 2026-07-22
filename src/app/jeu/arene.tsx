@@ -7,24 +7,25 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
-import { C, F, R, OMBRE } from '@/constants/charte';
+import { BORD, C, F, R, OMBRE, OMBRE_VIOLETTE } from '@/constants/charte';
 import { adversairePNJ, equipeSam, MISES_DUEL_PAR_JOUR, recompenseRang } from '@/components/jeu/arene';
 import PastilleCollectible from '@/components/jeu/collectibles';
 import { Icone, IconeEmoji, IconeType } from '@/components/jeu/icones';
+import { Etincelle } from '@/components/ui-kit';
 import {
   agregerEffets, CAPSULE_OBJET, cleJour, COLLECTIBLES, ECLATS_FORGE, EffetObjet,
   Emplacement, EMPLACEMENTS, OBJET_IDS, OBJETS, ObjetId, panopliesActives, PANOPLIES,
   PITY_OBJET_EPIQUE, objetsDeSlot, RARETES, TOURNOI_ETAPES, trouverCollectible,
   TIERS, recompenseSaison, mutateurDuJour, bossDeLaSemaine, BOSS_RECOMPENSE, cleSemaine,
   passifDe, coutCarte, coutEquipe, BUDGET_EQUIPE, multOutsider, equipeAutoSousBudget,
-  CONSOMMABLES, CONSOMMABLE_IDS,
+  CONSOMMABLES, CONSOMMABLE_IDS, multSerieVictoires,
 } from '@/components/jeu/economie';
 import { BandeauPreview, BoutonJeu, EnTeteJeu, formatNb, IconePerle } from '@/components/jeu/ui-jeu';
 import {
   acheterConsommable, acheterObjet, bossBattuCetteSemaine, classementActuel, definirEquipe,
   enregistrerMiseDuel, equiperObjet, etatTournoi, forgerObjet, idsDoublons, idsPossedes,
-  misesRestantesAujourdhui, objetsDe, ouvrirCapsuleObjet, reclamerRecompenseSaison, useBobaQuest,
-  defisEnAttente,
+  misesRestantesAujourdhui, niveauCarte, objetsDe, ouvrirCapsuleObjet, reclamerRecompenseSaison,
+  useBobaQuest, defisEnAttente,
 } from '@/store/jeu';
 
 const ORDRE_RARETE = { legendaire: 0, epique: 1, rare: 2, commun: 3 } as const;
@@ -138,7 +139,7 @@ export default function AreneScreen() {
               Chaque collectible de ton album sait se battre. Trouve-en au moins 3
               dans les capsules (via l'Aventure) pour entrer dans l'Arène.
             </Text>
-            <BoutonJeu titre="Partir à l'Aventure" onPress={() => router.replace('/jeu/parcours' as any)} style={{ alignSelf: 'stretch', backgroundColor: C.vert }} />
+            <BoutonJeu titre="Partir à l'Aventure" onPress={() => router.replace('/jeu/parcours' as any)} style={{ alignSelf: 'stretch' }} />
           </View>
         </View>
       </View>
@@ -152,24 +153,21 @@ export default function AreneScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.contenu}>
-        {/* === 🏆 Classement (ligue + saison) === */}
-        <Pressable style={[styles.rangCarte, { borderColor: cl.tier.couleur }]} onPress={() => setLigueVisible(true)}>
+        {/* === 🏆 Classement (ligue + saison) — carte violette maquette 3e === */}
+        <Pressable style={styles.rangCarte} onPress={() => setLigueVisible(true)}>
+          <Etincelle taille={15} style={{ position: 'absolute', top: 14, right: 16, opacity: 0.7 }} />
           <View style={styles.rangHaut}>
-            <IconeEmoji emoji={cl.tier.emoji} taille={38} />
+            <View style={styles.rangTrophee}><Icone nom="trophee" taille={26} /></View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.rangNom, { color: cl.tier.couleur }]}>{cl.tier.nom}</Text>
-              <Text style={styles.rangSaison}>Saison {cl.saison} · finit dans {cl.joursRestants} j</Text>
-            </View>
-            <View style={styles.rangPcBoite}>
-              <Text style={styles.rangPc}>{cl.pc}</Text>
-              <Text style={styles.rangPcLib}>PC</Text>
+              <Text style={styles.rangNom}>Rang {etat.arene.rang} · {cl.tier.nom}</Text>
+              <Text style={styles.rangSaison}>Saison {cl.saison} · finit dans {cl.joursRestants} j · {cl.pc} PC</Text>
             </View>
           </View>
           <View style={styles.rangBarreFond}>
-            <View style={[styles.rangBarrePlein, { width: `${Math.round(cl.progression * 100)}%`, backgroundColor: cl.tier.couleur }]} />
+            <View style={[styles.rangBarrePlein, { width: `${Math.round(cl.progression * 100)}%` }]} />
           </View>
           <Text style={styles.rangSous}>
-            {cl.suivant ? `Plus que ${cl.suivant.seuil - cl.pc} PC → ${cl.suivant.emoji} ${cl.suivant.nom}` : '👑 Tier maximal atteint !'}
+            {cl.suivant ? `Plus que ${cl.suivant.seuil - cl.pc} PC → ${cl.suivant.nom}` : 'Tier maximal atteint !'}
             {'   ·   Voir la ligue ›'}
           </Text>
           {cl.recompenseEnAttente && (
@@ -194,17 +192,23 @@ export default function AreneScreen() {
         <View style={styles.carte}>
           <View style={styles.carteHaut}>
             <Text style={styles.carteTitre}>Mon équipe</Text>
-            <Text style={styles.stats}>{etat.arene.victoires} V · {etat.arene.defaites} D</Text>
+            <Text style={styles.stats}>
+              {etat.arene.victoires} V · {etat.arene.defaites} D
+              {(etat.arene.serieVictoires ?? 0) >= 2 ? `  ·  🔥 ${etat.arene.serieVictoires}` : ''}
+            </Text>
           </View>
           <View style={styles.equipeRang}>
             {etat.arene.equipe.map((id) => (
               <Pressable key={id} style={styles.slot} onPress={() => { setSelection(etat.arene.equipe); setChoixVisible(true); }}>
                 <PastilleCollectible id={id} taille={72} />
                 <Text style={styles.slotNom} numberOfLines={1}>{trouverCollectible(id)?.nom}</Text>
+                {niveauCarte(id, etat) > 1 && (
+                  <Text style={styles.slotNiveau}>Nv {niveauCarte(id, etat)}</Text>
+                )}
               </Pressable>
             ))}
           </View>
-          <Text style={styles.aide}>Touche une carte pour changer d'équipe</Text>
+          <Text style={styles.aide}>Touche une carte pour changer d'équipe · entraîne-les dans la Collection</Text>
           <View style={styles.typeCarte}>
             <View style={styles.typeLegende}>
               <View style={styles.typeChip}><IconeType set="fruit" taille={26} /><Text style={styles.typeNom}>Fruité</Text></View>
@@ -242,6 +246,13 @@ export default function AreneScreen() {
             </Text>
             {recompense.capsule ? <IconeEmoji emoji={recompense.capsule === 'doree' ? '👑' : '🎁'} taille={16} /> : null}
           </View>
+          {/* 🔥 série de victoires en cours : les perles paient plus tant qu'on gagne */}
+          {(etat.arene.serieVictoires ?? 0) >= 1 && (
+            <Text style={styles.serieV}>
+              🔥 Série : {etat.arene.serieVictoires} victoire{etat.arene.serieVictoires > 1 ? 's' : ''} d'affilée — perles ×
+              {multSerieVictoires(etat.arene.serieVictoires).toFixed(2).replace(/\.?0+$/, '').replace('.', ',')} (défaite = retour à ×1)
+            </Text>
+          )}
           <BoutonJeu
             titre={`Combattre — Rang ${etat.arene.rang} !`}
             onPress={() => router.push(`/jeu/duel?mode=pnj&rang=${etat.arene.rang}` as any)}
@@ -286,7 +297,7 @@ export default function AreneScreen() {
           {bossBattu ? (
             <View style={styles.bossBattuBadge}><Icone nom="check" taille={16} /><Text style={styles.bossBattuTxt}>Vaincu cette semaine — reviens lundi !</Text></View>
           ) : (
-            <BoutonJeu titre="Combattre le boss" onPress={() => router.push('/jeu/duel?mode=boss' as any)} style={{ alignSelf: 'stretch', backgroundColor: '#C0455A' }} />
+            <BoutonJeu titre="Combattre le boss" onPress={() => router.push('/jeu/duel?mode=boss' as any)} variante="danger" style={{ alignSelf: 'stretch' }} />
           )}
         </View>
 
@@ -331,7 +342,7 @@ export default function AreneScreen() {
               </Pressable>
             );
           })}
-          <BoutonJeu titre="Atelier d'objets" onPress={() => { setAtelierVisible(true); setRevele(null); }} style={{ backgroundColor: C.violetClair, marginTop: 6 }} />
+          <BoutonJeu titre="Atelier d'objets" onPress={() => { setAtelierVisible(true); setRevele(null); }} variante="violet" style={{ marginTop: 6 }} />
           <Text style={styles.aide}>3 emplacements par combattant. Réunis une panoplie (Givré · Sucré · Orage · Royale) pour un bonus de set.</Text>
         </View>
 
@@ -379,8 +390,8 @@ export default function AreneScreen() {
         </View>
 
         <Text style={styles.note}>
-          En version finale : duels asynchrones entre vrais comptes (défi envoyé par
-          QR ou notification, l'équipe de ton ami se bat même s'il n'est pas là).
+          Envoie un défi par QR ou notification : l’équipe de ton ami peut se battre
+          même lorsqu’il n’est pas connecté.
         </Text>
         <BandeauPreview />
       </ScrollView>
@@ -732,7 +743,7 @@ const styles = StyleSheet.create({
   fond: { flex: 1, backgroundColor: C.fond },
   contenu: { padding: 18, gap: 14, paddingBottom: 34 },
 
-  carte: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12, ...OMBRE },
+  carte: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12, borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE },
   cartePnj: { borderWidth: 2, borderColor: C.violetClair },
   carteHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   carteTitre: { fontFamily: F.t800, fontSize: 16, color: C.texte },
@@ -741,6 +752,10 @@ const styles = StyleSheet.create({
   equipeRang: { flexDirection: 'row', justifyContent: 'space-around' },
   slot: { alignItems: 'center', gap: 4, width: 86 },
   slotNom: { fontFamily: F.t700, fontSize: 11.5, color: C.texte },
+  slotNiveau: {
+    fontFamily: F.t800, fontSize: 10, color: C.violet, backgroundColor: C.lavande,
+    borderRadius: R.pill, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden',
+  },
 
   aide: { fontFamily: F.t600, fontSize: 12, color: C.texte2, lineHeight: 17, textAlign: 'center' },
   typeCarte: { backgroundColor: C.fond, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 10, gap: 7, marginTop: 4 },
@@ -753,10 +768,11 @@ const styles = StyleSheet.create({
   puissance: { backgroundColor: C.lavande, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 10 },
   puissanceTxt: { fontFamily: F.t800, fontSize: 12.5, color: C.violetProfond },
   recompense: { fontFamily: F.t700, fontSize: 13, color: C.vertFonce, textAlign: 'center' },
+  serieV: { fontFamily: F.t700, fontSize: 12, color: '#C7541F', textAlign: 'center', lineHeight: 17 },
 
   note: { fontFamily: F.t600, fontSize: 12, color: C.texte3, textAlign: 'center', lineHeight: 17 },
 
-  verrou: { backgroundColor: C.carte, borderRadius: R.carte, padding: 24, alignItems: 'center', gap: 12, ...OMBRE },
+  verrou: { backgroundColor: C.carte, borderRadius: R.carte, padding: 24, alignItems: 'center', gap: 12, borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE },
   verrouTitre: { fontFamily: F.titre, fontSize: 20, color: C.violet },
   verrouTexte: { fontFamily: F.t400, fontSize: 14, color: C.texte2, textAlign: 'center', lineHeight: 20 },
 
@@ -845,17 +861,24 @@ const styles = StyleSheet.create({
   capsuleBtnTxt: { fontFamily: F.t800, fontSize: 15, color: '#fff' },
 
   // === classement (carte) ===
-  rangCarte: { backgroundColor: C.carte, borderRadius: 20, padding: 16, gap: 10, borderWidth: 2, ...OMBRE },
+  rangCarte: {
+    backgroundColor: C.violet, borderRadius: R.carte, padding: 16, gap: 10,
+    overflow: 'hidden', ...OMBRE_VIOLETTE,
+  },
+  rangTrophee: {
+    width: 48, height: 48, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center', justifyContent: 'center',
+  },
   rangHaut: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   rangEmoji: { fontSize: 34 },
-  rangNom: { fontFamily: F.t800, fontSize: 17 },
-  rangSaison: { fontFamily: F.t600, fontSize: 11.5, color: C.texte2, marginTop: 1 },
+  rangNom: { fontFamily: F.titre, fontSize: 19, color: '#fff' },
+  rangSaison: { fontFamily: F.t600, fontSize: 12, color: C.surViolet },
   rangPcBoite: { alignItems: 'center' },
   rangPc: { fontFamily: F.titre, fontSize: 22, color: C.texte },
   rangPcLib: { fontFamily: F.t700, fontSize: 10, color: C.texte2, marginTop: -2 },
-  rangBarreFond: { height: 9, borderRadius: 5, backgroundColor: C.fond, overflow: 'hidden' },
-  rangBarrePlein: { height: 9, borderRadius: 5 },
-  rangSous: { fontFamily: F.t700, fontSize: 11.5, color: C.violetClair },
+  rangBarreFond: { height: 10, borderRadius: 5, backgroundColor: 'rgba(0,0,0,0.22)', overflow: 'hidden' },
+  rangBarrePlein: { height: 10, borderRadius: 5, backgroundColor: C.bleu },
+  rangSous: { fontFamily: F.t700, fontSize: 11.5, color: C.surViolet },
   rangRecompenseBadge: { backgroundColor: C.vertPale, borderRadius: 10, paddingVertical: 7, paddingHorizontal: 10, alignItems: 'center' },
   rangRecompenseTxt: { fontFamily: F.t800, fontSize: 12.5, color: '#2E7D32' },
   mutBanniere: { backgroundColor: '#FFF3D6', borderRadius: 16, paddingVertical: 11, paddingHorizontal: 15, gap: 2, borderWidth: 1, borderColor: C.jaune },
@@ -885,7 +908,7 @@ const styles = StyleSheet.create({
   ligueTitres: { fontFamily: F.t700, fontSize: 11.5, color: C.texte2, textAlign: 'center' },
 
   modalFond: { flex: 1, backgroundColor: 'rgba(42,29,70,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  modalCarte: { backgroundColor: C.carte, borderRadius: 24, padding: 20, gap: 12, alignSelf: 'stretch', ...OMBRE },
+  modalCarte: { backgroundColor: C.carte, borderRadius: 24, padding: 20, gap: 12, alignSelf: 'stretch', borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE },
   modalTitre: { fontFamily: F.titre, fontSize: 20, color: C.violet, textAlign: 'center' },
   grilleChoix: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
   choix: {

@@ -1,13 +1,16 @@
 // === Offres : les promos et annonces en cours (publiées par l'admin) ===
 import { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Text, ScrollView, RefreshControl } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Redirect } from 'expo-router';
 
 import { supabase } from '@/lib/supabase';
+import { useFonctionnalite } from '@/lib/fonctionnalites';
 import { offreEnCours } from '@/lib/offres';
 import RappelNotifs from '@/components/rappel-notifs';
 import { IconeApp } from '@/components/icones-app';
-import { C, F, R, OMBRE } from '@/constants/charte';
+import { BORD, C, F, OMBRE, R } from '@/constants/charte';
+import { PointillesRose, TitreKawaii } from '@/components/ui-kit';
 
 // "il y a 2 j" / "aujourd'hui" pour dater une offre
 function depuis(dateIso: string): string {
@@ -17,17 +20,30 @@ function depuis(dateIso: string): string {
   return `Il y a ${jours} j`;
 }
 
-export default function OffresScreen() {
+export default function OffresRoute() {
+  const visibilite = useFonctionnalite('offres');
+  if (!visibilite.charge) return null;
+  if (!visibilite.actif) return <Redirect href={'/' as any} />;
+  return <OffresScreen />;
+}
+
+function OffresScreen() {
   const insets = useSafeAreaInsets();
   const [offres, setOffres] = useState<any[] | null>(null);
   const [refresh, setRefresh] = useState(false);
+  const [erreur, setErreur] = useState(false);
 
   const charger = useCallback(async () => {
-    const { data } = await supabase.from('offres')
+    const { data, error } = await supabase.from('offres')
       .select('id, titre, message, created_at, jours, heure_debut, heure_fin, date_debut, date_fin, active')
       .eq('active', true)
       .order('created_at', { ascending: false })
       .limit(20);
+    if (error) {
+      setErreur(true);
+      return;
+    }
+    setErreur(false);
     // Offres programmées : visibles uniquement pendant leur fenêtre (jours/heures/dates)
     setOffres((data ?? []).filter((o) => offreEnCours(o as any)));
   }, []);
@@ -41,15 +57,25 @@ export default function OffresScreen() {
       <ScrollView
         contentContainerStyle={[styles.contenu, { paddingTop: insets.top + 18 }]}
         refreshControl={<RefreshControl refreshing={refresh} onRefresh={tirer} tintColor={C.violet} />}>
-        <Text style={styles.titre}>Offres</Text>
-        <Text style={styles.sousTitre}>Les bons plans du moment, à montrer en caisse.</Text>
+        <TitreKawaii texte="Offres" taille={24} sousTitre="Les bons plans du moment." />
 
         {/* 🔔 Sans notifications activées, les promos passent à la trappe → rappel */}
         <RappelNotifs />
 
-        {offres === null && <Text style={styles.vide}>Chargement…</Text>}
+        {offres === null && !erreur && <Text style={styles.vide}>Chargement…</Text>}
 
-        {offres?.length === 0 && (
+        {erreur && (
+          <View style={styles.videCarte} accessibilityRole="alert">
+            <IconeApp nom="alerte" taille={42} />
+            <Text style={styles.videTitre}>Offres indisponibles</Text>
+            <Text style={styles.videTexte}>Vérifie ta connexion puis réessaie.</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Réessayer de charger les offres" onPress={charger}>
+              <Text style={styles.reessayer}>Réessayer</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {!erreur && offres?.length === 0 && (
           <View style={styles.videCarte}>
             <IconeApp nom="cadeau" taille={42} />
             <Text style={styles.videTitre}>Pas d'offre en ce moment</Text>
@@ -62,10 +88,11 @@ export default function OffresScreen() {
         {offres?.map((o, i) => (
           <View key={o.id} style={[styles.offre, i === 0 && styles.offrePremiere]}>
             <View style={styles.offreHaut}>
-              <Text style={[styles.offreTitre, i === 0 && { color: C.violetProfond }]}>{o.titre}</Text>
-              <Text style={[styles.offreDate, i === 0 && { color: C.violetProfond, opacity: 0.6 }]}>{depuis(o.created_at)}</Text>
+              <Text style={[styles.offreTitre, i === 0 && { color: '#54470A' }]}>{o.titre}</Text>
+              <Text style={[styles.offreDate, i === 0 && { color: '#54470A', opacity: 0.6 }]}>{depuis(o.created_at)}</Text>
             </View>
-            <Text style={[styles.offreMessage, i === 0 && { color: C.violetProfond, opacity: 0.85 }]}>{o.message}</Text>
+            <PointillesRose couleur={i === 0 ? 'rgba(84,71,10,0.25)' : '#F3D9E9'} />
+            <Text style={[styles.offreMessage, i === 0 && { color: '#54470A', opacity: 0.85 }]}>{o.message}</Text>
           </View>
         ))}
       </ScrollView>
@@ -82,17 +109,22 @@ const styles = StyleSheet.create({
   vide: { fontFamily: F.t600, fontSize: 14, color: C.texte2, textAlign: 'center', marginTop: 30 },
   videCarte: {
     backgroundColor: C.carte, borderRadius: R.carte, padding: 28,
-    alignItems: 'center', gap: 8, marginTop: 16, ...OMBRE,
+    alignItems: 'center', gap: 8, marginTop: 16,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
   videEmoji: { fontSize: 40 },
-  videTitre: { fontFamily: F.t800, fontSize: 16.5, color: C.texte },
+  videTitre: { fontFamily: F.titre, fontSize: 16.5, color: C.violet },
   videTexte: { fontFamily: F.t400, fontSize: 14, color: C.texte2, textAlign: 'center', lineHeight: 20 },
+  reessayer: { fontFamily: F.t800, fontSize: 14, color: C.violetClair, paddingVertical: 8, paddingHorizontal: 16 },
 
-  offre: { backgroundColor: C.carte, borderRadius: R.carte, padding: 18, gap: 6, ...OMBRE },
-  // La plus récente ressort en jaune (comme une promo phare)
-  offrePremiere: { backgroundColor: C.jaune },
+  offre: {
+    backgroundColor: C.carte, borderRadius: R.carte, paddingVertical: 16, paddingHorizontal: 18, gap: 8,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
+  },
+  // La plus récente ressort en jaune perle (promo phare, bord blanc)
+  offrePremiere: { backgroundColor: C.jaune, borderColor: BORD.surPastel },
   offreHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  offreTitre: { flex: 1, fontFamily: F.t800, fontSize: 16, color: C.texte },
-  offreDate: { fontFamily: F.t600, fontSize: 12, color: C.texte3 },
-  offreMessage: { fontFamily: F.t400, fontSize: 14, color: C.texte2, lineHeight: 20 },
+  offreTitre: { flex: 1, fontFamily: F.t800, fontSize: 15.5, color: C.texte },
+  offreDate: { fontFamily: F.t600, fontSize: 11.5, color: C.texte3 },
+  offreMessage: { fontFamily: F.t500, fontSize: 13, color: C.texte2, lineHeight: 19.5 },
 });

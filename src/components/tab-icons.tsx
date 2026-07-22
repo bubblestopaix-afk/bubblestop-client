@@ -70,6 +70,24 @@ export function IconeFidelite({ color, size, focused }: IconeProps) {
   );
 }
 
+// Carte cadeau / solde prépayé — carte avec euro, distincte de la carte à tampons
+export function IconeCarteCadeau({ color, size, focused }: IconeProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Rect
+        x="3.2" y="5.2" width="17.6" height="13.6" rx="3.2"
+        stroke={color} strokeWidth={T} strokeLinejoin="round"
+        fill={focused ? color : 'none'}
+      />
+      <Line x1="3.8" y1="9.2" x2="20.2" y2="9.2" stroke={focused ? NEG : color} strokeWidth={1.8} />
+      <Path
+        d="M15.2 12.1 C14.5 11.5 13.6 11.2 12.7 11.2 C10.7 11.2 9.4 12.5 9.4 14 C9.4 15.6 10.7 16.8 12.7 16.8 C13.6 16.8 14.5 16.5 15.2 15.9 M8.4 13.2 H13.1 M8.4 14.9 H12.7"
+        stroke={focused ? NEG : color} strokeWidth={1.55} strokeLinecap="round" strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 // Offres — étiquette promo avec "%"
 export function IconeOffres({ color, size, focused }: IconeProps) {
   return (

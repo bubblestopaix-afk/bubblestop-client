@@ -6,15 +6,15 @@ import { StyleSheet, View, Text, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
-import { C, F, R, OMBRE } from '@/constants/charte';
+import { BORD, C, F, R, OMBRE } from '@/constants/charte';
 import { adversaireTournoi } from '@/components/jeu/arene';
 import PastilleCollectible from '@/components/jeu/collectibles';
 import {
-  cleSemaine, OBJETS, TOURNOI_ETAPES, TOURNOI_RECOMPENSES, trouverCollectible,
+  cleSemaine, OBJETS, TOURNOI_ETAPES, TOURNOI_RECOMPENSES, TOURNOI_RETENTE_PERLES, trouverCollectible,
 } from '@/components/jeu/economie';
 import { Icone, IconeEmoji } from '@/components/jeu/icones';
 import { BandeauPreview, BoutonJeu, EnTeteJeu, formatNb } from '@/components/jeu/ui-jeu';
-import { etatTournoi, useBobaQuest } from '@/store/jeu';
+import { etatTournoi, retenterTournoi, useBobaQuest } from '@/store/jeu';
 
 export default function TournoiScreen() {
   const insets = useSafeAreaInsets();
@@ -106,7 +106,20 @@ export default function TournoiScreen() {
                   style={{ backgroundColor: i === 2 ? '#D2588A' : C.vert }}
                 />
               )}
-              {perdueIci && <Text style={styles.elimine}>Éliminé ici — nouveau tournoi lundi</Text>}
+              {perdueIci && (
+                <>
+                  <Text style={styles.elimine}>Éliminé ici — retente ou reviens lundi</Text>
+                  {/* 🎟️ seconde chance payante : retente la MÊME étape sans attendre lundi */}
+                  <BoutonJeu
+                    titre={`Retenter — ${formatNb(TOURNOI_RETENTE_PERLES)} perles`}
+                    onPress={() => { if (retenterTournoi()) router.push(`/jeu/duel?mode=tournoi&etape=${i}` as any); }}
+                    style={{ backgroundColor: etat.perles >= TOURNOI_RETENTE_PERLES ? C.vert : C.lavande }}
+                  />
+                  {etat.perles < TOURNOI_RETENTE_PERLES && (
+                    <Text style={styles.pitch}>Pas assez de perles pour retenter — joue à Perle Rush !</Text>
+                  )}
+                </>
+              )}
             </View>
           );
         })}
@@ -141,7 +154,7 @@ const styles = StyleSheet.create({
   championTitre: { fontFamily: F.titre, fontSize: 20, color: C.jaune },
   championTexte: { fontFamily: F.t600, fontSize: 13, color: C.lavande, textAlign: 'center' },
 
-  etape: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 10, ...OMBRE },
+  etape: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 10, borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE },
   etapeFaite: { borderWidth: 2, borderColor: C.vert },
   etapeCourante: { borderWidth: 2, borderColor: C.violetClair },
   etapeFinale: { backgroundColor: '#FDF6FB' },

@@ -37,9 +37,17 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# generated local audits / caches
+tmp/
+__pycache__/
+*.py[cod]
+
 example
 
 # generated native folders
 /ios
 /android
 *.ipa
+
+# Rangement Claude 18/07/2026 : fichiers deplaces en attente de suppression par Yoann
+_a_supprimer/

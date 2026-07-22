@@ -2,19 +2,24 @@
 // Le QR encode le numéro de carte, exactement ce que lit le lecteur 2D du POS.
 // Tampons en temps réel (Supabase realtime + rafraîchissement 30 s).
 import { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Text, Pressable, ScrollView, Platform, Linking } from 'react-native';
+import {
+  StyleSheet, View, Text, Pressable, ScrollView, Platform, Linking, KeyboardAvoidingView,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
+import { SvgXml } from 'react-native-svg';
 
 import { supabase } from '@/lib/supabase';
 import GobeletBubble from '@/components/gobelet-bubble';
 import Parrainage from '@/components/parrainage';
 import QrView from '@/components/qr-view';
-import { C, F, R, OMBRE } from '@/constants/charte';
-import { BoutonPrimaire, BoutonGhost, Message } from '@/components/ui-kit';
+import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
+import { BoutonPrimaire, Etincelle, Message, TitreKawaii, Vague } from '@/components/ui-kit';
 import { IconeApp } from '@/components/icones-app';
 import { LogoBubbleStop } from '@/components/logo-bubblestop';
+import { AppleLogo, GoogleWalletLogo } from '@/components/wallet-logos';
+import { useFonctionnalite } from '@/lib/fonctionnalites';
 
 // Carte de tampons : 9 cases (✓ ou numéro, comme sur le POS) + la 10e case
 // "boisson offerte" avec le gobelet bubble tea dessiné, identique à la borne.
@@ -83,11 +88,13 @@ function BoutonsWallet() {
     <View style={styles.walletWrap}>
       {montrerApple && (
         <Pressable style={[styles.walletBtn, styles.walletApple]} onPress={() => ouvrir('apple')} disabled={!!busy}>
+          <AppleLogo />
           <Text style={styles.walletAppleTxt}>{busy === 'apple' ? 'Ouverture…' : 'Ajouter à Apple Wallet'}</Text>
         </Pressable>
       )}
       {montrerGoogle && (
         <Pressable style={[styles.walletBtn, styles.walletGoogle]} onPress={() => ouvrir('google')} disabled={!!busy}>
+          <GoogleWalletLogo />
           <Text style={styles.walletGoogleTxt}>{busy === 'google' ? 'Ouverture…' : 'Ajouter à Google Wallet'}</Text>
         </Pressable>
       )}
@@ -103,23 +110,28 @@ export default function FideliteScreen() {
   const [connecte, setConnecte] = useState(true);
   const [enreg, setEnreg] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [erreurChargement, setErreurChargement] = useState(false);
+  const carteCadeau = useFonctionnalite('carte_cadeau');
 
   // Tampons en TEMPS RÉEL pour le numéro du compte
   const [histo, setHisto] = useState<any[] | null>(null); // historique des cartes complétées
   const chargerCarte = useCallback(async (t: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('fidelite_cloud')
-      .select('tampons, cadeaux, tampons_par_carte, cartes_completees')
+      .select('tampons, cadeaux, tampons_par_carte, cartes_completees, solde_centimes')
       .eq('numero_fidelite', t)
       .maybeSingle();
+    if (error) { setErreurChargement(true); return; }
     setCarte(data ?? null);
     // Historique des cartes remplies (RLS : chacun ne voit que les siennes)
-    const { data: h } = await supabase
+    const { data: h, error: erreurHisto } = await supabase
       .from('fidelite_cartes')
       .select('completed_le, magasin')
       .order('completed_le', { ascending: false })
       .limit(30);
-    setHisto(h ?? []);
+    if (erreurHisto) setErreurChargement(true);
+    else setHisto(h ?? []);
+    if (!erreurHisto) setErreurChargement(false);
   }, []);
 
   useEffect(() => {
@@ -137,11 +149,14 @@ export default function FideliteScreen() {
 
   // La fidélité est gérée par le COMPTE : le numéro vient du profil
   const charger = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session }, error: erreurSession } = await supabase.auth.getSession();
+    if (erreurSession) { setErreurChargement(true); return; }
     setConnecte(!!session);
     if (!session) { setNumero(null); return; }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profils').select('numero_fidelite').eq('id', session.user.id).maybeSingle();
+    if (error) { setErreurChargement(true); return; }
+    setErreurChargement(false);
     if (data?.numero_fidelite) setNumero(data.numero_fidelite);
     else setNumero(null);
   }, []);
@@ -156,22 +171,21 @@ export default function FideliteScreen() {
 
   // Active la carte du compte : un NUMÉRO DE FIDÉLITÉ unique est généré côté serveur (RPC),
   // sans téléphone. Le trigger crédite +1 tampon de bienvenue à la 1ère activation.
-  const [bienvenue, setBienvenue] = useState<string | null>(null);
+  const [bienvenue, setBienvenue] = useState(false);
   const activerCarte = async () => {
     setEnreg(true);
     setMsg(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { setMsg('Connecte-toi dans l\'onglet Compte.'); return; }
-      const { data: avant } = await supabase.from('profils')
-        .select('bonus_app').eq('id', session.user.id).maybeSingle();
       const { data, error } = await supabase.rpc('activer_ma_carte');
       if (error || !data) { setMsg(error?.message || 'Activation impossible, réessaie.'); return; }
       const code = String(data);
       AsyncStorage.setItem('fidelite.numero', code).catch(() => {});
-      if (avant && avant.bonus_app === false) {
-        setBienvenue('Carte activée ! Ton tampon de bienvenue arrive d\'ici quelques minutes.');
-      }
+      // L'écran d'activation n'est affiché que lorsqu'aucune carte n'existe encore :
+      // annoncer systématiquement le cadeau évite qu'il passe inaperçu.
+      setBienvenue(true);
+      setCarte(undefined);
       setNumero(code);
     } finally {
       setEnreg(false);
@@ -195,24 +209,53 @@ export default function FideliteScreen() {
 
   return (
     <View style={styles.fond}>
-      <ScrollView contentContainerStyle={[styles.contenu, { paddingTop: insets.top + 18 }]}>
-        <Text style={styles.titre}>Fidélité</Text>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        contentContainerStyle={[styles.contenu, { paddingTop: insets.top + 18 }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <TitreKawaii texte="Fidélité" taille={24} />
+
+        {erreurChargement && (
+          <View accessibilityRole="alert">
+            <Message type="erreur" texte="Impossible d'actualiser ta carte. Vérifie ta connexion." />
+            <BoutonPrimaire titre="Réessayer" onPress={() => { charger(); if (numero) chargerCarte(numero); }} />
+          </View>
+        )}
 
         {numero ? (
           <>
-            {/* Bonus de bienvenue crédité à la 1ère liaison */}
-            {bienvenue && <Message type="ok" texte={bienvenue} />}
+            {/* Confirmation forte après la toute première activation. Le crédit est serveur :
+                il peut mettre quelques instants à apparaître dans la grille temps réel. */}
+            {bienvenue && (
+              <View style={styles.bienvenueCarte} accessibilityRole="alert">
+                <View style={styles.bienvenuePastille}>
+                  <Text style={styles.bienvenuePlus}>+1</Text>
+                </View>
+                <View style={styles.bienvenueContenu}>
+                  <Text style={styles.bienvenueTitre}>Ton premier tampon est offert !</Text>
+                  <Text style={styles.bienvenueTexte}>
+                    Ta carte est activée. Le tampon de bienvenue est ajouté automatiquement — rien à faire en caisse.
+                    Il peut apparaître dans quelques instants.
+                  </Text>
+                </View>
+              </View>
+            )}
             {/* === Carte membre violette avec QR === */}
             <View style={styles.carteMembre}>
-              {/* Cercles décoratifs */}
-              <View style={[styles.deco, { top: -38, right: -30, width: 130, height: 130 }]} />
-              <View style={[styles.deco, { bottom: -46, left: -36, width: 150, height: 150 }]} />
-              <View style={{ alignItems: 'center' }}><LogoBubbleStop variante="blanc" largeur={124} /></View>
+              {/* Vagues — COPIER-COLLER du <svg> de la maquette 1b */}
+              <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityElementsHidden>
+                <SvgXml width="100%" height="100%" xml={`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 250" preserveAspectRatio="none"><path d="M-20,30 Q40,18 100,30 T220,30 T340,30 T460,30 L460,-20 L-20,-20 Z" fill="#f2a7cf" opacity=".1"></path><path d="M-20,228 Q60,242 140,228 T300,228 T460,228 L460,270 L-20,270 Z" fill="#452a6e" opacity=".35"></path></svg>`} />
+              </View>
+              <Etincelle taille={15} style={{ position: 'absolute', top: 44, left: 16, opacity: 0.8 }} />
+              <Etincelle taille={12} couleur="#EAE8F5" style={{ position: 'absolute', bottom: 52, right: 20, opacity: 0.45 }} />
+              <View style={{ alignItems: 'center' }}><LogoBubbleStop variante="blanc" largeur={118} /></View>
               <View style={{ alignItems: 'center' }}>
                 <QrView valeur={numero} />
               </View>
               <Text style={styles.carteMembreNumero}>{numero.replace(/(\d{2})(?=\d)/g, '$1 ')}</Text>
               <Text style={styles.carteMembreAide}>Présente ce code en caisse pour cumuler tes tampons</Text>
+              <Vague hauteur={22} />
             </View>
 
             <BoutonsWallet />
@@ -222,6 +265,29 @@ export default function FideliteScreen() {
               parCarte={carte?.tampons_par_carte || 9}
               cadeaux={carte?.cadeaux || 0}
             />
+
+            {/* Le solde prépayé appartient à cette même carte fidélité : aucun second code. */}
+            {carteCadeau.actif && <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Mon solde prépayé, ${(Number(carte?.solde_centimes) || 0) / 100} euros`}
+              style={styles.soldeCarte}
+              onPress={() => router.push('/carte-cadeau')}>
+              <View style={styles.soldeIcone}>
+                <IconeApp nom="carte" taille={22} />
+              </View>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={[styles.soldeTitre]}>Mon solde prépayé</Text>
+                <Text style={[styles.soldeSousTitre]}>
+                  Recharge en boutique · utilise-le avec ton QR fidélité
+                </Text>
+              </View>
+              <View style={{ alignItems: 'flex-end', gap: 1 }}>
+                <Text style={[styles.soldeMontant]}>
+                  {((Number(carte?.solde_centimes) || 0) / 100).toFixed(2).replace('.', ',')} €
+                </Text>
+                <Text style={[styles.soldeChevron]}>›</Text>
+              </View>
+            </Pressable>}
 
             {/* === Historique des cartes complétées (les cartes se cumulent : chaque carte
                 pleine = une grande boisson offerte, gardée tant qu'elle n'est pas utilisée) === */}
@@ -256,6 +322,10 @@ export default function FideliteScreen() {
         ) : (
           <View style={styles.liaison}>
             <Text style={styles.liaisonTitre}>Active ta carte</Text>
+            <View style={styles.bonusActivation}>
+              <Text style={styles.bonusActivationNombre}>+1</Text>
+              <Text style={styles.bonusActivationTexte}>tampon de bienvenue offert dès l'activation</Text>
+            </View>
             <Text style={styles.aide}>
               Active ta carte de fidélité en un geste. Tu reçois un numéro de fidélité
               et un QR à présenter en caisse.
@@ -273,9 +343,8 @@ export default function FideliteScreen() {
         {/* 🤝 Parrainage : mon code + saisir un code (récompenses à la 1ère commande du filleul) */}
         <Parrainage />
 
-        {/* Carte express (QR pris à la borne) : saisir le jeton pour récupérer les tampons */}
-        <BoutonGhost titre="J'ai une carte express — saisir mon jeton" onPress={() => router.push('/c' as any)} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -285,8 +354,26 @@ const styles = StyleSheet.create({
   contenu: { padding: 18, gap: 14, paddingBottom: 32 },
   titre: { fontFamily: F.titre, fontSize: 26, color: C.violet },
 
+  // Confirmation de la création de carte et du bonus de bienvenue
+  bienvenueCarte: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: C.vertPale, borderRadius: 18, padding: 15,
+    borderWidth: 1.5, borderColor: C.vert,
+  },
+  bienvenuePastille: {
+    width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.vert,
+  },
+  bienvenuePlus: { fontFamily: F.titre, fontSize: 19, color: C.violetProfond },
+  bienvenueContenu: { flex: 1, gap: 3 },
+  bienvenueTitre: { fontFamily: F.t800, fontSize: 15, color: C.violetProfond },
+  bienvenueTexte: { fontFamily: F.t600, fontSize: 12.5, lineHeight: 18, color: C.texte2 },
+
   // Historique des cartes complétées
-  histoCarte: { backgroundColor: C.carte, borderRadius: 20, padding: 18, gap: 8, ...OMBRE },
+  histoCarte: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 18, gap: 8,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
+  },
   histoTitre: { fontFamily: F.t800, fontSize: 15, color: C.violetProfond },
   histoTitreRang: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 2 },
   histoLigne: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: C.lavande, paddingTop: 8 },
@@ -296,36 +383,38 @@ const styles = StyleSheet.create({
 
   // Carte membre violette
   carteMembre: {
-    backgroundColor: C.violet, borderRadius: 24, padding: 22, gap: 12,
-    overflow: 'hidden', ...OMBRE,
+    backgroundColor: C.violet, borderRadius: 26, padding: 18, gap: 10,
+    overflow: 'hidden', ...OMBRE_VIOLETTE,
   },
-  deco: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.06)' },
   carteMembreLogo: { fontFamily: F.titre, fontSize: 15, color: '#fff', letterSpacing: 1, textAlign: 'center' },
-  carteMembreNumero: { fontFamily: F.t800, fontSize: 19, color: '#fff', letterSpacing: 1.5, textAlign: 'center' },
-  carteMembreAide: { fontFamily: F.t600, fontSize: 12.5, color: C.lavande, textAlign: 'center', opacity: 0.85 },
+  carteMembreNumero: { fontFamily: F.t800, fontSize: 17, color: '#fff', letterSpacing: 1.5, textAlign: 'center' },
+  carteMembreAide: { fontFamily: F.t500, fontSize: 12, color: '#B9A9D8', textAlign: 'center' },
 
   // Boutons « Ajouter au Wallet »
-  walletWrap: { gap: 10 },
-  walletBtn: { borderRadius: R.btn, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', ...OMBRE },
+  walletWrap: { flexDirection: 'row', gap: 9 },
+  walletBtn: { flex: 1, minHeight: 49, borderRadius: R.btn, paddingVertical: 11, paddingHorizontal: 10, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', ...OMBRE },
   walletApple: { backgroundColor: '#000' },
-  walletAppleTxt: { fontFamily: F.t700, fontSize: 15, color: '#fff' },
-  walletGoogle: { backgroundColor: '#fff', borderWidth: 1, borderColor: C.bord },
-  walletGoogleTxt: { fontFamily: F.t700, fontSize: 15, color: '#3C4043' },
+  walletAppleTxt: { fontFamily: F.t700, fontSize: 12.5, color: '#fff' },
+  walletGoogle: { backgroundColor: '#fff', borderWidth: 2, borderColor: C.bord },
+  walletGoogleTxt: { fontFamily: F.t700, fontSize: 12.5, color: '#3C4043' },
 
   // Tampons
-  carteFid: { backgroundColor: C.carte, borderRadius: R.carte, padding: 18, gap: 12, ...OMBRE },
+  carteFid: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 18, gap: 12,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
+  },
   carteFidHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   carteFidTitre: { fontFamily: F.titre, fontSize: 16, color: C.violet },
   carteFidCompteur: { fontFamily: F.t800, fontSize: 15, color: C.vertFonce },
   tampons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   tampon: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: C.lavande,
+    width: 37, height: 37, borderRadius: 19, backgroundColor: C.lavande,
     alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#DED5EC',
   },
   tamponPlein: { backgroundColor: C.vertPale, borderColor: C.vert },
   tamponTexte: { fontFamily: F.t800, fontSize: 14, color: C.texte3 },
-  tamponTexteRempli: { fontSize: 17, color: C.violet },
-  tamponCadeau: { backgroundColor: '#FFF3DD', borderColor: '#E8C89A' },
+  tamponTexteRempli: { fontSize: 16, color: C.vertFonce },
+  tamponCadeau: { backgroundColor: C.jaunePale, borderColor: C.jaune },
   carteFidInfo: { fontFamily: F.t600, fontSize: 13, color: C.texte2, textAlign: 'center' },
   cadeau: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -334,11 +423,39 @@ const styles = StyleSheet.create({
   },
   cadeauTexte: { flex: 1, fontFamily: F.t700, fontSize: 13.5, color: C.violetProfond, lineHeight: 19 },
 
-  secours: { fontFamily: F.t400, fontSize: 12.5, color: C.texte3, textAlign: 'center', lineHeight: 18 },
+  // Solde prépayé : accès volontairement dans Fidélité, pas un 5e onglet.
+  soldeCarte: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 16,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
+  },
+  soldeCarteAvecSolde: { backgroundColor: C.violet, borderColor: C.violet },
+  soldeIcone: {
+    width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.rosePale,
+  },
+  soldeTitre: { fontFamily: F.t800, fontSize: 14.5, color: C.texte },
+  soldeSousTitre: { fontFamily: F.t400, fontSize: 11.5, lineHeight: 16, color: C.texte2 },
+  soldeMontant: { fontFamily: F.titre, fontSize: 16, color: C.violet },
+  soldeChevron: { fontFamily: F.t700, fontSize: 18, lineHeight: 18, color: C.texte3 },
+  soldeTexteClair: { color: C.blanc },
+  soldeTexteSecondaireClair: { color: C.lavande },
+
+  secours: { fontFamily: F.t400, fontSize: 12, color: C.texte3, textAlign: 'center', lineHeight: 18 },
 
   // Liaison du numéro
-  liaison: { backgroundColor: C.carte, borderRadius: R.carte, padding: 22, gap: 14, ...OMBRE },
-  liaisonTitre: { fontFamily: F.t800, fontSize: 18, color: C.texte, textAlign: 'center' },
+  liaison: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 22, gap: 14,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
+  },
+  liaisonTitre: { fontFamily: F.titre, fontSize: 18, color: C.violet, textAlign: 'center' },
+  bonusActivation: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: C.vertPale, borderRadius: R.pill, paddingVertical: 9, paddingHorizontal: 13,
+    borderWidth: 1, borderColor: C.vert,
+  },
+  bonusActivationNombre: { fontFamily: F.titre, fontSize: 17, color: C.violet },
+  bonusActivationTexte: { flexShrink: 1, fontFamily: F.t700, fontSize: 12.5, color: C.violetProfond },
   aide: { fontFamily: F.t400, fontSize: 14, color: C.texte2, textAlign: 'center', lineHeight: 21 },
   input: {
     backgroundColor: C.fond, borderRadius: 14, borderWidth: 1.5, borderColor: C.bord,
@@ -347,7 +464,8 @@ const styles = StyleSheet.create({
 
   videCarte: {
     backgroundColor: C.carte, borderRadius: R.carte, padding: 28,
-    alignItems: 'center', gap: 10, ...OMBRE,
+    alignItems: 'center', gap: 10,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
-  videTitre: { fontFamily: F.t800, fontSize: 17, color: C.texte },
+  videTitre: { fontFamily: F.titre, fontSize: 17, color: C.violet },
 });

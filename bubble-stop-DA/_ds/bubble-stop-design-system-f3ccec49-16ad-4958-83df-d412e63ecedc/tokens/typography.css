@@ -1,0 +1,69 @@
+/* ============================================================
+   Bubble Stop — Typography
+   Titrage  : Paytone One — institutional & commercial headlines.
+   Texte    : Outfit       — body, captions, UI, emphasis.
+   Charter hierarchy: Paytone 40/40 (titre) · 20/30 · Outfit 11/17
+   (courant) · Outfit 8/12 (légende).
+   ============================================================ */
+
+:root {
+  /* ---------- Families ---------- */
+  --font-display: 'Paytone One', 'Trebuchet MS', system-ui, sans-serif;
+  --font-body:    'Outfit', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  /* ---------- Weights (Outfit) ---------- */
+  --fw-light:     300; /* @kind other */
+  --fw-regular:   400; /* @kind other */
+  --fw-medium:    500; /* @kind other */
+  --fw-semibold:  600; /* @kind other */
+  --fw-bold:      700; /* @kind other */
+  --fw-extrabold: 800; /* @kind other */
+  /* Paytone One ships a single weight */
+  --fw-display:   400; /* @kind other */
+
+  /* ---------- Type scale ----------
+     Tuned for screen; rooted on the charter's print ratios.
+     Display/title use Paytone One; the rest use Outfit. */
+  --fs-display:   clamp(2.75rem, 1.6rem + 5.7vw, 5rem);  /* @kind other */
+  --fs-h1:        clamp(2.1rem, 1.4rem + 3.5vw, 3.25rem);  /* @kind other */
+  --fs-h2:        clamp(1.6rem, 1.2rem + 2vw, 2.25rem);  /* @kind other */
+  --fs-h3:        1.5rem;  /* @kind other */
+  --fs-title:     1.25rem;  /* @kind other */
+  --fs-lg:        1.125rem;  /* @kind other */
+  --fs-body:      1rem;  /* @kind other */
+  --fs-sm:        0.875rem;  /* @kind other */
+  --fs-xs:        0.78rem;  /* @kind other */
+  --fs-2xs:       0.69rem;  /* @kind other */
+
+  /* ---------- Line heights ---------- */
+  --lh-display:   0.98;  /* @kind other */
+  --lh-tight:     1.05;  /* @kind other */
+  --lh-snug:      1.2;  /* @kind other */
+  --lh-body:      1.55;  /* @kind other */
+  --lh-caption:   1.5;  /* @kind other */
+
+  /* ---------- Letter spacing ---------- */
+  --ls-display:   0.01em;  /* @kind other */
+  --ls-tight:    -0.01em;  /* @kind other */
+  --ls-normal:    0;  /* @kind other */
+  --ls-wide:      0.04em;  /* @kind other */
+  --ls-caps:      0.12em;  /* @kind other */
+}
+
+/* ---------- Optional helper classes (used by specimen cards) ---------- */
+.bs-display { font-family: var(--font-display); font-weight: var(--fw-display);
+  font-size: var(--fs-display); line-height: var(--lh-display); letter-spacing: var(--ls-display);
+  color: var(--text-strong); }
+.bs-h1 { font-family: var(--font-display); font-weight: var(--fw-display);
+  font-size: var(--fs-h1); line-height: var(--lh-tight); color: var(--text-strong); }
+.bs-h2 { font-family: var(--font-display); font-weight: var(--fw-display);
+  font-size: var(--fs-h2); line-height: var(--lh-tight); color: var(--text-strong); }
+.bs-title { font-family: var(--font-display); font-weight: var(--fw-display);
+  font-size: var(--fs-title); line-height: var(--lh-snug); color: var(--text-strong); }
+.bs-body { font-family: var(--font-body); font-weight: var(--fw-regular);
+  font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-body); }
+.bs-caption { font-family: var(--font-body); font-weight: var(--fw-regular);
+  font-size: var(--fs-xs); line-height: var(--lh-caption); color: var(--text-muted); }
+.bs-eyebrow { font-family: var(--font-body); font-weight: var(--fw-bold);
+  font-size: var(--fs-2xs); letter-spacing: var(--ls-caps); text-transform: uppercase;
+  color: var(--accent-ink); }

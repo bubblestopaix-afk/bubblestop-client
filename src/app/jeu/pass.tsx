@@ -6,10 +6,11 @@ import { StyleSheet, View, Text, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
-import { C, F, R, OMBRE } from '@/constants/charte';
+import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
 import { cleSemaine, evenementDuJour, labelPalier, PASS_PALIERS, PASS_XP } from '@/components/jeu/economie';
 import { Icone, IconeNom } from '@/components/jeu/icones';
 import { BandeauPreview, BoutonJeu, EnTeteJeu, formatNb, IconePerle } from '@/components/jeu/ui-jeu';
+import { hapticMoyen } from '@/lib/juice';
 import { etatPass, reclamerPalierPass, useBobaQuest } from '@/store/jeu';
 
 export default function PassScreen() {
@@ -49,6 +50,20 @@ export default function PassScreen() {
           )}
         </View>
 
+        {/* Bannière paliers à réclamer (maquette 3h) */}
+        {pass.reclames.length < PASS_PALIERS.filter((pl) => pass.xp >= pl.xp).length && (
+          <View style={styles.aReclamer}>
+            <View style={styles.aReclamerPill}>
+              <Text style={styles.aReclamerPillTxt}>
+                {PASS_PALIERS.filter((pl, i) => pass.xp >= pl.xp && !pass.reclames.includes(i)).length}
+              </Text>
+            </View>
+            <Text style={styles.aReclamerTxt}>
+              {PASS_PALIERS.filter((pl, i) => pass.xp >= pl.xp && !pass.reclames.includes(i)).length > 1 ? 'paliers à réclamer !' : 'palier à réclamer !'}
+            </Text>
+          </View>
+        )}
+
         {/* La piste des 10 paliers */}
         {PASS_PALIERS.map((palier, i) => {
           const atteint = pass.xp >= palier.xp;
@@ -66,7 +81,7 @@ export default function PassScreen() {
               {reclame ? (
                 <View style={{ paddingHorizontal: 8 }}><Icone nom="check" taille={18} /></View>
               ) : atteint ? (
-                <Pressable style={styles.reclamer} onPress={() => reclamerPalierPass(i)}>
+                <Pressable style={styles.reclamer} onPress={() => { reclamerPalierPass(i); hapticMoyen(); }}>
                   <Text style={styles.reclamerTxt}>Réclamer</Text>
                 </Pressable>
               ) : (
@@ -87,7 +102,7 @@ export default function PassScreen() {
           <LigneXp nom="boba" texte="Jouer une partie d'Infini" xp={PASS_XP.partieInfini} />
         </View>
 
-        <BoutonJeu titre="Aller jouer !" onPress={() => router.replace('/jeu' as any)} style={{ backgroundColor: C.vert }} />
+        <BoutonJeu titre="Aller jouer !" onPress={() => router.replace('/jeu' as any)} />
         <BandeauPreview />
       </ScrollView>
     </View>
@@ -108,22 +123,35 @@ const styles = StyleSheet.create({
   fond: { flex: 1, backgroundColor: C.fond },
   contenu: { padding: 18, gap: 12, paddingBottom: 34 },
 
-  entete: { backgroundColor: C.violet, borderRadius: R.carte, padding: 18, gap: 8, ...OMBRE },
+  entete: { backgroundColor: C.violet, borderRadius: R.carte, padding: 18, gap: 8, ...OMBRE_VIOLETTE },
   enteteHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   semaine: { fontFamily: F.titre, fontSize: 17, color: '#fff' },
-  xpTxt: { fontFamily: F.t800, fontSize: 16, color: C.vert },
+  xpTxt: { fontFamily: F.titre, fontSize: 16, color: C.jaune },
   barreGlobale: { height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' },
   barreGlobaleRemplie: { height: 12, borderRadius: 6, backgroundColor: C.vert },
-  pitch: { fontFamily: F.t600, fontSize: 12.5, color: C.lavande, lineHeight: 18 },
+  pitch: { fontFamily: F.t600, fontSize: 12.5, color: C.surViolet, lineHeight: 18 },
   evtChip: { backgroundColor: C.jaune, borderRadius: R.pill, alignSelf: 'flex-start', paddingVertical: 5, paddingHorizontal: 11 },
   evtChipTxt: { fontFamily: F.t800, fontSize: 11.5, color: C.violetProfond },
 
+  aReclamer: {
+    flexDirection: 'row', alignItems: 'center', gap: 9,
+    backgroundColor: C.jaunePale, borderRadius: 14, paddingVertical: 9, paddingHorizontal: 13,
+    borderWidth: 2, borderColor: C.jaune,
+  },
+  aReclamerPill: {
+    backgroundColor: '#EC647B', borderRadius: R.pill, minWidth: 21, height: 21,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6,
+  },
+  aReclamerPillTxt: { fontFamily: F.t800, fontSize: 11, color: '#fff' },
+  aReclamerTxt: { fontFamily: F.t800, fontSize: 13.5, color: '#54470A' },
+
   palier: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: C.carte, borderRadius: 16, padding: 12, ...OMBRE,
+    backgroundColor: C.carte, borderRadius: R.btn + 2, padding: 12,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
-  palierAtteint: { borderWidth: 1.5, borderColor: C.vert },
-  palierFinal: { borderWidth: 2, borderColor: C.jaune, backgroundColor: '#FFFDF5' },
+  palierAtteint: { borderColor: C.vert },
+  palierFinal: { borderColor: C.jaune, backgroundColor: C.jaunePale },
   numero: {
     width: 38, height: 38, borderRadius: 19, backgroundColor: C.lavande,
     alignItems: 'center', justifyContent: 'center',
@@ -133,13 +161,19 @@ const styles = StyleSheet.create({
   numeroTxt: { fontFamily: F.t800, fontSize: 15, color: C.violetProfond },
   palierLabel: { fontFamily: F.t800, fontSize: 14, color: C.texte },
   palierXp: { fontFamily: F.t600, fontSize: 12, color: C.texte2, marginTop: 1 },
-  reclamer: { backgroundColor: C.vert, borderRadius: R.pill, paddingVertical: 8, paddingHorizontal: 14 },
-  reclamerTxt: { fontFamily: F.t800, fontSize: 12.5, color: C.violetProfond },
+  reclamer: {
+    backgroundColor: C.vert, borderRadius: R.pill, paddingVertical: 8, paddingHorizontal: 14,
+    borderBottomWidth: 3, borderBottomColor: '#6F8F1F',
+  },
+  reclamerTxt: { fontFamily: F.titre, fontSize: 12.5, color: '#2C380C' },
   reclameTxt: { fontFamily: F.t800, fontSize: 18, color: C.vertFonce, paddingHorizontal: 8 },
   verrou: { fontSize: 15, opacity: 0.5, paddingHorizontal: 6 },
 
-  carte: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 9, ...OMBRE, marginTop: 4 },
-  carteTitre: { fontFamily: F.t800, fontSize: 15, color: C.texte, marginBottom: 2 },
+  carte: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 9, marginTop: 4,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
+  },
+  carteTitre: { fontFamily: F.titre, fontSize: 15, color: C.violet, marginBottom: 2 },
   ligneXp: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   ligneXpTxt: { flex: 1, fontFamily: F.t600, fontSize: 13, color: C.texte2 },
   ligneXpVal: { fontFamily: F.t800, fontSize: 12.5, color: C.violetClair },

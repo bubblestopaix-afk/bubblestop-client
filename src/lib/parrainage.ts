@@ -3,7 +3,7 @@
 // via deep link, ou appli web commande.bubblestop.fr via la caméra du téléphone).
 // Si le filleul n'est pas encore connecté au moment du scan, le code est MÉMORISÉ
 // puis appliqué automatiquement dès qu'une session existe (_layout / route /p) —
-// même logique éprouvée que le jeton de carte express (lib/carte-temp).
+// Le code scanné est mémorisé jusqu'à la première session authentifiée.
 // Les récompenses (parrain / filleul) restent créditées par l'agent à la 1ère
 // commande du filleul — le QR ne fait qu'automatiser la LIAISON parrain-filleul.
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,7 +12,7 @@ import { supabase } from '@/lib/supabase';
 const CLE = 'parrain.codeEnAttente';
 
 // L'appli web sert de porte d'entrée universelle : le scan caméra ouvre cette URL,
-// que l'appli soit installée ou non (même domaine que les QR carte express).
+// que l'appli soit installée ou non.
 export const lienParrainage = (code: string) => `https://commande.bubblestop.fr/p?c=${code}`;
 
 // Appelle l'edge agent-bubblestop et renvoie TOUJOURS un corps { ok, ... }.

@@ -7,6 +7,8 @@ const PHOTOS: Record<string, any> = {
   'milkshake.webp': require('@/assets/images/photos/milkshake.webp'),
   'match.webp': require('@/assets/images/photos/match.webp'),
   'citronnade.webp': require('@/assets/images/photos/citronnade.webp'),
+  'mousses-menu.png': require('@/assets/images/photos/mousses-menu.png'),
+  'creme-brulee-menu.png': require('@/assets/images/photos/creme-brulee-menu.png'),
 };
 
 // Retrouve la photo d'une catégorie depuis son chemin POS (/img/photos/tea.webp)

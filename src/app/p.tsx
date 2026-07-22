@@ -3,14 +3,14 @@
 // s'ouvre (appli installée ou appli web commande.bubblestop.fr).
 // Connecté : le parrainage s'applique TOUT SEUL. Pas connecté : le code est mémorisé
 // et appliqué automatiquement après l'inscription/connexion (_layout).
-// Les tampons (parrain + filleul) sont crédités à la 1ère commande du filleul.
+// Les tampons (parrain + filleul) sont crédités au 1er achat en boutique du filleul.
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Platform, Linking } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { supabase } from '@/lib/supabase';
-import { C, F, OMBRE } from '@/constants/charte';
+import { BORD, C, F, OMBRE } from '@/constants/charte';
 import { BoutonPrimaire, BoutonGhost, Message } from '@/components/ui-kit';
 import { IconeApp } from '@/components/icones-app';
 import { memoriserCodeParrain, appliquerParrainEnAttente } from '@/lib/parrainage';
@@ -50,7 +50,7 @@ export default function LienParrainage() {
           <>
             <Message type="ok" texte={msg || 'Parrainage enregistré !'} />
             <Text style={styles.texte}>
-              Tes tampons de bienvenue (et ceux de ton parrain) arrivent automatiquement à ta première commande en magasin.
+              Ton tampon de bienvenue est offert dès l'activation de ta carte. Les bonus de parrainage seront crédités automatiquement après ton premier achat en boutique.
             </Text>
             <BoutonPrimaire titre="Voir ma carte de fidélité" onPress={() => router.replace('/explore')} />
           </>
@@ -59,12 +59,12 @@ export default function LienParrainage() {
         {etat === 'attente' && (
           <>
             <View style={styles.codeBloc}>
-              <Text style={styles.codeLabel}>Code parrain enregistré ✓</Text>
-              <Text style={styles.code}>{code}</Text>
+              <Text style={styles.codeLabel}>Numéro fidélité de ton parrain enregistré ✓</Text>
+              <Text style={styles.code} selectable>{code}</Text>
             </View>
             <Text style={styles.texte}>
               Crée ton compte (ou connecte-toi) : ton parrainage s'appliquera automatiquement,
-              et tes tampons de bienvenue tomberont à ta première commande.
+              ton tampon de bienvenue sera offert à l'activation de ta carte, puis les bonus de parrainage arriveront après ton premier achat en boutique.
             </Text>
             <BoutonPrimaire titre="Créer mon compte / me connecter" onPress={() => router.replace('/compte')} />
             {/* Sur le WEB (scan caméra sans l'appli) : liens stores. Après l'installation,
@@ -75,7 +75,7 @@ export default function LienParrainage() {
                 <Text style={styles.astuce}>
                   Astuce : crée ton compte ici (10 secondes), puis télécharge l'appli et
                   connecte-toi — ton parrainage sera déjà enregistré. Si tu installes l'appli
-                  d'abord, note ton code : tu le saisiras dans Fidélité → Parrainage.
+                  d'abord, note le numéro fidélité de ton parrain : tu le saisiras dans Fidélité → Parrainage.
                 </Text>
                 <View style={styles.stores}>
                   <BoutonGhost titre="App Store" onPress={() => Linking.openURL(LIEN_IOS)} />
@@ -100,7 +100,7 @@ export default function LienParrainage() {
 
 const styles = StyleSheet.create({
   fond: { flex: 1, backgroundColor: C.fond, paddingHorizontal: 18 },
-  carte: { backgroundColor: C.carte, borderRadius: 20, padding: 22, gap: 12, alignItems: 'stretch', ...OMBRE },
+  carte: { backgroundColor: C.carte, borderRadius: 20, padding: 22, gap: 12, alignItems: 'stretch', borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE },
   emoji: { fontSize: 40, textAlign: 'center' },
   titre: { fontFamily: F.titre, fontSize: 20, color: C.violetProfond, textAlign: 'center' },
   texte: { fontFamily: F.t400, fontSize: 13.5, color: C.texte2, lineHeight: 19, textAlign: 'center' },

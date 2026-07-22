@@ -1,0 +1,40 @@
+/* ============================================================
+   Bubble Stop — Base defaults
+   Light touch: wires the brand fonts & ink onto the document
+   without imposing a background. Pages opt into surfaces with
+   .bs-field (violet) or .bs-paper (white grid).
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-weight: var(--fw-regular);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+  color: var(--text-strong);
+  margin: 0;
+}
+
+p { margin: 0; }
+
+a { color: var(--bs-violet); text-decoration: none; }
+a:hover { color: var(--bs-violet-deep); }
+
+::selection { background: var(--bs-green); color: var(--bs-violet-deep); }
+
+:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+
+img { max-width: 100%; display: block; }

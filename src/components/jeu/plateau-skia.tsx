@@ -16,11 +16,13 @@ function etoilePath(cx: number, cy: number, R: number): string {
   return 'M' + pts.join(' L') + ' Z';
 }
 
-// Les 6 couleurs pour le tourbillon arc-en-ciel
-const RAINBOW = ['#8A68B8', '#A3C724', '#FFD166', '#F3A0BD', '#7EC8E3', '#F7A14B', '#8A68B8'];
+// 🎨 Palette CANDY officielle (DA kawaii — normalisation §2.1 de l'audit, 19/07/2026) :
+// violet clair, vert candy, jaune, framboise, bleu ciel, orange abricot.
+// ⚠️ garder EXACTEMENT le même ordre que COULEURS dans shooter.tsx.
+const RAINBOW = ['#b98fe0', '#9fc038', '#f2da33', '#ec647b', '#89cfe3', '#f7a14b', '#b98fe0'];
 
 // Les 6 familles de perles (même ordre que COULEURS du shooter)
-const BASE = ['#8A68B8', '#A3C724', '#FFD166', '#F3A0BD', '#7EC8E3', '#F7A14B'];
+const BASE = ['#b98fe0', '#9fc038', '#f2da33', '#ec647b', '#89cfe3', '#f7a14b'];
 
 // mélange linéaire de deux couleurs hex (t = 0 → a, 1 → b)
 function lerpHex(a: string, b: string, t: number): string {
@@ -76,6 +78,54 @@ function BulleSkia({ x, y, r, couleur, capsule, special, pv }: {
           <SweepGradient c={vec(x, y)} colors={RAINBOW} />
         </Circle>
         <Circle cx={x} cy={y} r={r} style="stroke" strokeWidth={r * 0.1} color="rgba(255,255,255,0.6)" />
+        {reflet}
+      </Group>
+    );
+  }
+
+  // 🌟 SUPERNOVA : perle de sa couleur, grosse étoile blanche rayonnante — éclatée,
+  // elle emporte TOUTES les perles de sa couleur. La cible prioritaire du plateau.
+  if (special === 'etoile') {
+    const g = GRAD[couleur] ?? GRAD[0];
+    return (
+      <Group>
+        {/* halo rayonnant */}
+        <Circle cx={x} cy={y} r={r * 1.28} color={g.clair} opacity={0.4} />
+        <Circle cx={x} cy={y} r={r}>
+          <RadialGradient c={vec(x - r * 0.3, y - r * 0.34)} r={r * 1.4} colors={[g.clair, g.base, g.sombre]} />
+        </Circle>
+        {/* rayons */}
+        {[0, 1, 2, 3].map((i) => {
+          const a = (i * Math.PI) / 4 + Math.PI / 8;
+          return (
+            <Line
+              key={i}
+              p1={vec(x - Math.cos(a) * r * 1.22, y - Math.sin(a) * r * 1.22)}
+              p2={vec(x + Math.cos(a) * r * 1.22, y + Math.sin(a) * r * 1.22)}
+              color="rgba(255,255,255,0.5)" style="stroke" strokeWidth={r * 0.09} strokeCap="round"
+            />
+          );
+        })}
+        <Path path={etoilePath(x, y, r * 0.72)} color="#ffffff" />
+        <Path path={etoilePath(x, y, r * 0.72)} style="stroke" strokeWidth={r * 0.09} color={g.sombre} />
+        <Circle cx={x - r * 0.15} cy={y - r * 0.22} r={r * 0.1} color="rgba(255,255,255,0.95)" />
+      </Group>
+    );
+  }
+
+  // 🎁 +1 TIR : perle colorée + badge blanc avec flèche vers le haut (cadeau de munition)
+  if (special === 'tir') {
+    const g = GRAD[couleur] ?? GRAD[0];
+    return (
+      <Group>
+        <Circle cx={x} cy={y} r={r}>
+          <RadialGradient c={vec(x - r * 0.3, y - r * 0.34)} r={r * 1.4} colors={[g.clair, g.base, g.sombre]} />
+        </Circle>
+        <Circle cx={x} cy={y} r={r * 0.58} color="rgba(255,255,255,0.92)" />
+        {/* flèche vers le haut */}
+        <Line p1={vec(x, y + r * 0.3)} p2={vec(x, y - r * 0.28)} color="#623E91" style="stroke" strokeWidth={r * 0.14} strokeCap="round" />
+        <Line p1={vec(x - r * 0.2, y - r * 0.05)} p2={vec(x, y - r * 0.3)} color="#623E91" style="stroke" strokeWidth={r * 0.14} strokeCap="round" />
+        <Line p1={vec(x + r * 0.2, y - r * 0.05)} p2={vec(x, y - r * 0.3)} color="#623E91" style="stroke" strokeWidth={r * 0.14} strokeCap="round" />
         {reflet}
       </Group>
     );
@@ -175,7 +225,7 @@ export type BullePx = {
 };
 
 // Une perle « en avant » (capsule, bombe, bonus, arc) passe au-dessus des voisines
-const enAvant = (b: BullePx) => (b.capsule || b.special === 'bombe' || b.special === 'bonus' || b.special === 'arc') ? 1 : 0;
+const enAvant = (b: BullePx) => (b.capsule || b.special === 'bombe' || b.special === 'bonus' || b.special === 'arc' || b.special === 'etoile' || b.special === 'tir') ? 1 : 0;
 
 // Le plateau entier dans UN Canvas (efficace)
 export function PlateauSkia({ w, h, r, bulles }: {

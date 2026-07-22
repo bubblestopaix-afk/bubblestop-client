@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useState } from 'react';
 
-import { C, F, R, OMBRE } from '@/constants/charte';
+import { BORD, C, F, R, OMBRE } from '@/constants/charte';
 import PastilleCollectible from '@/components/jeu/collectibles';
 import QrView from '@/components/qr-view';
 import { equipeAmi } from '@/components/jeu/arene';
@@ -98,7 +98,7 @@ export default function DefisScreen() {
         <Pressable style={styles.modalFond} onPress={() => setQrVisible(false)}>
           <View style={styles.qrGrand}>
             <QrView valeur="bubblestop://defi/demo" taille={240} />
-            <Text style={styles.qrGrandTxt}>Aperçu — le défi par QR arrive avec les vrais comptes.</Text>
+            <Text style={styles.qrGrandTxt}>Le défi par QR arrive prochainement.</Text>
           </View>
         </Pressable>
       </Modal>
@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
   contenu: { padding: 18, gap: 14, paddingBottom: 34 },
   pitch: { fontFamily: F.t700, fontSize: 14, color: C.texte2, textAlign: 'center', lineHeight: 20 },
 
-  carte: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12, ...OMBRE },
+  carte: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12, borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE },
   titreRang: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   carteTitre: { fontFamily: F.t800, fontSize: 16, color: C.texte },
 

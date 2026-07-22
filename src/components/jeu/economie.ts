@@ -22,7 +22,7 @@ export type Gain = {
   type: TypePrix;
   qte: number;          // nb tampons, % de réduction, nb boissons…
   label: string;
-  origine: 'set' | 'collection' | 'boutique' | 'roulette';
+  origine: 'set' | 'collection' | 'boutique' | 'roulette' | 'quete';
   gagneLe: string;      // ISO
   statut: 'a_reclamer' | 'utilise';
 };
@@ -106,53 +106,6 @@ export function trouverCollectible(id: string): Collectible | undefined {
   return COLLECTIBLES.find((c) => c.id === id);
 }
 
-// --- Progression propre à chaque carte --------------------------------------------
-
-export type ActionMissionCarte = 'victoire' | 'spe' | 'signature' | 'garde';
-export type MissionCarte = {
-  action: ActionMissionCarte;
-  cible: number;
-  label: string;
-  recompensePerles: number;
-};
-
-// Une mission unique par personnage. Elles utilisent uniquement des actions déjà
-// présentes dans le combat et ne renforcent jamais les statistiques de la carte.
-export const MISSIONS_CARTES: Record<string, MissionCarte> = {
-  boba: { action: 'victoire', cible: 3, label: 'Gagne 3 combats avec Boba dans l’équipe', recompensePerles: 250 },
-  classico: { action: 'spe', cible: 5, label: 'Utilise Recette originale 5 fois', recompensePerles: 250 },
-  theo: { action: 'spe', cible: 5, label: 'Lance Infusion soporifique 5 fois', recompensePerles: 250 },
-  lacto: { action: 'spe', cible: 5, label: 'Prépare 5 Bains de lait', recompensePerles: 250 },
-  paillette: { action: 'spe', cible: 5, label: 'Déchaîne 5 Rafales de pailles', recompensePerles: 250 },
-  sucrette: { action: 'garde', cible: 5, label: 'Protège Sucrette avec Garde 5 fois', recompensePerles: 250 },
-  fraisy: { action: 'spe', cible: 5, label: 'Déclenche 5 Tourbillons fraise', recompensePerles: 300 },
-  mango: { action: 'victoire', cible: 3, label: 'Gagne 3 combats avec Mango dans l’équipe', recompensePerles: 300 },
-  litchee: { action: 'spe', cible: 5, label: 'Lance Parfum enivrant 5 fois', recompensePerles: 300 },
-  passion: { action: 'signature', cible: 3, label: 'Déchaîne 3 Tsunamis Tropicaux avec Passion', recompensePerles: 300 },
-  citro: { action: 'spe', cible: 5, label: 'Déverse 5 Pluies acides', recompensePerles: 300 },
-  pasteka: { action: 'garde', cible: 5, label: 'Protège Pastèka avec Garde 5 fois', recompensePerles: 300 },
-  popping: { action: 'spe', cible: 5, label: 'Déclenche 5 Explosions popping', recompensePerles: 400 },
-  jelly: { action: 'garde', cible: 5, label: 'Protège Jelly avec Garde 5 fois', recompensePerles: 400 },
-  mochito: { action: 'spe', cible: 5, label: 'Offre 5 Câlins mochi', recompensePerles: 400 },
-  coco: { action: 'spe', cible: 5, label: 'Prépare 5 Laits de coco', recompensePerles: 400 },
-  pudding: { action: 'signature', cible: 3, label: 'Déchaîne 3 Avalanches avec Pudding', recompensePerles: 400 },
-  nuage: { action: 'spe', cible: 5, label: 'Forme 5 Cocons de chantilly', recompensePerles: 400 },
-  'taro-queen': { action: 'signature', cible: 3, label: 'Prononce 3 Sacres Royaux avec Taro Queen', recompensePerles: 600 },
-  'matcha-sensei': { action: 'victoire', cible: 3, label: 'Gagne 3 combats avec Matcha Sensei', recompensePerles: 600 },
-  'brown-sugar-king': { action: 'signature', cible: 3, label: 'Prononce 3 Sacres Royaux avec Brown Sugar King', recompensePerles: 600 },
-  'oreo-star': { action: 'spe', cible: 5, label: 'Fais tomber 5 Pluies d’étoiles', recompensePerles: 600 },
-  'caramel-chef': { action: 'spe', cible: 5, label: 'Prépare 5 Nappages réparateurs', recompensePerles: 600 },
-  'bubble-master': { action: 'victoire', cible: 3, label: 'Gagne 3 combats avec Bubble Master', recompensePerles: 600 },
-};
-
-export type RangMaitrise = 'bronze' | 'argent' | 'or' | 'holo';
-export function rangMaitrise(nombrePossede: number): RangMaitrise {
-  if (nombrePossede >= 5) return 'holo';
-  if (nombrePossede >= 3) return 'or';
-  if (nombrePossede >= 2) return 'argent';
-  return 'bronze';
-}
-
 // --- Capsules (gacha) -----------------------------------------------------------
 
 export type TypeCapsule = 'classique' | 'doree';
@@ -162,25 +115,52 @@ export const CAPSULES: Record<TypeCapsule, {
   poids: Record<Rarete, number>; // sur 100
 }> = {
   classique: {
-    nom: 'Capsule Classique', cout: 600, couleur: '#8A68B8',
+    nom: 'Capsule Classique', cout: 400, couleur: '#8A68B8',
     poids: { commun: 62, rare: 26, epique: 9, legendaire: 3 },
   },
   doree: {
-    nom: 'Capsule Dorée', cout: 1800, couleur: '#C99012',
+    nom: 'Capsule Dorée', cout: 1200, couleur: '#C99012',
     poids: { commun: 0, rare: 60, epique: 30, legendaire: 10 },
   },
 };
 
-// Début généreux, puis cadence durable : les niveaux 1 à 4 donnent une
-// classique, chaque boss (5, 10…) une dorée, puis une classique tous les deux
-// niveaux hors boss. Le niveau 1 reste donc la capsule du tutoriel.
-export function capsulePremiereVictoireNiveau(niveau: number, boss: boolean): TypeCapsule | null {
-  if (boss) return 'doree';
-  if (niveau <= 4) return 'classique';
-  return niveau % 2 === 0 ? 'classique' : null;
+// Perles rendues quand on tire un doublon
+// --- 💪 ENTRAÎNEMENT DES CARTES (19/07/2026) — LA réponse aux paliers de combat ---------
+// Chaque carte a un NIVEAU (1..10). Chaque niveau au-delà du 1 donne +6 % PV et +6 % ATQ
+// (jusqu'à +54 % au niveau 10) — appliqué UNIQUEMENT à l'équipe du joueur dans l'arène,
+// jamais aux PNJ (leur force vient de l'échelle par rang). Coût en perles croissant, et
+// paliers d'ÉVOLUTION aux niveaux 4/7/10 : ils consomment des doublons de LA carte
+// (l'exemplaire vitrine n'est jamais consommé) — à défaut, des éclats en joker.
+export const NIVEAU_CARTE_MAX = 10;
+export const NIVEAU_CARTE_BONUS_PCT = 6;
+export const NIVEAU_CARTE_MULT_RARETE: Record<Rarete, number> = { commun: 1, rare: 1.3, epique: 1.6, legendaire: 2 };
+// Coût en perles pour passer DU niveau `niveauActuel` AU suivant (arrondi à la dizaine).
+export function coutNiveauCarte(rarete: Rarete, niveauActuel: number): number {
+  return Math.round(250 * Math.max(1, niveauActuel) * NIVEAU_CARTE_MULT_RARETE[rarete] / 10) * 10;
+}
+// niveau CIBLE → doublons de la carte requis (0 si pas un palier d'évolution)
+export const EVOLUTIONS_CARTE: Record<number, number> = { 4: 1, 7: 2, 10: 3 };
+export const ECLATS_PAR_DOUBLON = 40; // joker : remplace chaque doublon manquant
+export function doublonsPourNiveau(niveauCible: number): number {
+  return EVOLUTIONS_CARTE[niveauCible] ?? 0;
+}
+// Multiplicateur de stats d'une carte à un niveau donné (PUR, testé).
+export function multNiveauCarte(niveau: number): number {
+  const nv = Math.max(1, Math.min(NIVEAU_CARTE_MAX, Math.round(niveau)));
+  return 1 + (NIVEAU_CARTE_BONUS_PCT / 100) * (nv - 1);
 }
 
-// Perles rendues quand on tire un doublon
+// 🎟️ Tournoi : retenter l'étape perdue de la semaine (au lieu d'attendre lundi)
+export const TOURNOI_RETENTE_PERLES = 400;
+
+// 🔥 SÉRIE DE VICTOIRES d'arène : tant qu'on ne perd pas, les perles de victoire
+// montent (+15 %/victoire d'affilée, plafonné à ×1,6). Une défaite remet à zéro.
+export const SERIE_V_PCT = 15;
+export const SERIE_V_MAX = 4;
+export function multSerieVictoires(serie: number): number {
+  return 1 + (SERIE_V_PCT / 100) * Math.max(0, Math.min(SERIE_V_MAX, Math.round(serie)));
+}
+
 export const DOUBLON_PERLES: Record<Rarete, number> = {
   commun: 60, rare: 150, epique: 350, legendaire: 800,
 };
@@ -210,39 +190,9 @@ export const PITY_LEGENDAIRE = 40;  // capsules maxi sans légendaire
 export function tirerCapsuleMin(type: TypeCapsule, min: Rarete, rng: () => number = Math.random): Collectible {
   const naturel = tirerCapsule(type, rng);
   if (RARETES[naturel.rarete].ordre >= RARETES[min].ordre) return naturel;
-  // Une garantie épique donne une ÉPIQUE exacte (sauf légendaire naturelle),
-  // pas un tirage uniforme épique+légendaire qui transformerait le pity en 50 % légendaire.
-  const pool = COLLECTIBLES.filter((c) => c.rarete === min);
+  const pool = COLLECTIBLES.filter((c) => RARETES[c.rarete].ordre >= RARETES[min].ordre);
   return pool[Math.floor(rng() * pool.length)];
 }
-
-// Les trois premières capsules d'un nouveau joueur ne donnent jamais de doublon.
-// On respecte la rareté tirée et les raretés autorisées par le type de capsule.
-export function protegerNouveauCollectible(
-  tire: Collectible,
-  possedes: Record<string, number>,
-  type: TypeCapsule,
-  min: Rarete | null = null,
-  rng: () => number = Math.random,
-): Collectible {
-  if (!(possedes[tire.id] > 0)) return tire;
-  const admissible = (c: Collectible) =>
-    !(possedes[c.id] > 0)
-    && CAPSULES[type].poids[c.rarete] > 0
-    && (!min || RARETES[c.rarete].ordre >= RARETES[min].ordre);
-  const memeRarete = COLLECTIBLES.filter((c) => c.rarete === tire.rarete && admissible(c));
-  const pool = memeRarete.length ? memeRarete : COLLECTIBLES.filter(admissible);
-  return pool.length ? pool[Math.floor(rng() * pool.length)] : tire;
-}
-
-// Rotation déterministe : tous les joueurs ont la même vedette pendant une semaine.
-export function carteVedetteSemaine(semaine: string): Collectible {
-  let graine = 0;
-  for (let i = 0; i < semaine.length; i++) graine = (graine * 31 + semaine.charCodeAt(i)) >>> 0;
-  return COLLECTIBLES[graine % COLLECTIBLES.length];
-}
-
-export const BONUS_VEDETTE_HEBDO = 300;
 
 // --- ⚡ Événements : week-end DOUBLE PERLES (calendrier fixe, zéro push) ---------------
 
@@ -319,11 +269,11 @@ export const NIVEAU_DIV_ECHEC = 14;           // consolation en cas d'échec
 
 export const POWERUPS = {
   bombe: {
-    nom: 'Perle Bombe', cout: 350, max: 3,
+    nom: 'Perle Bombe', cout: 150, max: 3,
     detail: 'Explose toutes les perles autour de l\'impact — les capsules résistent mais perdent leur soutien.',
   },
   arc: {
-    nom: 'Perle Arc-en-ciel', cout: 200, max: 3,
+    nom: 'Perle Arc-en-ciel', cout: 100, max: 3,
     detail: 'Prend la couleur du meilleur groupe qu\'elle touche : match garanti, sauve ta chaîne.',
   },
 } as const;
@@ -408,8 +358,12 @@ export function effetBuddy(set: SetId, rarete: Rarete): EffetBuddy {
 // --- Boutique des prix (perles → prix réels, paliers volontairement longs) --------
 
 // Économie « généreuse » : les vrais prix restent accessibles, mais sur plusieurs
-// sessions. Les seuils sont volontairement très au-dessus des dépenses in-game :
-// une capsule dorée coûte 1 800 perles, un vrai tampon commence à 15 000.
+// sessions. Les seuils sont volontairement au-dessus des dépenses in-game :
+// une capsule dorée coûte 1 200 perles, un vrai tampon commence à 8 000.
+// Rééquilibrage du 18/07/2026 (validé Yoann) : à ~1 000-1 500 perles/jour de jeu
+// actif, tampon ≈ 1 semaine, −10 % ≈ 2 semaines, −20 % ≈ 1 mois, boisson ≈ 6 sem.
+// La vraie protection anti-abus reste le plafond MENSUEL par article (parMois),
+// inchangé : le coût réel maxi pour la boutique ne bouge pas.
 // 🛡️ Anti-farm : CHAQUE article a un plafond MENSUEL (`parMois`, mois calendaire —
 // suivi par article dans le store, `prixMois.achats`). Le jeu reste généreux en
 // récompenses in-game (capsules, objets, perles illimitées), mais ce qui coûte du
@@ -419,10 +373,10 @@ export function effetBuddy(set: SetId, rarete: Rarete): EffetBuddy {
 // NB : le plafond mensuel s'affiche via `parMois` directement dans la carte de l'article
 // (pastille dédiée dans boutique.tsx) — ne PAS le répéter dans `detail`.
 export const BOUTIQUE: { id: string; cout: number; type: TypePrix; qte: number; parMois: number; label: string; detail: string }[] = [
-  { id: 'tampon-1', cout: 15000, type: 'tampon', qte: 1, parMois: 1, label: '+1 tampon', detail: 'Un tampon direct sur ta carte de fidélité' },
-  { id: 'reduc-10', cout: 50000, type: 'reduction', qte: 10, parMois: 3, label: '−10 %', detail: 'Sur ta prochaine commande en boutique' },
-  { id: 'reduc-20', cout: 100000, type: 'reduction', qte: 20, parMois: 1, label: '−20 %', detail: 'Grosse réduction sur ta prochaine commande' },
-  { id: 'boisson-l', cout: 200000, type: 'boisson', qte: 1, parMois: 1, label: 'Grande boisson offerte', detail: 'Taille L (M pour les Signatures)' },
+  { id: 'tampon-1', cout: 8000, type: 'tampon', qte: 1, parMois: 1, label: '+1 tampon', detail: 'Un tampon direct sur ta carte de fidélité' },
+  { id: 'reduc-10', cout: 20000, type: 'reduction', qte: 10, parMois: 3, label: '−10 %', detail: 'Sur ta prochaine commande en boutique' },
+  { id: 'reduc-20', cout: 40000, type: 'reduction', qte: 20, parMois: 1, label: '−20 %', detail: 'Grosse réduction sur ta prochaine commande' },
+  { id: 'boisson-l', cout: 60000, type: 'boisson', qte: 1, parMois: 1, label: 'Grande boisson offerte', detail: 'Taille L (M pour les Signatures)' },
 ];
 
 // --- Roulette mensuelle (toujours gagnante, 1 tour par mois) -----------------------
@@ -456,6 +410,59 @@ export function tirerRoulette(rng: () => number = Math.random): SegmentRoulette 
 
 export function cleJour(d: Date = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// --- 🔥 Série quotidienne (streak) ---------------------------------------------------
+// Revenir chaque jour entretient la série : petites perles quotidiennes, capsule
+// dorée chaque 7e jour, et un multiplicateur PERMANENT sur tous les gains de
+// perles tant que la série tient. Rien n'est perdu en cas d'absence : la série
+// repart à 1, sans malus.
+export type Serie = { jours: number; dernierJour: string };
+export const SERIE_PERLES = [50, 80, 110, 150, 200, 250] as const; // J1..J6 (J7 = capsule dorée)
+
+export function multSerie(jours: number): number {
+  if (jours >= 14) return 1.3;
+  if (jours >= 7) return 1.2;
+  if (jours >= 3) return 1.1;
+  return 1;
+}
+
+// Helper PUR (testable) : fait avancer la série pour `jour` (hier = clé de la veille).
+// Retourne null si la série a déjà été pointée aujourd'hui.
+export function serieApresTick(s: Serie, jour: string, hier: string):
+  | { serie: Serie; perles: number; capsuleDoree: boolean }
+  | null {
+  if (s.dernierJour === jour) return null;
+  const jours = s.dernierJour === hier ? s.jours + 1 : 1;
+  const capsuleDoree = jours % 7 === 0;
+  const perles = capsuleDoree ? 0 : SERIE_PERLES[Math.min((jours - 1) % 7, SERIE_PERLES.length - 1)];
+  return { serie: { jours, dernierJour: jour }, perles, capsuleDoree };
+}
+
+// --- 🎯 Quête unique « Mon premier tampon » -----------------------------------------
+// Chaîne guidée de 7 étapes (dans l'ordre) qui paie UN tampon réel, une seule
+// fois, HORS plafonds mensuels de la boutique. Sert de rampe d'accès à la
+// première récompense tangible (sinon ~4-6 semaines de jeu).
+export type EtapeQueteId = 'niveaux' | 'capsules' | 'duels' | 'defis' | 'infini' | 'copain' | 'perles';
+export const QUETE_TAMPON: { id: EtapeQueteId; label: string; cible: number }[] = [
+  { id: 'niveaux', label: "Termine 3 niveaux d'Aventure", cible: 3 },
+  { id: 'capsules', label: 'Ouvre 2 capsules', cible: 2 },
+  { id: 'duels', label: "Gagne 2 combats (Arène ou tournoi)", cible: 2 },
+  { id: 'defis', label: 'Réclame 3 défis du jour', cible: 3 },
+  { id: 'infini', label: "Joue 3 parties d'Infini", cible: 3 },
+  { id: 'copain', label: 'Équipe un copain de tir', cible: 1 },
+  { id: 'perles', label: 'Gagne 1 500 perles', cible: 1500 },
+];
+export type EtatQuete = { etape: number; progres: number; reclamee: boolean };
+
+// Helper PUR (testable) : crédite `n` sur l'étape courante si elle correspond à `id`.
+export function queteApresCredit(q: EtatQuete, id: EtapeQueteId, n: number): EtatQuete {
+  if (q.reclamee || q.etape >= QUETE_TAMPON.length) return q;
+  const etape = QUETE_TAMPON[q.etape];
+  if (etape.id !== id) return q;
+  const progres = q.progres + n;
+  if (progres >= etape.cible) return { etape: q.etape + 1, progres: 0, reclamee: false };
+  return { ...q, progres };
 }
 
 export function cleMois(d: Date = new Date()): string {
@@ -524,7 +531,7 @@ const CATALOGUE = {
   paille: { nom: 'Grande Paille', emoji: '🧋', slot: 'paille', rarete: 'commun', source: 'perles', cout: 300, detail: '+10 % d\'attaque', effet: { atkPct: 10 } },
   'paille-aiguisee': { nom: 'Paille Aiguisée', emoji: '📍', slot: 'paille', rarete: 'rare', source: 'perles', cout: 700, detail: '+9 % de coups critiques', effet: { critPct: 9 } },
   'paille-givre': { nom: 'Paille Givrée', emoji: '❄️', slot: 'paille', rarete: 'rare', source: 'perles', cout: 750, panoplie: 'givre', detail: '+8 % ATQ · panoplie Givré', effet: { atkPct: 8 } },
-  'paille-caramel': { nom: 'Paille Caramel', emoji: '🍯', slot: 'paille', rarete: 'rare', source: 'perles', cout: 750, panoplie: 'sucre', detail: 'Vol de vie 15 % (cumul max 25 %) · panoplie Sucré', effet: { volDeViePct: 15 } },
+  'paille-caramel': { nom: 'Paille Caramel', emoji: '🍯', slot: 'paille', rarete: 'rare', source: 'perles', cout: 750, panoplie: 'sucre', detail: 'Vol de vie 15 % · panoplie Sucré', effet: { volDeViePct: 15 } },
   'paille-foudre': { nom: 'Paille Foudre', emoji: '⚡', slot: 'paille', rarete: 'epique', source: 'capsule', panoplie: 'orage', detail: 'Ignore le bouclier + 6 % ATQ · panoplie Orage', effet: { perceBouclier: true, atkPct: 6 } },
   'paille-royale': { nom: 'Paille Royale', emoji: '👑', slot: 'paille', rarete: 'legendaire', source: 'capsule', panoplie: 'royal', detail: '+15 % ATQ et +6 % crit · panoplie Royale', effet: { atkPct: 15, critPct: 6 } },
   // 🛡️ COUVERCLE — défensif
@@ -573,7 +580,7 @@ export const PANOPLIES: Record<PanoplieId, {
     nom: 'Sucré', emoji: '🍯', couleur: '#F7A14B',
     paliers: [
       { seuil: 2, effet: { soinTour: 5 }, detail: '2 pièces : +5 PV/tour' },
-      { seuil: 3, effet: { volDeViePct: 15 }, detail: '3 pièces : vol de vie +15 % (cumul max 25 %)' },
+      { seuil: 3, effet: { volDeViePct: 15 }, detail: '3 pièces : vol de vie +15 %' },
     ],
   },
   orage: {
@@ -636,7 +643,7 @@ export const PASSIFS: Record<string, Passif> = {
   fraisy: { nom: 'Pétillante', desc: '+10 % de crit', eff: { critPct: 10 } },
   mango: { nom: 'Tropicale', desc: '+10 % d\'attaque', eff: { atkPct: 10 } },
   litchee: { nom: 'Parfum précis', desc: '+8 % de précision', eff: { precisionPct: 8 } },
-  passion: { nom: 'Ardente', desc: 'Vol de vie 15 % (cumul max 25 %)', eff: { volDeViePct: 15 } },
+  passion: { nom: 'Ardente', desc: 'Vol de vie 15 %', eff: { volDeViePct: 15 } },
   citro: { nom: 'Acide', desc: 'Renvoie 15 % des dégâts subis', eff: { epinesPct: 15 } },
   pasteka: { nom: 'Carapace', desc: 'Démarre avec un bouclier + −40 % dégâts de zone', eff: { bouclierDepart: true, reducZonePct: 40 } },
   // ✨ Toppings (épiques)
@@ -644,14 +651,14 @@ export const PASSIFS: Record<string, Passif> = {
   jelly: { nom: 'Élastique', desc: '−45 % de dégâts de zone', eff: { reducZonePct: 45 } },
   mochito: { nom: 'Moelleux', desc: '+8 PV régénérés par tour', eff: { soinTour: 8 } },
   coco: { nom: 'Blindée', desc: '+16 % de PV max', eff: { pvPct: 16 } },
-  pudding: { nom: 'Gourmand', desc: 'Vol de vie 18 % (cumul max 25 %)', eff: { volDeViePct: 18 } },
+  pudding: { nom: 'Gourmand', desc: 'Vol de vie 18 %', eff: { volDeViePct: 18 } },
   nuage: { nom: 'Cocon', desc: '+8 % PV max et +6 PV/tour', eff: { pvPct: 8, soinTour: 6 } },
   // 👑 Signatures (légendaires) — plusieurs effets cumulés
   'taro-queen': { nom: 'Aura royale', desc: '+12 % ATQ et +6 % crit', eff: { atkPct: 12, critPct: 6 } },
   'matcha-sensei': { nom: 'Maîtrise zen', desc: 'Anti-étourdissement + 8 % crit', eff: { immuniteEtourdi: true, critPct: 8 } },
   'brown-sugar-king': { nom: 'Couronne fondante', desc: '+14 % PV et +6 PV/tour', eff: { pvPct: 14, soinTour: 6 } },
   'oreo-star': { nom: 'Éclat d\'étoile', desc: '+12 % de crit', eff: { critPct: 12 } },
-  'caramel-chef': { nom: 'Nappage vorace', desc: 'Vol de vie 20 % (cumul max 25 %)', eff: { volDeViePct: 20 } },
+  'caramel-chef': { nom: 'Nappage vorace', desc: 'Vol de vie 20 %', eff: { volDeViePct: 20 } },
   'bubble-master': { nom: 'Suprématie', desc: '+12 % ATQ, +8 % crit, survit une fois à 1 PV', eff: { atkPct: 12, critPct: 8, reviveUneFois: true } },
 };
 
@@ -852,17 +859,9 @@ export function trocDuJour(jour: string, doublons: string[], manquants: string[]
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-  // Un commun ne permet plus d'obtenir une légendaire. On garde uniquement les
-  // doublons dont la rareté possède encore au moins une carte manquante.
-  const manquantsSet = new Set(manquants);
-  const d = [...doublons].filter((id) => {
-    const c = trouverCollectible(id);
-    return !!c && COLLECTIBLES.some((m) => m.rarete === c.rarete && manquantsSet.has(m.id));
-  }).sort();
-  if (!d.length) return null;
+  const d = [...doublons].sort();
+  const m = [...manquants].sort();
   const veut = d[Math.floor(rng() * d.length)];
-  const rarete = trouverCollectible(veut)!.rarete;
-  const m = [...manquants].filter((id) => trouverCollectible(id)?.rarete === rarete).sort();
   const offre = m[Math.floor(rng() * m.length)];
   return { veut, offre };
 }

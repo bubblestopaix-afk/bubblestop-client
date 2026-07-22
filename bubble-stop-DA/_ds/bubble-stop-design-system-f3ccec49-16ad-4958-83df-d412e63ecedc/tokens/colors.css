@@ -1,0 +1,97 @@
+/* ============================================================
+   Bubble Stop — Colour system
+   Source of truth: charte graphique (février 2022, V3).
+   Two primaries (violet + green), a secondary set, and a
+   product-family palette that doubles as the size-pill colours.
+   ============================================================ */
+
+:root {
+  /* ---------- PRIMARY ---------- */
+  /* Violet — distinguished, natural, a light feminine touch. Pantone 267 C */
+  --bs-violet:        #633e90;   /* RVB 99 62 144  */
+  --bs-violet-deep:   #4c2d77;   /* "violet profond" — RVB 76 45 119 */
+  /* Green — calming, refreshing, energising. The leaf / nature mark. */
+  --bs-green:         #9fc038;   /* RVB 159 192 56 */
+
+  /* ---------- SECONDARY ---------- */
+  --bs-lavender:      #bbaad3;   /* RVB 187 170 211 */
+  --bs-mauve:         #eae8f5;   /* "mauve pastel" — RVB 234 232 245 */
+  --bs-yellow:        #f2da33;   /* RVB 242 218 51  */
+
+  /* ---------- PRODUCT FAMILY ----------
+     Each drink line owns a colour. The S / M / L price pills on the
+     carte reuse three of these (signature / milk-tea / fruit-tea). */
+  --bs-traditional:   #2bb4a9;   /* Thés du monde — teal */
+  --bs-milk-tea:      #89cfe3;   /* Milk Tea — sky    */
+  --bs-fruit-tea:     #e3b2d3;   /* Fruit Tea — pink  */
+  --bs-citronnade:    #f0b737;   /* Citronnade — amber*/
+  --bs-signature:     #8ebe74;   /* Signature — green */
+  --bs-milkshake:     #ec647b;   /* Milkshake — coral */
+
+  /* ---------- VIOLET RAMP (derived, harmonious) ---------- */
+  --bs-violet-50:     #f3eff9;
+  --bs-violet-100:    #e7ddf1;
+  --bs-violet-200:    #cdb9e2;
+  --bs-violet-300:    #ad8fce;
+  --bs-violet-400:    #8763ab;
+  --bs-violet-500:    #633e90;   /* = --bs-violet */
+  --bs-violet-600:    #573681;
+  --bs-violet-700:    #4c2d77;   /* = --bs-violet-deep */
+  --bs-violet-800:    #382158;
+  --bs-violet-900:    #26163d;
+
+  /* ---------- GREEN RAMP ---------- */
+  --bs-green-50:      #f4f8e7;
+  --bs-green-100:     #e7f1c9;
+  --bs-green-300:     #c4db7e;
+  --bs-green-500:     #9fc038;   /* = --bs-green */
+  --bs-green-600:     #88a82e;
+  --bs-green-700:     #6c8522;
+
+  /* ---------- NEUTRALS ---------- */
+  --bs-white:         #ffffff;
+  --bs-paper:         #f1eff7;   /* warm off-white card paper */
+  --bs-paper-edge:    #e0dcec;   /* faint grid line on paper   */
+  --bs-grey-100:      #efeef3;
+  --bs-grey-300:      #cfc9dd;
+  --bs-grey-500:      #9a90b3;
+  --bs-ink:           #2a1a47;   /* near-black violet ink      */
+
+  /* ============================================================
+     SEMANTIC ALIASES — reach for these in components & screens
+     ============================================================ */
+
+  /* Surfaces */
+  --surface-brand:        var(--bs-violet);       /* the signature purple field */
+  --surface-brand-deep:   var(--bs-violet-deep);
+  --surface-card:         var(--bs-white);        /* white textured menu card    */
+  --surface-soft:         var(--bs-mauve);        /* pale lilac panels           */
+  --surface-paper:        var(--bs-paper);
+
+  /* Text on light */
+  --text-strong:          var(--bs-violet-deep);  /* headings */
+  --text-body:            var(--bs-violet);       /* body copy in violet         */
+  --text-ink:             var(--bs-ink);          /* neutral dark text           */
+  --text-muted:           var(--bs-grey-500);
+  /* Text on the violet field */
+  --text-on-brand:        var(--bs-white);
+  --text-on-brand-muted:  var(--bs-lavender);
+
+  /* Accents */
+  --accent:               var(--bs-green);
+  --accent-ink:           var(--bs-green-700);
+  --highlight:            var(--bs-yellow);
+
+  /* Lines & borders */
+  --border-soft:          var(--bs-violet-100);
+  --border-strong:        var(--bs-violet);
+  --grid-line:            var(--bs-paper-edge);
+
+  /* Size pills (carte) */
+  --size-s:               var(--bs-signature);    /* small  */
+  --size-m:               var(--bs-milk-tea);     /* medium */
+  --size-l:               var(--bs-fruit-tea);    /* large  */
+
+  /* Focus ring */
+  --ring:                 color-mix(in srgb, var(--bs-violet) 45%, transparent);
+}

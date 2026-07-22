@@ -1,37 +1,43 @@
 // === Boba Quest — hub du jeu ===
 // Solde de perles, Aventure (niveaux), défis du jour, Infini, Capsules,
 // Collection, Roulette du mois, Boutique des prix, Troc (bientôt).
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, Pressable, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
-import { C, F, R, OMBRE } from '@/constants/charte';
-import { BoutonRetour } from '@/components/ui-kit';
-import PastilleCollectible from '@/components/jeu/collectibles';
-import { COLLECTIBLES, evenementDuJour, PASS_PALIERS, rangMaitrise } from '@/components/jeu/economie';
+import Svg, { Circle, Path } from 'react-native-svg';
+
+import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
+import { TitreKawaii, BoutonRetour, Etincelle, MascottePerle, Vague } from '@/components/ui-kit';
+import { COLLECTIBLES, evenementDuJour, multSerie, PASS_PALIERS, QUETE_TAMPON } from '@/components/jeu/economie';
 import { Icone } from '@/components/jeu/icones';
 import {
-  BandeauPreview, BoutonJeu, formatNb, IconePerle, PictoHub,
+  BandeauPreview, BoutonJeu, Confettis, formatNb, IconePerle, PictoHub, TuileMode,
 } from '@/components/jeu/ui-jeu';
+import { hapticMoyen, hapticSucces } from '@/lib/juice';
 import {
-  bonusJourDispo, defisDuJour, etatMissionCarte, etatPass, etatVedetteHebdo,
-  nbPrestige, nbUniques, paliersAReclamer,
-  reclamerBonusDefis, reclamerDefi, resetBobaQuest, rouletteDispo, useBobaQuest,
+  bonusJourDispo, defisDuJour, etatPass, nbUniques, paliersAReclamer,
+  reclamerBonusDefis, reclamerDefi, reclamerQueteTampon, resetBobaQuest, rouletteDispo,
+  tickSerie, useBobaQuest,
 } from '@/store/jeu';
 
 export default function HubBobaQuest() {
   const insets = useSafeAreaInsets();
   const etat = useBobaQuest();
   const [trocVisible, setTrocVisible] = useState(false);
+  // 🔥 Série quotidienne : pointée à l'arrivée sur le hub (une fois par jour)
+  const [serieJour, setSerieJour] = useState<{ jours: number; perles: number; capsuleDoree: boolean } | null>(null);
+  useEffect(() => {
+    const r = tickSerie();
+    if (r) {
+      setSerieJour(r);
+      if (r.capsuleDoree) hapticSucces(); else hapticMoyen();
+    }
+  }, []);
   const [resetVisible, setResetVisible] = useState(false);
 
   const uniques = nbUniques(etat);
-  const prestige = nbPrestige(etat);
-  const missionsPretes = COLLECTIBLES.filter((c) => {
-    const mission = etatMissionCarte(c.id, etat);
-    return mission.terminee && !mission.reclamee;
-  }).length;
   const bonus = bonusJourDispo(etat);
   const roulette = rouletteDispo(etat);
   const aReclamer = etat.gains.filter((g) => g.statut === 'a_reclamer').length;
@@ -40,7 +46,6 @@ export default function HubBobaQuest() {
   const tousReclames = defis.every((d) => d.reclame);
   const etoilesTotal = Object.values(etat.aventure.etoiles).reduce((s, e) => s + e, 0);
   const evt = evenementDuJour();
-  const vedette = etatVedetteHebdo(etat);
   const pass = etatPass(etat);
   const passAReclamer = paliersAReclamer(etat);
   const prochainPalier = PASS_PALIERS.find((p) => pass.xp < p.xp);
@@ -50,32 +55,20 @@ export default function HubBobaQuest() {
   const versCapsuleArene = 5 - ((etat.arene.rang - 1) % 5);
   // Guide dérivé : tant que la collection n'a pas commencé, le hub pointe soit
   // vers l'Aventure, soit vers la capsule gratuite déjà gagnée. Zéro nouveau champ.
-  const etapeDebut: 'jouer' | 'ouvrir' | 'collection' | null = etat.onboardingTermine
-    ? null
-    : etat.capsulesOuvertes > 0
-      ? 'collection'
-      : capsulesGratuites > 0 ? 'ouvrir' : 'jouer';
+  const debutSansCollection = etat.capsulesOuvertes === 0 && uniques === 0;
+  const etapeDebut: 'jouer' | 'ouvrir' | null = debutSansCollection
+    ? (capsulesGratuites > 0 ? 'ouvrir' : 'jouer')
+    : null;
   const tuileAventure = (
-    <Pressable
-      style={styles.tuileJouer}
-      onPress={() => router.push('/jeu/parcours' as any)}
-      accessibilityRole="button"
-      accessibilityLabel={`Aventure, niveau ${etat.aventure.niveauMax}, ${etoilesTotal} étoiles`}
-      accessibilityHint="Ouvre le parcours des niveaux"
-    >
-      <PictoHub id="jouer" fond="#fff" taille={52} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.tuileJouerTitre}>Aventure</Text>
-        <Text style={styles.tuileJouerSous}>
-          Niveau {etat.aventure.niveauMax} · {etoilesTotal} étoiles — libère les capsules en tirs limités
-        </Text>
-      </View>
-      <Text style={styles.tuileJouerGo}>{etapeDebut === 'jouer' ? 'COMMENCER' : 'JOUER'}</Text>
-    </Pressable>
+    <CarteAventure
+      niveau={etat.aventure.niveauMax}
+      etoiles={etoilesTotal}
+      cta={etapeDebut === 'jouer' ? "Commencer l'aventure ›" : "Continuer l'aventure ›"}
+    />
   );
   const tuilePremiereCapsule = (
     <Pressable
-      style={[styles.tuileJouer, styles.tuileCapsuleDebut]}
+      style={styles.tuileCapsuleDebut}
       onPress={() => router.push('/jeu/capsules' as any)}
       accessibilityRole="button"
       accessibilityLabel="Capsule gratuite prête à ouvrir"
@@ -91,66 +84,61 @@ export default function HubBobaQuest() {
       <Text style={styles.tuileJouerGo}>OUVRIR</Text>
     </Pressable>
   );
-  const tuilePremiereCollection = (
-    <Pressable
-      style={[styles.tuileJouer, styles.tuileCollectionDebut]}
-      onPress={() => router.push('/jeu/collection' as any)}
-      accessibilityRole="button"
-      accessibilityLabel="Découvrir le premier personnage dans la collection"
-      accessibilityHint="Ouvre la collection et termine le guide de départ"
-    >
-      <PictoHub id="collection" fond="#fff" taille={52} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.tuileJouerTitre}>Ton premier personnage</Text>
-        <Text style={styles.tuileJouerSous}>
-          Retrouve-le dans ta collection et découvre son pouvoir.
-        </Text>
-      </View>
-      <Text style={styles.tuileJouerGo}>VOIR</Text>
-    </Pressable>
-  );
 
   return (
-    <View style={styles.fond}>
+    <View style={[styles.fond, { paddingTop: insets.top + 10 }]}>
       <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
-        {/* === Header violet === */}
-        <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
-          <View style={[styles.deco, { top: -40, right: -28, width: 140, height: 140 }]} />
-          <View style={[styles.deco, { bottom: -52, left: -40, width: 160, height: 160 }]} />
-          <View style={styles.headerHaut}>
-            <BoutonRetour onPress={() => router.back()} />
-            <View style={{ flex: 1 }} />
+        {/* === En-tête clair (maquette 2c) : retour · Boba Quest · pilule perles === */}
+        <View style={styles.entete}>
+          <BoutonRetour onPress={() => router.back()} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.titre}>Boba Quest</Text>
+            <Text style={styles.sousTitre}>Ton aventure boba</Text>
           </View>
-          <Text style={styles.titre}>BOBA QUEST</Text>
-          <Text style={styles.sousTitre}>Joue, collectionne, gagne de vrais prix</Text>
-
-          <View style={styles.solde}>
-            <IconePerle taille={30} />
-            <Text style={styles.soldeNb}>{formatNb(etat.perles)}</Text>
-            <Text style={styles.soldeLib}>perles</Text>
+          <View style={styles.perlesPill}>
+            <IconePerle taille={17} />
+            <Text style={styles.perlesPillTxt}>{formatNb(etat.perles)}</Text>
           </View>
-          <Text style={styles.soldeUsage}>
-            À dépenser en capsules, perles spéciales et vrais prix
-          </Text>
-          {!etapeDebut && (
-            <View style={[styles.bonusChip, !bonus && styles.bonusChipOff]}>
-              <Text style={[styles.bonusChipTxt, !bonus && { color: C.lavande }]}>
-                {bonus ? 'Bonus du jour : perles ×2 sur ta 1ʳᵉ partie' : 'Bonus du jour déjà utilisé — reviens demain !'}
-              </Text>
-            </View>
-          )}
         </View>
 
         <View style={styles.contenu}>
+          {/* === 🎯 Quête « Mon premier tampon » === */}
+          {!etat.queteTampon.reclamee && (
+            <View style={styles.queteCarte} accessibilityLabel="Quête Mon premier tampon">
+              <View style={styles.serieHaut}>
+                <PictoHub id="boutique" fond={C.jaunePale} taille={40} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.serieTitre}>Mon premier tampon</Text>
+                  <Text style={styles.serieSous}>
+                    {etat.queteTampon.etape < QUETE_TAMPON.length
+                      ? `Étape ${etat.queteTampon.etape + 1}/${QUETE_TAMPON.length} · ${QUETE_TAMPON[etat.queteTampon.etape].label}`
+                      : 'Quête terminée — ton tampon t’attend !'}
+                  </Text>
+                </View>
+              </View>
+              {etat.queteTampon.etape < QUETE_TAMPON.length ? (
+                <View style={styles.queteBarre}>
+                  <View style={[styles.queteBarreRempli, {
+                    width: `${Math.min(100, Math.round((etat.queteTampon.progres / QUETE_TAMPON[etat.queteTampon.etape].cible) * 100))}%`,
+                  }]} />
+                </View>
+              ) : (
+                <BoutonJeu
+                  titre="Réclamer mon tampon !"
+                  onPress={() => { const g = reclamerQueteTampon(); if (g) hapticSucces(); }}
+                />
+              )}
+              <Text style={styles.queteRecompense}>Récompense : 1 vrai tampon de fidélité (une seule fois)</Text>
+            </View>
+          )}
+
           {etapeDebut && (
             <View
               style={styles.depart}
               accessibilityRole="summary"
               accessibilityLabel={etapeDebut === 'jouer'
                 ? 'Premier objectif, étape 1 sur 3 : jouer le niveau 1'
-                : etapeDebut === 'ouvrir'
-                  ? 'Premier objectif, étape 2 sur 3 : ouvrir la capsule gratuite'
-                  : 'Premier objectif, étape 3 sur 3 : découvrir le personnage dans la collection'}
+                : 'Premier objectif, étape 2 sur 3 : ouvrir la capsule gratuite'}
             >
               <View style={styles.departHaut}>
                 <Icone nom="cible" taille={24} />
@@ -167,52 +155,158 @@ export default function HubBobaQuest() {
                 styles.departEtape,
                 etapeDebut === 'ouvrir' && styles.departEtapeActive,
               ]}>2. Ouvre ta capsule gratuite</Text>
-              <Text style={[
-                styles.departEtape,
-                etapeDebut === 'collection' && styles.departEtapeActive,
-              ]}>3. Découvre ton personnage dans la collection</Text>
+              <Text style={styles.departEtape}>3. Découvre ton personnage dans la collection</Text>
             </View>
           )}
 
           {etapeDebut === 'jouer' && tuileAventure}
           {etapeDebut === 'ouvrir' && tuilePremiereCapsule}
-          {etapeDebut === 'collection' && tuilePremiereCollection}
+
+          {/* === Aventure (tuile principale) === */}
+          {!etapeDebut && (
+            <CarteAventure
+              niveau={etat.aventure.niveauMax}
+              etoiles={etoilesTotal}
+              cta="Continuer l'aventure ›"
+            />
+          )}
 
           {/* === ⚡ Événement du week-end (double perles) === */}
-          {!etapeDebut && evt.actif && (
+          {evt.actif && (
             <View style={styles.evenement}>
               <Text style={styles.evenementTitre}>{evt.titre}</Text>
               <Text style={styles.evenementSous}>{evt.sous}</Text>
             </View>
           )}
 
-          {!etapeDebut && (
-            <Pressable
-              style={styles.vedette}
-              onPress={() => router.push('/jeu/collection' as any)}
-              accessibilityRole="button"
-              accessibilityLabel={`Carte vedette ${vedette.collectible.nom}. ${vedette.recompenseRecuperee ? 'Récompense récupérée' : 'Gagne un combat avec elle pour 300 perles'}`}
-              accessibilityHint="Ouvre sa fiche dans la collection"
-            >
-              <PastilleCollectible
-                id={vedette.collectible.id}
-                taille={58}
-                maitrise={rangMaitrise(etat.collection[vedette.collectible.id] || 0)}
-                vedette
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.vedetteSur}>CARTE VEDETTE</Text>
-                <Text style={styles.vedetteNom}>{vedette.collectible.nom}</Text>
-                <Text style={styles.vedetteSous}>
-                  {vedette.recompenseRecuperee ? 'Défi hebdomadaire accompli' : '1 victoire dans l’équipe = +300 perles'}
-                </Text>
-              </View>
-              <Icone nom={vedette.recompenseRecuperee ? 'check' : 'epee'} taille={21} />
-            </Pressable>
+          {/* === Aujourd'hui : bonus + série + défis === */}
+
+          {bonus && (
+            <View style={styles.bonusChip}>
+              <Text style={styles.bonusChipTxt}>Bonus du jour : perles ×2 sur ta 1ʳᵉ partie</Text>
+            </View>
           )}
 
+          <TitreKawaii texte="Aujourd'hui" taille={17} />
+          {/* === 🔥 Série quotidienne === */}
+          <View style={styles.serieCarte} accessibilityLabel={`Série quotidienne, ${etat.serie.jours} jour${etat.serie.jours > 1 ? 's' : ''}`}>
+            {serieJour?.capsuleDoree && <Confettis hauteur={130} />}
+            <View style={styles.serieHaut}>
+              <Svg width={26} height={26} viewBox="0 0 24 24" accessibilityElementsHidden>
+                <Path d="M12 2 C13 6 16 7.5 16 12 A5.5 5.5 0 0 1 5 12 C5 9 7 7.5 8 5 C9 7 10 8 10.5 9.5 C11.5 7 11.5 4.5 12 2 Z" fill="#EC647B" />
+                <Path d="M12 9 C12.6 11 14 11.8 14 14 A2.9 2.9 0 0 1 8.2 14 C8.2 12 10 11.2 10.4 9.8 C11 10.8 11.6 10.4 12 9 Z" fill={C.jaune} />
+              </Svg>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.serieTitre}>
+                  {etat.serie.jours > 0 ? `Série : ${etat.serie.jours} jour${etat.serie.jours > 1 ? 's' : ''}` : 'Commence ta série !'}
+                </Text>
+                <Text style={styles.serieSous}>
+                  {serieJour
+                    ? (serieJour.capsuleDoree ? 'Capsule dorée de série offerte !' : `+${serieJour.perles} perles de retour !`)
+                    : multSerie(etat.serie.jours) > 1
+                      ? `Perles ×${multSerie(etat.serie.jours).toFixed(1).replace('.', ',')} tant que la série tient`
+                      : 'Reviens chaque jour : bonus croissants, capsule dorée au 7ᵉ !'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.serieJours}>
+              {Array.from({ length: 7 }).map((_, i) => {
+                const pos = etat.serie.jours === 0 ? 0 : ((etat.serie.jours - 1) % 7) + 1;
+                return <View key={i} style={[styles.serieJour, i < pos && styles.serieJourFait]} />;
+              })}
+            </View>
+          </View>
+
+          {/* === Défis du jour === */}
+          <View style={styles.defisCarte}>
+            <View style={styles.defisHaut}>
+              <View style={styles.defisTitreRang}><Icone nom="eclair" taille={17} /><Text style={styles.defisTitre}>Défis du jour</Text></View>
+              <Text style={styles.defisSous}>{defis.filter((d) => d.reclame).length}/3</Text>
+            </View>
+            {defis.map((defi) => (
+              <View key={defi.id} style={styles.defi}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.defiLabel, defi.reclame && styles.defiFaitTxt]}>{defi.label}</Text>
+                  <View style={styles.defiBarre}>
+                    <View style={[styles.defiBarreRempli, { width: `${(defi.progres / defi.cible) * 100}%` }]} />
+                  </View>
+                </View>
+                {defi.reclame ? (
+                  <View style={styles.defiCocheBox}><Icone nom="check" taille={17} /></View>
+                ) : defi.fait ? (
+                  <Pressable
+                    style={styles.defiReclamer}
+                    onPress={() => { reclamerDefi(defi.id); hapticMoyen(); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Réclamer ${defi.perles} perles pour ${defi.label}`}
+                  >
+                    <IconePerle taille={13} />
+                    <Text style={styles.defiReclamerTxt}>+{defi.perles}</Text>
+                  </Pressable>
+                ) : (
+                  <Text style={styles.defiProgres}>{formatNb(defi.progres)}/{formatNb(defi.cible)}</Text>
+                )}
+              </View>
+            ))}
+            {tousReclames && !etat.defisBonusReclame ? (
+              <BoutonJeu
+                titre="3/3 — Réclamer la capsule bonus"
+                onPress={() => reclamerBonusDefis()}
+              />
+            ) : (
+              <Text style={styles.defisBonusLigne}>
+                {etat.defisBonusReclame ? 'Capsule bonus du jour récupérée' : 'Les 3 défis réclamés = +1 capsule'}
+              </Text>
+            )}
+          </View>
+
+          {/* === Rangée de tuiles candy (maquette 2c) === */}
+          <View
+            style={styles.rangTuiles}
+            accessibilityLabel="Modes de jeu"
+          >
+            <TuileMode
+              id="arene" label="Arène"
+              accessibilityLabel={`Arène, rang ${etat.arene.rang}${versCapsuleArene <= 2 ? `, ${versCapsuleArene} victoire${versCapsuleArene > 1 ? 's' : ''} avant une capsule` : ''}`}
+              onPress={() => router.push('/jeu/arene' as any)}
+            />
+            <TuileMode
+              id="infini" label="Infini"
+              accessibilityLabel={`Infini, record ${formatNb(etat.meilleurScore)}`}
+              onPress={() => router.push('/jeu/infini' as any)}
+            />
+            <TuileMode
+              id="capsules" label="Capsules"
+              badge={capsulesGratuites > 0 ? String(capsulesGratuites) : undefined}
+              accessibilityLabel={capsulesGratuites > 0 ? `Capsules, ${capsulesGratuites} gratuite${capsulesGratuites > 1 ? 's' : ''} à ouvrir` : 'Capsules'}
+              onPress={() => router.push('/jeu/capsules' as any)}
+            />
+            <TuileMode
+              id="collection" label="Collection"
+              accessibilityLabel={`Collection, ${uniques} sur ${COLLECTIBLES.length}`}
+              onPress={() => router.push('/jeu/collection' as any)}
+            />
+            <TuileMode
+              id="roulette" label="Roulette"
+              badge={roulette ? '1' : undefined}
+              accessibilityLabel={roulette ? 'Roulette du mois, ton tour gratuit t’attend' : 'Roulette du mois, déjà jouée'}
+              onPress={() => router.push('/jeu/roulette' as any)}
+            />
+            <TuileMode
+              id="boutique" label="Boutique"
+              badge={aReclamer > 0 ? String(aReclamer) : undefined}
+              accessibilityLabel={aReclamer > 0 ? `Boutique des prix, ${aReclamer} prix à réclamer` : 'Boutique des prix'}
+              onPress={() => router.push('/jeu/boutique' as any)}
+            />
+            <TuileMode
+              id="troc" label="Troc"
+              accessibilityLabel="Troc entre amis"
+              onPress={() => router.push('/jeu/troc' as any)}
+            />
+          </View>
+
           {/* === 🎫 Boba Pass (progression hebdo) === */}
-          {!etapeDebut && <Pressable
+          <Pressable
             style={styles.pass}
             onPress={() => router.push('/jeu/pass' as any)}
             accessibilityRole="button"
@@ -236,129 +330,21 @@ export default function HubBobaQuest() {
                   ? `Encore ${formatNb(prochainPalier.xp - pass.xp)} XP avant le prochain cadeau`
                   : 'Pass complet — bravo !'}
             </Text>
-          </Pressable>}
+          </Pressable>
 
-          {/* === Aventure (tuile principale) === */}
-          {!etapeDebut && (
-            <Pressable
-              style={styles.tuileJouer}
-              onPress={() => router.push('/jeu/parcours' as any)}
-              accessibilityRole="button"
-              accessibilityLabel={`Aventure, niveau ${etat.aventure.niveauMax}, ${etoilesTotal} étoiles`}
-              accessibilityHint="Ouvre le parcours des niveaux"
-            >
-            <PictoHub id="jouer" fond="#fff" taille={52} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.tuileJouerTitre}>Aventure</Text>
-              <Text style={styles.tuileJouerSous}>
-                Niveau {etat.aventure.niveauMax} · {etoilesTotal} étoiles{'\n'}Libère les capsules en tirs limités
-              </Text>
-            </View>
-              <Text style={styles.tuileJouerGo}>JOUER</Text>
-            </Pressable>
-          )}
 
-          {/* === Défis du jour === */}
-          {!etapeDebut && <View style={styles.defisCarte}>
-            <View style={styles.defisHaut}>
-              <View style={styles.defisTitreRang}><Icone nom="eclair" taille={17} /><Text style={styles.defisTitre}>Défis du jour</Text></View>
-              <Text style={styles.defisSous}>{defis.filter((d) => d.reclame).length}/3</Text>
-            </View>
-            {defis.map((defi) => (
-              <View key={defi.id} style={styles.defi}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.defiLabel, defi.reclame && styles.defiFaitTxt]}>{defi.label}</Text>
-                  <View style={styles.defiBarre}>
-                    <View style={[styles.defiBarreRempli, { width: `${(defi.progres / defi.cible) * 100}%` }]} />
-                  </View>
-                </View>
-                {defi.reclame ? (
-                  <View style={styles.defiCocheBox}><Icone nom="check" taille={17} /></View>
-                ) : defi.fait ? (
-                  <Pressable
-                    style={styles.defiReclamer}
-                    onPress={() => reclamerDefi(defi.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Réclamer ${defi.perles} perles pour ${defi.label}`}
-                  >
-                    <IconePerle taille={13} />
-                    <Text style={styles.defiReclamerTxt}>+{defi.perles}</Text>
-                  </Pressable>
-                ) : (
-                  <Text style={styles.defiProgres}>{formatNb(defi.progres)}/{formatNb(defi.cible)}</Text>
-                )}
-              </View>
-            ))}
-            {tousReclames && !etat.defisBonusReclame ? (
-              <BoutonJeu
-                titre="3/3 — Réclamer la capsule bonus"
-                onPress={() => reclamerBonusDefis()}
-                style={{ backgroundColor: C.vert }}
-              />
-            ) : (
-              <Text style={styles.defisBonusLigne}>
-                {etat.defisBonusReclame ? 'Capsule bonus du jour récupérée' : 'Les 3 défis réclamés = +1 capsule'}
-              </Text>
-            )}
-          </View>}
-
-          {/* === Grille de tuiles === */}
-          {!etapeDebut && <View style={styles.grille}>
-            <Tuile
-              picto="arene" fond="#fbe4ee" titre="L'Arène"
-              sous={versCapsuleArene <= 2
-                ? `Rang ${etat.arene.rang} · ${versCapsuleArene} victoire${versCapsuleArene > 1 ? 's' : ''} avant une capsule !`
-                : `Rang ${etat.arene.rang} · duels & tournoi hebdo`}
-              onPress={() => router.push('/jeu/arene' as any)}
-            />
-            <Tuile
-              picto="jouer" fond="#f1ecfa" titre="Infini"
-              sous={`Record : ${formatNb(etat.meilleurScore)} · farm à perles`}
-              onPress={() => router.push('/jeu/shooter' as any)}
-            />
-            <Tuile
-              picto="capsules" fond="#fbe4ee" titre="Capsules"
-              sous={capsulesGratuites > 0 ? `${capsulesGratuites} gratuite${capsulesGratuites > 1 ? 's' : ''} à ouvrir !` : 'Loote des collectibles'}
-              badge={capsulesGratuites > 0 ? String(capsulesGratuites) : undefined}
-              onPress={() => router.push('/jeu/capsules' as any)}
-            />
-            <Tuile
-              picto="collection" fond="#f1ecfa" titre="Collection"
-              sous={uniques === COLLECTIBLES.length ? `Prestige ${prestige}/${COLLECTIBLES.length}` : `${uniques}/${COLLECTIBLES.length} trouvés`}
-              badge={missionsPretes > 0 ? String(missionsPretes) : undefined}
-              onPress={() => router.push('/jeu/collection' as any)}
-            />
-            <Tuile
-              picto="roulette" fond="#fdf3c2" titre="Roulette du mois"
-              sous={roulette ? 'Ton tour gratuit t\'attend !' : 'Déjà jouée ce mois-ci'}
-              badge={roulette ? '1' : undefined}
-              onPress={() => router.push('/jeu/roulette' as any)}
-            />
-            <Tuile
-              picto="boutique" fond="#eef4d8" titre="Boutique des prix"
-              sous={aReclamer > 0 ? `${aReclamer} prix à réclamer` : 'Échange tes perles'}
-              badge={aReclamer > 0 ? String(aReclamer) : undefined}
-              onPress={() => router.push('/jeu/boutique' as any)}
-            />
-            <Tuile
-              picto="troc" fond="#e4eef8" titre="Troc entre amis"
-              sous="Échange tes doublons"
-              onPress={() => router.push('/jeu/troc' as any)}
-            />
-          </View>}
-
-          {!etapeDebut && <Text style={styles.stats}>
+          <Text style={styles.stats}>
             {formatNb(etat.partiesJouees)} partie{etat.partiesJouees > 1 ? 's' : ''} · {formatNb(etat.capsulesOuvertes)} capsule{etat.capsulesOuvertes > 1 ? 's' : ''} ouverte{etat.capsulesOuvertes > 1 ? 's' : ''}
-          </Text>}
-          {!etapeDebut && <BandeauPreview />}
-          {!etapeDebut && __DEV__ && (
+          </Text>
+          <BandeauPreview />
+          {__DEV__ && (
             <Pressable
               onPress={() => setResetVisible(true)}
               hitSlop={6}
               accessibilityRole="button"
-              accessibilityLabel="Remettre la progression preview à zéro"
+              accessibilityLabel="Remettre la progression de test à zéro"
             >
-              <Text style={styles.reset}>(Preview) Tout remettre à zéro</Text>
+              <Text style={styles.reset}>Tout remettre à zéro</Text>
             </Pressable>
           )}
         </View>
@@ -368,7 +354,7 @@ export default function HubBobaQuest() {
       <Modal visible={trocVisible} transparent animationType="fade" onRequestClose={() => setTrocVisible(false)}>
         <View style={styles.modalFond}>
           <View style={styles.modalCarte}>
-            <PictoHub id="troc" fond="#e4eef8" taille={56} />
+            <PictoHub id="troc" fond="#CBE4F4" taille={56} />
             <Text style={styles.modalTitre}>Le troc arrive bientôt !</Text>
             <Text style={styles.modalTexte}>
               Tu pourras proposer tes collectibles en double à tes amis et récupérer
@@ -388,13 +374,12 @@ export default function HubBobaQuest() {
               <Text style={{ fontSize: 40 }}>🧹</Text>
               <Text style={styles.modalTitre}>Tout remettre à zéro ?</Text>
               <Text style={styles.modalTexte}>
-                Perles, collection, niveaux, prix gagnés : tout repart de zéro.
-                (Bouton de test — absent de la version finale.)
+                Perles, collection, niveaux et prix gagnés : tout repart de zéro.
               </Text>
               <BoutonJeu
                 titre="Oui, remise à zéro"
                 onPress={() => { resetBobaQuest(); setResetVisible(false); }}
-                style={{ alignSelf: 'stretch', backgroundColor: C.danger }}
+                variante="danger" style={{ alignSelf: 'stretch' }}
               />
               <Pressable
                 onPress={() => setResetVisible(false)}
@@ -409,6 +394,52 @@ export default function HubBobaQuest() {
         </Modal>
       )}
     </View>
+  );
+}
+
+// Carte « L'Aventure » façon carte au trésor (piste 2c) : fond violet, chemin
+// pointillé, mascotte-perle sur le niveau courant, CTA candy vert.
+function CarteAventure({ niveau, etoiles, cta }: { niveau: number; etoiles: number; cta: string }) {
+  return (
+    <Pressable
+      style={styles.aventure}
+      onPress={() => router.push('/jeu/parcours' as any)}
+      accessibilityRole="button"
+      accessibilityLabel={`Aventure, niveau ${niveau}, ${etoiles} étoiles`}
+      accessibilityHint="Ouvre le parcours des niveaux"
+    >
+      <Svg
+        pointerEvents="none"
+        width="100%"
+        height="100%"
+        style={{ position: 'absolute', left: 0, top: 0 }}
+        viewBox="0 0 360 190"
+        preserveAspectRatio="none"
+        accessibilityElementsHidden
+      >
+        {/* vague décorative du haut — rester au-dessus du sous-titre (y ≤ ~28),
+            sinon son bord traverse le texte comme un faux « barré » */}
+        <Path d="M0 22 Q80 10 180 18 Q280 28 360 14 L360 0 L0 0 Z" fill={C.violetProfond} opacity={0.4} />
+        {/* chemin pointillé du trésor — sous le sous-titre et entièrement au-dessus
+            du CTA. width/height sont explicites sur le Svg : sans eux, le web garde
+            son ratio intrinsèque et étire le tracé verticalement sur les cartes larges. */}
+        <Path d="M28 100 Q110 108 190 100 Q270 91 330 54" stroke="rgba(255,255,255,0.55)" strokeWidth={5} strokeLinecap="round" strokeDasharray="0.5, 14" fill="none" />
+        <Circle cx={28} cy={100} r={13} fill={C.vert} stroke="#fff" strokeWidth={3} />
+        <Circle cx={190} cy={100} r={13} fill={C.vert} stroke="#fff" strokeWidth={3} />
+        <Circle cx={330} cy={50} r={15} fill={C.jaune} stroke="#fff" strokeWidth={3} />
+      </Svg>
+      {/* ⚠️ ne pas replacer cette étincelle vers top≈52 : elle passe derrière le
+          sous-titre et fait un faux « barré » sur le mot Niveau */}
+      <Etincelle taille={12} couleur="#CBB6E8" style={{ position: 'absolute', top: 92, left: 190 }} />
+      <Etincelle taille={14} style={{ position: 'absolute', top: 88, right: 18 }} />
+      <View style={styles.aventurePin}>
+        <MascottePerle taille={40} />
+        <View style={styles.aventurePinPill}><Text style={styles.aventurePinTxt}>Niveau {niveau}</Text></View>
+      </View>
+      <Text style={styles.aventureTitre}>L'Aventure</Text>
+      <Text style={styles.aventureSous}>Niveau {niveau} · {etoiles} étoile{etoiles > 1 ? 's' : ''} — libère les capsules en tirs limités</Text>
+      <View style={styles.aventureCta}><Text style={styles.aventureCtaTxt}>{cta}</Text></View>
+    </Pressable>
   );
 }
 
@@ -435,38 +466,51 @@ function Tuile({ picto, fond, titre, sous, badge, bientot, onPress }: {
 const styles = StyleSheet.create({
   fond: { flex: 1, backgroundColor: C.fond },
 
-  header: {
-    backgroundColor: C.violet,
-    borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
-    paddingHorizontal: 20, paddingBottom: 24, gap: 8, overflow: 'hidden',
+  entete: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 18 },
+  titre: { fontFamily: F.titre, fontSize: 24, color: C.violet, lineHeight: 26 },
+  sousTitre: { fontFamily: F.t600, fontSize: 11.5, color: '#9384AC', marginTop: 2 },
+  perlesPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#fff', borderWidth: 2.5, borderColor: C.lavande,
+    borderRadius: R.pill, paddingVertical: 6, paddingHorizontal: 12,
+    borderBottomWidth: 3, borderBottomColor: '#E0D6EF',
   },
-  deco: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.06)' },
-  headerHaut: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
-  titre: { fontFamily: F.titre, fontSize: 30, color: '#fff', letterSpacing: 0.5 },
-  sousTitre: { fontFamily: F.t600, fontSize: 14.5, color: C.lavande },
-
-  solde: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8,
-    backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 18,
-    paddingVertical: 12, paddingHorizontal: 16, alignSelf: 'flex-start',
-  },
-  soldeNb: { fontFamily: F.t800, fontSize: 26, color: '#fff' },
-  soldeLib: { fontFamily: F.t600, fontSize: 14, color: C.lavande, marginTop: 6 },
-  soldeUsage: { fontFamily: F.t600, fontSize: 11.5, color: '#CDBFE6' },
+  perlesPillTxt: { fontFamily: F.t800, fontSize: 14, color: '#4C2D77' },
 
   bonusChip: {
     backgroundColor: C.vert, borderRadius: R.pill, alignSelf: 'flex-start',
     paddingVertical: 7, paddingHorizontal: 13,
+    borderBottomWidth: 3, borderBottomColor: '#6F8F1F',
   },
-  bonusChipOff: { backgroundColor: 'rgba(255,255,255,0.12)' },
-  bonusChipTxt: { fontFamily: F.t700, fontSize: 12.5, color: C.violetProfond },
+  bonusChipTxt: { fontFamily: F.t700, fontSize: 12.5, color: '#2C380C' },
 
-  contenu: { paddingHorizontal: 18, gap: 14, marginTop: 16 },
+  contenu: { paddingHorizontal: 18, gap: 14, marginTop: 14 },
+
+  // 🔥 Série quotidienne
+  serieCarte: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 15, gap: 10,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, overflow: 'hidden', ...OMBRE,
+  },
+  serieHaut: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  serieTitre: { fontFamily: F.titre, fontSize: 16, color: C.violet },
+  serieSous: { fontFamily: F.t600, fontSize: 12, color: C.texte2, marginTop: 1 },
+  serieJours: { flexDirection: 'row', gap: 6 },
+  serieJour: { flex: 1, height: 9, borderRadius: 5, backgroundColor: C.lavande },
+  serieJourFait: { backgroundColor: '#EC647B' },
+
+  // 🎯 Quête premier tampon
+  queteCarte: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 15, gap: 10,
+    borderWidth: BORD.largeur, borderColor: C.jaune, ...OMBRE,
+  },
+  queteBarre: { height: 9, borderRadius: 5, backgroundColor: C.lavande, overflow: 'hidden' },
+  queteBarreRempli: { height: 9, borderRadius: 5, backgroundColor: C.jaune },
+  queteRecompense: { fontFamily: F.t600, fontSize: 11.5, color: C.texte3, textAlign: 'center' },
 
   // Première visite : donne une direction claire avant les systèmes récurrents.
   depart: {
     backgroundColor: C.carte, borderRadius: R.carte, padding: 17, gap: 9,
-    borderWidth: 1.5, borderColor: C.vert, ...OMBRE,
+    borderWidth: BORD.largeur, borderColor: C.vert, ...OMBRE,
   },
   departHaut: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 2 },
   departTitre: { fontFamily: F.titre, fontSize: 18, color: C.violetProfond },
@@ -480,29 +524,24 @@ const styles = StyleSheet.create({
 
   // Événement du week-end
   evenement: {
-    backgroundColor: C.jaune, borderRadius: R.carte, padding: 16, gap: 3, ...OMBRE,
+    backgroundColor: C.jaune, borderRadius: R.carte, padding: 16, gap: 3,
+    borderWidth: BORD.largeur, borderColor: BORD.surPastel, ...OMBRE,
   },
   evenementTitre: { fontFamily: F.titre, fontSize: 17, color: C.violetProfond },
   evenementSous: { fontFamily: F.t600, fontSize: 12.5, color: C.violetProfond, opacity: 0.8, lineHeight: 17 },
 
   // Boba Pass
-  vedette: {
-    backgroundColor: C.vertPale, borderRadius: R.carte, padding: 13,
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderWidth: 1.5, borderColor: C.vert, ...OMBRE,
+  pass: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 8,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
-  vedetteSur: { fontFamily: F.t800, fontSize: 9.5, color: C.vertFonce, letterSpacing: 0.5 },
-  vedetteNom: { fontFamily: F.titre, fontSize: 17, color: C.violetProfond, marginTop: 1 },
-  vedetteSous: { fontFamily: F.t600, fontSize: 11.5, color: C.texte2, marginTop: 1 },
-
-  pass: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 8, ...OMBRE },
   passHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  passTitre: { fontFamily: F.t800, fontSize: 16, color: C.texte },
+  passTitre: { fontFamily: F.titre, fontSize: 16, color: C.violet },
   passTitreRang: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   passXp: { fontFamily: F.t800, fontSize: 14, color: C.violetClair },
   passXpRang: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   passBarre: { height: 10, borderRadius: 5, backgroundColor: C.lavande, overflow: 'hidden' },
-  passRempli: { height: 10, borderRadius: 5, backgroundColor: C.violet },
+  passRempli: { height: 10, borderRadius: 5, backgroundColor: C.vert },
   passSous: { fontFamily: F.t600, fontSize: 12.5, color: C.texte2 },
   passBadge: {
     backgroundColor: C.danger, borderRadius: R.pill, minWidth: 22, height: 22,
@@ -510,46 +549,72 @@ const styles = StyleSheet.create({
   },
   passBadgeTxt: { fontFamily: F.t800, fontSize: 12, color: '#fff' },
 
-  tuileJouer: {
-    backgroundColor: C.vert, borderRadius: R.carte, padding: 18,
-    flexDirection: 'row', alignItems: 'center', gap: 14, ...OMBRE,
+  // Carte « L'Aventure » (carte au trésor violette)
+  aventure: {
+    backgroundColor: C.violet, borderRadius: 28, padding: 18, paddingTop: 16,
+    gap: 4, overflow: 'hidden', minHeight: 190, ...OMBRE_VIOLETTE,
   },
-  tuileCapsuleDebut: { backgroundColor: '#F3DCE9' },
-  tuileCollectionDebut: { backgroundColor: '#E7DDF4' },
-  tuileJouerTitre: { fontFamily: F.titre, fontSize: 20, color: C.violetProfond },
-  tuileJouerSous: { fontFamily: F.t600, fontSize: 12.5, color: C.violetProfond, opacity: 0.75, marginTop: 2, lineHeight: 17 },
+  aventureTitre: { fontFamily: F.titre, fontSize: 22, color: '#fff' },
+  aventureSous: { fontFamily: F.t600, fontSize: 12.5, color: C.surViolet, lineHeight: 17, maxWidth: '58%' },
+  aventurePin: { position: 'absolute', top: 46, right: 84, alignItems: 'center', gap: 3, zIndex: 2 },
+  aventurePinPill: {
+    backgroundColor: '#fff', borderRadius: R.pill, paddingVertical: 3, paddingHorizontal: 9,
+  },
+  aventurePinTxt: { fontFamily: F.titre, fontSize: 11.5, color: C.violet },
+  aventureCta: {
+    marginTop: 'auto', backgroundColor: C.vert, borderRadius: R.btn,
+    borderBottomWidth: 5, borderBottomColor: '#6F8F1F',
+    paddingVertical: 13, alignItems: 'center',
+  },
+  aventureCtaTxt: { fontFamily: F.titre, fontSize: 17, color: '#2C380C' },
+
+  tuileCapsuleDebut: {
+    backgroundColor: C.rosePale, borderRadius: R.carte, padding: 18,
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    borderWidth: BORD.largeur, borderColor: BORD.surPastel, ...OMBRE,
+  },
+  tuileJouerTitre: { fontFamily: F.titre, fontSize: 20, color: C.violet },
+  tuileJouerSous: { fontFamily: F.t600, fontSize: 12.5, color: C.texte2, marginTop: 2, lineHeight: 17 },
   tuileJouerGo: {
-    fontFamily: F.t800, fontSize: 13, color: C.vert, backgroundColor: C.violetProfond,
+    fontFamily: F.t800, fontSize: 13, color: '#fff', backgroundColor: C.violet,
     borderRadius: R.pill, paddingVertical: 9, paddingHorizontal: 14, overflow: 'hidden',
   },
 
   // Défis du jour
-  defisCarte: { backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12, ...OMBRE },
+  defisCarte: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 16, gap: 12,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
+  },
   defisHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  defisTitre: { fontFamily: F.t800, fontSize: 16, color: C.texte },
+  defisTitre: { fontFamily: F.titre, fontSize: 16, color: C.violet },
   defisTitreRang: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  defisSous: { fontFamily: F.t800, fontSize: 14, color: C.vertFonce },
+  defisSous: { fontFamily: F.t800, fontSize: 13, color: C.vertFonce },
   defi: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  defiLabel: { fontFamily: F.t700, fontSize: 13.5, color: C.texte, marginBottom: 5 },
+  defiLabel: { fontFamily: F.t700, fontSize: 12.5, color: C.texte, marginBottom: 5 },
   defiFaitTxt: { color: C.texte3 },
-  defiBarre: { height: 6, borderRadius: 3, backgroundColor: C.lavande, overflow: 'hidden' },
-  defiBarreRempli: { height: 6, borderRadius: 3, backgroundColor: C.vert },
-  defiProgres: { fontFamily: F.t700, fontSize: 12, color: C.texte3, minWidth: 48, textAlign: 'right' },
+  defiBarre: { height: 7, borderRadius: 4, backgroundColor: C.lavande, overflow: 'hidden' },
+  defiBarreRempli: { height: 7, borderRadius: 4, backgroundColor: C.vert },
+  defiProgres: { fontFamily: F.t700, fontSize: 11, color: C.texte3, minWidth: 34, textAlign: 'right' },
   defiCoche: { fontFamily: F.t800, fontSize: 17, color: C.vertFonce, minWidth: 48, textAlign: 'right' },
   defiCocheBox: { minWidth: 48, alignItems: 'flex-end' },
   defiReclamer: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: C.vert, borderRadius: R.pill, paddingVertical: 7, paddingHorizontal: 11,
+    backgroundColor: C.vert, borderRadius: R.pill, paddingVertical: 6, paddingHorizontal: 11,
+    borderBottomWidth: 3, borderBottomColor: '#6F8F1F',
   },
-  defiReclamerTxt: { fontFamily: F.t800, fontSize: 12.5, color: C.violetProfond },
+  defiReclamerTxt: { fontFamily: F.t800, fontSize: 11.5, color: '#2C380C' },
   defisBonusLigne: { fontFamily: F.t600, fontSize: 12, color: C.texte2, textAlign: 'center' },
 
-  grille: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  rangTuiles: {
+    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between',
+    columnGap: 8, rowGap: 12, paddingVertical: 6,
+  },
   tuile: {
     width: '48%', flexGrow: 1, backgroundColor: C.carte, borderRadius: R.carte,
-    padding: 14, gap: 8, ...OMBRE,
+    padding: 14, gap: 8,
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
-  tuileTitre: { fontFamily: F.t800, fontSize: 15, color: C.texte },
+  tuileTitre: { fontFamily: F.titre, fontSize: 15, color: C.violet },
   tuileSous: { fontFamily: F.t600, fontSize: 12, color: C.texte2, lineHeight: 16 },
   badge: {
     position: 'absolute', top: 10, right: 10, zIndex: 2,
@@ -573,9 +638,10 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', padding: 28,
   },
   modalCarte: {
-    backgroundColor: C.carte, borderRadius: 24, padding: 24,
-    alignItems: 'center', gap: 12, alignSelf: 'stretch', ...OMBRE,
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 24,
+    alignItems: 'center', gap: 12, alignSelf: 'stretch',
+    borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
-  modalTitre: { fontFamily: F.t800, fontSize: 18, color: C.texte, textAlign: 'center' },
+  modalTitre: { fontFamily: F.titre, fontSize: 18, color: C.violet, textAlign: 'center' },
   modalTexte: { fontFamily: F.t400, fontSize: 14, color: C.texte2, textAlign: 'center', lineHeight: 20 },
 });

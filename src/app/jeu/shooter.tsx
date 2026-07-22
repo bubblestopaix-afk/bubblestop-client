@@ -15,9 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
-import { C, F, OMBRE } from '@/constants/charte';
+import { BORD, C, F, OMBRE } from '@/constants/charte';
 import {
-  activerFever, ApercuTir, BONUS_POINTS, Bulle, Case, creerNiveau, creerPartieInfini,
+  activerFever, alerteObjectif, ApercuTir, BONUS_POINTS, Bulle, Case, creerNiveau, creerPartieInfini,
   echangerMunitions, EtatShooter, etoilesNiveau, FEVER_MAX, GROS_LACHER,
   labelBossActionTir, LARGEUR_TERRAIN, LIGNE_H, LIGNE_LIMITE, Ligne, nbCapsules,
   objectifCible, objectifLabel, paramsNiveau, Point, previsualiserTir, simulerVol,
@@ -26,7 +26,8 @@ import {
 import { perlesPourScore, POWERUPS, PowerupId, trouverCollectible } from '@/components/jeu/economie';
 import { Icone } from '@/components/jeu/icones';
 import { BilleSkia, BullePx, PlateauSkia } from '@/components/jeu/plateau-skia';
-import { BoutonJeu, formatNb, IconePerle } from '@/components/jeu/ui-jeu';
+import { BoutonJeu, Confettis, formatNb, IconePerle, useCountUp } from '@/components/jeu/ui-jeu';
+import { hapticLeger, hapticLourd, hapticMoyen, hapticSucces } from '@/lib/juice';
 import {
   acheterPowerup, bonusJourDispo, consommerPowerup, coutPowerupActuel,
   echecNiveau, effetBuddyActuel, finPartieInfini, StatsPartie, terminerNiveau,
@@ -34,7 +35,8 @@ import {
 } from '@/store/jeu';
 
 // Les 6 familles de perles (les niveaux difficiles utilisent la 6e, orange)
-const COULEURS = ['#8A68B8', '#A3C724', '#FFD166', '#F3A0BD', '#7EC8E3', '#F7A14B'];
+// 🎨 palette CANDY officielle (DA kawaii) — même ordre que BASE dans plateau-skia.tsx
+const COULEURS = ['#b98fe0', '#9fc038', '#f2da33', '#ec647b', '#89cfe3', '#f7a14b'];
 // Noms FR des familles (objectif « éclate N perles … »)
 const NOMS_COULEUR = ['violettes', 'vertes', 'jaunes', 'roses', 'bleues', 'orange'];
 const ANGLE_MIN = -Math.PI + 0.2;
@@ -106,6 +108,8 @@ export default function ShooterScreen() {
   const [visee, setVisee] = useState<{ a: number; r: number } | null>(null);
   const [volee, setVolee] = useState<Volee | null>(null);
   const [fin, setFin] = useState<Fin | null>(null);
+  // 🎊 récap animé : les perles gagnées COMPTENT au lieu de s'afficher d'un bloc
+  const perlesComptees = useCountUp(fin && fin.type !== 'defaite' ? fin.perles : 0, 750);
   const [armee, setArmee] = useState<Special | null>(null);
   const [feverArmee, setFeverArmee] = useState(false);
   const [messageFever, setMessageFever] = useState<string | null>(null);
@@ -158,17 +162,23 @@ export default function ShooterScreen() {
   // — géométrie px ↔ unités —
   const d = dims ? Math.min(dims.w / LARGEUR_TERRAIN, dims.h / (LIGNE_LIMITE * LIGNE_H + 2.9)) : 0;
   const offX = dims ? (dims.w - d * LARGEUR_TERRAIN) / 2 : 0;
-  const yLimite = LIGNE_LIMITE * LIGNE_H * d;
+  // 📐 le plateau n'est plus COLLÉ en haut : la hauteur inutilisée est répartie
+  // (moitié au-dessus du plateau, moitié sous le lanceur), plafonnée à ~2 billes
+  const offY = dims ? Math.min(Math.max(0, dims.h - d * (LIGNE_LIMITE * LIGNE_H + 2.9)) * 0.5, d * 2.2) : 0;
+  const yLimite = offY + LIGNE_LIMITE * LIGNE_H * d;
   const lanceur: Point = { x: LARGEUR_TERRAIN / 2, y: LIGNE_LIMITE * LIGNE_H + 1.6 };
-  const lanceurPx = { x: offX + lanceur.x * d, y: lanceur.y * d };
-  const enPx = (u: Point) => ({ x: offX + u.x * d, y: u.y * d });
+  const lanceurPx = { x: offX + lanceur.x * d, y: offY + lanceur.y * d };
+  const enPx = (u: Point) => ({ x: offX + u.x * d, y: offY + u.y * d });
 
   // — visée LANCE-PIERRE : on tire la bille vers le BAS, le tir part à l'OPPOSÉ (vers le haut).
   // Doigt au-dessus du lanceur = pas armé (null) → aucun tir accidentel en touchant le plateau.
   const calculerAngle = useCallback((tx: number, ty: number): number | null => {
     const dx = tx - lanceurPx.x, dy = ty - lanceurPx.y;
-    if (Math.hypot(dx, dy) < 14) return null;      // zone morte autour de la bille
-    if (dy < d * 0.08) return null;                // on n'arme qu'en étirant vers le BAS
+    // ⚠️ zone morte LARGE (≈ une demi-bille) : un simple tap près du lanceur ne doit
+    // JAMAIS partir en tir — il faut un vrai étirement (constat de l'audit 19/07 :
+    // des taps interprétés comme tirs consommaient le budget en douce)
+    if (Math.hypot(dx, dy) < Math.max(14, d * 0.55)) return null;
+    if (dy < d * 0.16) return null;                // on n'arme qu'en étirant vers le BAS
     const a = Math.atan2(-dy, -dx);                // direction du tir = opposé de l'étirement
     return Math.max(ANGLE_MIN, Math.min(ANGLE_MAX, a));
   }, [lanceurPx.x, lanceurPx.y, d]);
@@ -308,9 +318,22 @@ export default function ShooterScreen() {
     if (res.grosLacher >= GROS_LACHER) textes.push({ cle: 'tg', y: yLimite * 0.55, txt: `ÉNORME ! ${res.grosLacher} perles 🎉`, gros: true });
     if (res.capsules > 0) textes.push({ cle: 'tc', y: yLimite - 60, txt: `🎁 capsule libérée !`, gros: true });
     if (res.plateauNettoye) textes.push({ cle: 'tp', y: yLimite / 2, txt: 'PLATEAU NETTOYÉ !', gros: true });
+    // 🌟 Shooter v2 : supernova, +1 tir, tir en or, rush
+    if (res.etoiles > 0) textes.push({ cle: 'tsn', y: yLimite * 0.3, txt: '🌟 SUPERNOVA !', gros: true });
+    if (res.tirsBonus > 0) textes.push({ cle: 'ttb', y: yLimite * 0.62, txt: `+${res.tirsBonus} TIR${res.tirsBonus > 1 ? 'S' : ''} !`, gros: true });
+    if (res.tirEnOr) textes.push({ cle: 'tor', y: yLimite * 0.5, txt: '🏅 TIR EN OR ×2 !', gros: true });
+    if (res.rushDebut && etat.rush) textes.push({ cle: 'trd', y: yLimite * 0.4, txt: `🔥 RUSH : ${etat.rush.cible} ${NOMS_COULEUR[etat.rush.couleur]} en 3 tirs !`, gros: true });
+    if (res.rushFin === 'reussi') textes.push({ cle: 'trf', y: yLimite * 0.4, txt: '🔥 RUSH RÉUSSI ! +2 TIRS', gros: true });
+    if (res.rushFin === 'rate') textes.push({ cle: 'trx', y: yLimite * 0.4, txt: 'Rush raté… la prochaine !' });
+
+    // 📳 l'impact se SENT : haptiques proportionnelles à l'action
+    if (res.etoiles > 0 || res.tirEnOr || res.explosions > 0 || res.grosLacher >= GROS_LACHER) hapticLourd();
+    else if (res.multiplicateur >= 2 || res.groupe >= 5 || res.capsules > 0) hapticMoyen();
+    else if (res.eclatees.length) hapticLeger();
+    if (res.rushFin === 'reussi' || res.plateauNettoye) hapticSucces();
 
     // secousse d'écran : explosions, gros lâcher, ou gros groupe
-    if (res.explosions > 0 || res.grosLacher >= GROS_LACHER) secouer(1.4);
+    if (res.explosions > 0 || res.grosLacher >= GROS_LACHER || res.etoiles > 0) secouer(1.4);
     else if (res.groupe >= 6 || res.tombees.length >= 4) secouer(0.8);
 
     if (eclats.length || chutes.length || textes.length) {
@@ -339,6 +362,7 @@ export default function ShooterScreen() {
           crediteRef.current = true;
           const etoiles = etoilesNiveau(etat.tirsRestants ?? 0, params!.tirsMax);
           const r = terminerNiveau(niveau, etoiles, params!.boss, stats);
+          hapticSucces();
           setFin({ type: 'victoire', etoiles: r.etoiles, perles: r.perlesGagnees, bonusJour: r.bonusJour, premiere: r.premiere, capsule: r.capsule });
           setPhase('fini');
         }, 650);
@@ -446,6 +470,9 @@ export default function ShooterScreen() {
   const multChaine = Math.min(etat.chaine, 3);
   const bossSeuil = etat.bossPhase === 3 ? 2 : 3;
   const bossDans = Math.max(1, bossSeuil - etat.bossCompteur);
+  const alerteObjectifTexte = aventure && phase !== 'fini'
+    ? alerteObjectif(etat, (c) => NOMS_COULEUR[c])
+    : null;
 
   const pointsGuide: Point[] = [];
   if (guide && d > 0) {
@@ -488,6 +515,16 @@ export default function ShooterScreen() {
               <View style={styles.titreNiveauRang}>
                 <Text style={styles.titreNiveau}>Niveau {niveau}</Text>
                 {params?.boss && <Icone nom="couronne" taille={18} />}
+                {/* ⭐ étoiles EN DIRECT : ce que rapporterait le niveau fini maintenant */}
+                {etat.tirsMax !== null && (
+                  <View style={styles.etoilesLive}>
+                    {[1, 2, 3].map((i) => (
+                      <View key={i} style={{ opacity: i <= etoilesNiveau(etat.tirsRestants ?? 0, etat.tirsMax ?? 1) ? 1 : 0.2 }}>
+                        <Icone nom="etoile" taille={13} />
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
               <Text style={styles.scorePetit}>{formatNb(etat.score)} pts</Text>
             </>
@@ -576,14 +613,31 @@ export default function ShooterScreen() {
             <Text style={styles.chainePillTxt}>Chaîne ×{multChaine}</Text>
           </View>
         )}
+        {/* 🔥 RUSH actif : progression du défi éclair */}
+        {etat.rush?.statut === 'active' && (
+          <View style={styles.rushPill}>
+            <View style={[styles.rushPastille, { backgroundColor: COULEURS[etat.rush.couleur] }]} />
+            <Text style={styles.rushTxt} numberOfLines={1}>
+              RUSH {etat.rush.progres}/{etat.rush.cible} {NOMS_COULEUR[etat.rush.couleur]} · {etat.rush.tirsFenetre} tir{etat.rush.tirsFenetre > 1 ? 's' : ''}
+            </Text>
+          </View>
+        )}
+        {/* 🏅 dernier tir du budget : tout ce qu'il rapporte compte DOUBLE */}
+        {etat.tirsRestants === 1 && phase !== 'fini' && (
+          <View style={styles.orPill}>
+            <Text style={styles.orTxt}>🏅 DERNIER TIR — TOUT COMPTE ×2 !</Text>
+          </View>
+        )}
         <Pressable
           style={[styles.feverPill, etat.fever >= FEVER_MAX && styles.feverPillPret]}
           disabled={etat.fever < FEVER_MAX || phase !== 'pret'}
           onPress={declencherFever}
         >
           <Icone nom="eclat" taille={13} />
+          {/* « Shaker x/5 » explicite : sans le mot, la jauge se confond avec un
+              compteur d'objectif (constat de l'audit en jouant du 18-19/07) */}
           <Text style={[styles.feverTxt, etat.fever >= FEVER_MAX && styles.feverTxtPret]}>
-            {etat.fever >= FEVER_MAX ? 'SHAKER !' : `${etat.fever}/${FEVER_MAX}`}
+            {etat.fever >= FEVER_MAX ? 'SHAKER !' : `Shaker ${etat.fever}/${FEVER_MAX}`}
           </Text>
         </Pressable>
         {etat.tirsParDescente > 0 && (
@@ -595,6 +649,20 @@ export default function ShooterScreen() {
         )}
       </View>
 
+      {alerteObjectifTexte && (
+        <View
+          style={styles.alerteObjectif}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+        >
+          <View style={styles.alerteObjectifIcone}><Icone nom="cible" taille={17} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.alerteObjectifTitre}>OBJECTIF À FINIR</Text>
+            <Text style={styles.alerteObjectifTexte}>{alerteObjectifTexte}</Text>
+          </View>
+        </View>
+      )}
+
       {/* === Terrain === (secousse d'écran appliquée ici) */}
       <Animated.View
         style={[styles.terrain, { marginBottom: insets.bottom + 6, transform: [{ translateX: secousseX }, { translateY: secousseY }] }]}
@@ -603,6 +671,12 @@ export default function ShooterScreen() {
       >
         {dims && d > 0 && (
           <>
+            {/* 🎨 fond VIOLET immersif du plateau (maquette 3g) : la zone de jeu est
+                sombre jusqu'à la ligne limite, les perles candy éclatent dessus */}
+            <View pointerEvents="none" style={[styles.plateauFond, { height: yLimite + d * 0.4 }]}>
+              <View style={[styles.plateauLueur, { left: '12%', top: '18%' }]} />
+              <View style={[styles.plateauLueur, { right: '8%', top: '55%', width: 90, height: 90 }]} />
+            </View>
             <View style={[styles.mur, { left: offX - 2, height: yLimite + d }]} />
             <View style={[styles.mur, { left: offX + LARGEUR_TERRAIN * d, height: yLimite + d }]} />
 
@@ -614,7 +688,14 @@ export default function ShooterScreen() {
               <PlateauSkia w={dims.w} h={dims.h} r={d * 0.47} bulles={bullesPx} />
             </Animated.View>
 
-            <View style={[styles.limite, { top: yLimite, left: offX, width: LARGEUR_TERRAIN * d }]} />
+            {/* ⚠️ ligne de DÉFAITE : invisible tant que le plateau est loin, elle
+                n'apparaît (avec son libellé) que quand les perles s'en approchent */}
+            {bullesPx.some((b) => b.y > yLimite - d * 2.6) && (
+              <>
+                <View style={[styles.limite, { top: yLimite, left: offX, width: LARGEUR_TERRAIN * d }]} />
+                <Text style={[styles.limiteTxt, { top: yLimite + 4 }]}>DANGER — ne laisse pas les perles toucher la ligne !</Text>
+              </>
+            )}
 
             {pointsGuide.map((p, i) => {
               const px = enPx(p);
@@ -793,6 +874,12 @@ export default function ShooterScreen() {
         {/* === Fin de partie === */}
         {phase === 'fini' && fin && (
           <View style={styles.finFond}>
+            {/* 🎊 récap ANIMÉ : confettis sur victoire/record, perles en count-up */}
+            {(fin.type === 'victoire' || (fin.type === 'infini' && fin.record)) && (
+              <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0 }}>
+                <Confettis hauteur={300} />
+              </View>
+            )}
             <View style={styles.finCarte}>
               {fin.type === 'victoire' && (
                 <>
@@ -805,7 +892,7 @@ export default function ShooterScreen() {
                   <View style={styles.finLigne}>
                     <IconePerle taille={20} />
                     <Text style={styles.finPerles}>
-                      +{formatNb(fin.perles)} perles{fin.bonusJour ? ' (×2 ✨)' : ''}
+                      +{formatNb(perlesComptees)} perles{fin.bonusJour ? ' (×2 ✨)' : ''}
                     </Text>
                   </View>
                   {fin.capsule && (
@@ -815,11 +902,11 @@ export default function ShooterScreen() {
                       {fin.capsule === 'doree' && <Icone nom="couronne" taille={15} />}
                     </View>
                   )}
-                  {fin.premiere && !fin.capsule && (
-                    <Text style={styles.finNote}>Première victoire validée : ce palier rapporte des perles ; la prochaine capsule est indiquée sur le parcours.</Text>
-                  )}
                   {!fin.premiere && <Text style={styles.finNote}>Niveau déjà réussi : perles réduites, pas de capsule.</Text>}
-                  <BoutonJeu titre="Niveau suivant →" onPress={niveauSuivant} style={{ alignSelf: 'stretch', backgroundColor: C.vert }} />
+                  <BoutonJeu titre="Niveau suivant →" onPress={niveauSuivant} style={{ alignSelf: 'stretch' }} />
+                  <Pressable onPress={reinit} hitSlop={6}>
+                    <Text style={styles.finRetour}>Rejouer ce niveau ›</Text>
+                  </Pressable>
                   <Pressable onPress={versParcours} hitSlop={6}>
                     <Text style={styles.finRetour}>Retour au parcours ›</Text>
                   </Pressable>
@@ -849,7 +936,7 @@ export default function ShooterScreen() {
                   <View style={styles.finLigne}>
                     <IconePerle taille={20} />
                     <Text style={styles.finPerles}>
-                      +{formatNb(fin.perles)} perles{fin.bonusJour ? ' (bonus du jour ×2 ✨)' : ''}
+                      +{formatNb(perlesComptees)} perles{fin.bonusJour ? ' (bonus du jour ×2 ✨)' : ''}
                     </Text>
                   </View>
                   <BoutonJeu titre="Rejouer" onPress={reinit} style={{ alignSelf: 'stretch' }} />
@@ -884,7 +971,7 @@ export default function ShooterScreen() {
                 onPress={() => {
                   if (acheterPowerup(achat)) { setArmee(achat); setAchat(null); }
                 }}
-                style={{ alignSelf: 'stretch', backgroundColor: C.vert }}
+                style={{ alignSelf: 'stretch' }}
               />
               <Pressable onPress={() => setAchat(null)} hitSlop={6}>
                 <Text style={styles.finRetour}>Plus tard</Text>
@@ -995,7 +1082,7 @@ const styles = StyleSheet.create({
   hud: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 },
   fermer: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: C.carte,
-    alignItems: 'center', justifyContent: 'center', ...OMBRE,
+    alignItems: 'center', justifyContent: 'center', borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
   score: { fontFamily: F.titre, fontSize: 30, color: C.violet },
   titreNiveau: { fontFamily: F.titre, fontSize: 23, color: C.violet },
@@ -1009,7 +1096,7 @@ const styles = StyleSheet.create({
 
   tirsPill: {
     backgroundColor: C.carte, borderRadius: 14, paddingVertical: 6, paddingHorizontal: 13,
-    alignItems: 'center', ...OMBRE,
+    alignItems: 'center', borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
   tirsPillDanger: { backgroundColor: C.danger },
   tirsPillNb: { fontFamily: F.titre, fontSize: 20, color: C.violet, lineHeight: 24 },
@@ -1049,6 +1136,22 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: C.jaune,
   },
   chainePillTxt: { fontFamily: F.t800, fontSize: 12, color: '#9A6B00' },
+  // ⭐ étoiles en direct dans l'en-tête
+  etoilesLive: { flexDirection: 'row', gap: 2, marginLeft: 5 },
+  // 🔥 pill du RUSH actif
+  rushPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#FBE3E8', borderRadius: 999, paddingVertical: 4, paddingHorizontal: 11,
+    borderWidth: 1, borderColor: '#ec647b',
+  },
+  rushPastille: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5, borderColor: '#fff' },
+  rushTxt: { fontFamily: F.t800, fontSize: 11.5, color: '#B3364F' },
+  // 🏅 bannière du dernier tir (tir en or)
+  orPill: {
+    backgroundColor: C.jaune, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: '#C99012',
+  },
+  orTxt: { fontFamily: F.t800, fontSize: 11.5, color: '#5A4300' },
   feverPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999,
     paddingVertical: 4, paddingHorizontal: 9, backgroundColor: C.carte, borderWidth: 1, borderColor: C.bord,
@@ -1059,10 +1162,36 @@ const styles = StyleSheet.create({
   pointTir: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.bord },
   pointTirPlein: { backgroundColor: C.violetClair },
 
+  alerteObjectif: {
+    flexDirection: 'row', alignItems: 'center', gap: 9,
+    marginHorizontal: 16, marginTop: 6, paddingVertical: 8, paddingHorizontal: 11,
+    backgroundColor: '#FFF3D6', borderRadius: 14, borderWidth: 1.5, borderColor: '#F0B737',
+  },
+  alerteObjectifIcone: {
+    width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F2DA33',
+  },
+  alerteObjectifTitre: { fontFamily: F.t800, fontSize: 10.5, color: '#9A6B00' },
+  alerteObjectifTexte: { fontFamily: F.t700, fontSize: 11.5, lineHeight: 15, color: '#54470A' },
+
   terrain: { flex: 1, marginTop: 4, overflow: 'hidden' },
-  mur: { position: 'absolute', top: 0, width: 2, backgroundColor: C.bord, borderRadius: 1 },
-  limite: { position: 'absolute', height: 2, backgroundColor: 'rgba(199,84,80,0.45)', borderRadius: 1 },
-  guide: { position: 'absolute', width: 6, height: 6, borderRadius: 3, backgroundColor: C.violetClair },
+  mur: { position: 'absolute', top: 0, width: 2, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 1 },
+  limite: { position: 'absolute', height: 2.5, backgroundColor: 'rgba(236,100,123,0.85)', borderRadius: 1 },
+  limiteTxt: {
+    position: 'absolute', left: 0, right: 0, textAlign: 'center',
+    fontFamily: F.t800, fontSize: 10.5, color: '#ec647b',
+  },
+  guide: { position: 'absolute', width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.55)' },
+  // 🎨 fond violet immersif du plateau + lueurs douces
+  plateauFond: {
+    position: 'absolute', left: 0, right: 0, top: 0,
+    backgroundColor: '#452A6E', borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
+    overflow: 'hidden',
+  },
+  plateauLueur: {
+    position: 'absolute', width: 120, height: 120, borderRadius: 60,
+    backgroundColor: 'rgba(129,95,174,0.35)',
+  },
   apercuPose: {
     position: 'absolute', alignItems: 'center', justifyContent: 'center',
     borderWidth: 2.5, borderStyle: 'dashed', borderColor: C.vert, backgroundColor: 'rgba(163,199,36,0.16)',
@@ -1071,8 +1200,12 @@ const styles = StyleSheet.create({
   projectile: { position: 'absolute', ...OMBRE },
   reflet: { position: 'absolute', top: '14%', left: '14%', backgroundColor: '#fff', opacity: 0.5 },
   eclat: { position: 'absolute', borderWidth: 3.5, backgroundColor: 'transparent' },
-  flottant: { position: 'absolute', fontFamily: F.t800, fontSize: 17, color: C.violetProfond },
-  flottantGros: { fontFamily: F.titre, fontSize: 20, color: C.vertFonce },
+  // ⚠️ les textes flottants vivent sur le PLATEAU VIOLET → clair + ombre portée
+  flottant: {
+    position: 'absolute', fontFamily: F.t800, fontSize: 17, color: '#fff',
+    textShadowColor: 'rgba(43,23,74,0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
+  },
+  flottantGros: { fontFamily: F.titre, fontSize: 20, color: C.jaune },
   suivant: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 8 },
   astuce: {
     position: 'absolute', left: 0, right: 0, textAlign: 'center',
@@ -1099,7 +1232,7 @@ const styles = StyleSheet.create({
   },
   finCarte: {
     backgroundColor: C.carte, borderRadius: 24, padding: 24, gap: 10,
-    alignItems: 'center', alignSelf: 'stretch', ...OMBRE,
+    alignItems: 'center', alignSelf: 'stretch', borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
   finTitre: { fontFamily: F.titre, fontSize: 22, color: C.violet, textAlign: 'center' },
   finScore: { fontFamily: F.t800, fontSize: 17, color: C.texte },
@@ -1119,7 +1252,7 @@ const styles = StyleSheet.create({
   },
   modalCarte: {
     backgroundColor: C.carte, borderRadius: 24, padding: 24,
-    alignItems: 'center', gap: 12, alignSelf: 'stretch', ...OMBRE,
+    alignItems: 'center', gap: 12, alignSelf: 'stretch', borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
   modalTitre: { fontFamily: F.titre, fontSize: 21, color: C.violet },
   modalTexte: { fontFamily: F.t400, fontSize: 13.5, color: C.texte2, textAlign: 'center', lineHeight: 20 },

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Bubble Stop",
     "slug": "bubblestop",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "bubblestop",
@@ -50,6 +50,33 @@
         {
           "icon": "./assets/images/notification-icon.png",
           "color": "#623E91"
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.172372207006-q6ggib11aoud3ldkau5p686u4m49ndbq"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "extraPods": [
+              {
+                "name": "AppCheckCore",
+                "modular_headers": true
+              },
+              {
+                "name": "GoogleUtilities",
+                "modular_headers": true
+              },
+              {
+                "name": "RecaptchaInterop",
+                "modular_headers": true
+              }
+            ]
+          }
         }
       ]
     ],

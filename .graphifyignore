@@ -1,0 +1,57 @@
+# Sorties Graphify et répertoires générés
+graphify-out/
+.git/
+node_modules/
+dist/
+web-build/
+coverage/
+tmp/
+_a_supprimer/
+**/__pycache__/
+.expo/
+ios/
+android/
+
+# Secrets, certificats et identités techniques
+.env
+.env.*
+**/*.pem
+**/*.key
+**/*.p8
+**/*.p12
+**/*.jks
+**/*.mobileprovision
+**/google-services.json
+**/GoogleService-Info.plist
+**/*service-account*.json
+**/*credentials*.json
+**/*secret*.json
+
+# Données locales ou exportées
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/AsyncStorage/
+**/userData/
+
+# Verrous, builds et médias volumineux sans intérêt architectural
+package-lock.json
+store-assets/
+bubble-stop-DA/
+assets/images/
+**/*.ipa
+**/*.apk
+**/*.aab
+**/*.zip
+**/*.7z
+**/*.pdf
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.webp
+**/*.svg
+**/*.mp3
+**/*.wav
+**/*.mp4
+**/*.mov

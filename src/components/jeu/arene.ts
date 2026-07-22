@@ -11,7 +11,7 @@
 
 // import RELATIF (même dossier) : permet aussi de tester ce module sous Node
 import {
-  agregerEffets, CONSOMMABLES, coutEquipe, multOutsider, objetsDeSlot, PASSIFS,
+  agregerEffets, CONSOMMABLES, coutEquipe, multNiveauCarte, multOutsider, objetsDeSlot, PASSIFS,
   trouverCollectible, type Boss, type BossGimmick, type ConsommableId, type Emplacement,
   type EffetObjet, type Mutateur, type ObjetId, type Rarete, type SetId,
 } from './economie';
@@ -29,7 +29,7 @@ export type FicheCombat = {
 // Indications affichées sous les boutons d'attaque
 export const HINT_ATTAQUE: Record<TypeAttaque, string> = {
   degats: 'Dégâts',
-  soin: 'Se soigne · max 25 % des PV',
+  soin: 'Se soigne',
   bouclier: 'Encaisse le prochain coup à moitié',
   boost: '+40 % ATQ pendant 2 tours',
   etourdit: 'Dégâts + peut étourdir',
@@ -46,11 +46,7 @@ export const HINT_ATTAQUE: Record<TypeAttaque, string> = {
 // plus fort (et étourdit plus souvent) — fini le spam, il faut choisir ses moments.
 export const CHARGE_MAX = 3;   // actions/coups encaissés pour débloquer la signature
 export const SPE_USAGES = 3;   // munitions de l'attaque n°2 (par combattant, par combat)
-export const SPE_BONUS = 1.2;  // la spé offensive tape 20 % plus fort (compense les munitions)
-export const SOIN_DIRECT_MAX_PV_PCT = 25; // un soin actif ne rend jamais plus d'un quart des PV max
-export const VOL_DE_VIE_MAX_PCT = 25;     // les objets/passifs se cumulent, puis ce plafond s'applique
-export const VOL_DE_VIE_MAX_PV_PCT_ACTION = 12; // évite qu'une zone/multi-coup remplisse toute la barre
-export const REGEN_MAX_PAR_ACTION = 10;   // régénération passive maximale après une action non soignante
+export const SPE_BONUS = 1.2;  // la spé tape/soigne 20 % plus fort (compense les munitions)
 
 // Dégâts = % des PV MAX de la CIBLE (équitable quel que soit l'écart de stats — l'ulti
 // du petit mord autant que celui du grand), plafonnés par l'ATQ de l'attaquant (×3,5)
@@ -76,6 +72,76 @@ export const GARDE_REDUCTION = 0.45;    // action universelle : prochain impact 
 export const CHANGEMENT_REDUCTION = 0.25; // changement tactique : prochain impact −25 %
 export const GARDE_COOLDOWN = 2;        // tours complets avant de pouvoir garder à nouveau
 
+// --- 🎯 TIMING « tap parfait » (action commands, CÔTÉ JOUEUR uniquement) --------------
+// Quand le joueur choisit une attaque, la Signature ou la Garde, l'UI (duel.tsx)
+// affiche une jauge rapide : taper dans la zone DORÉE = PARFAIT, la VERTE = BIEN,
+// sinon RATÉ. Le résultat module dégâts/soins et chance de critique ; un PARFAIT ne
+// peut jamais rater (précision garantie) et une Garde PARFAITE bloque −70 % en
+// chargeant la jauge de +2. L'IA n'en profite jamais : c'est la prime au skill.
+export type Timing = 'parfait' | 'bien' | 'rate';
+export const TIMING_MULT: Record<Timing, number> = { parfait: 1.3, bien: 1.12, rate: 0.85 };
+export const TIMING_CRIT: Record<Timing, number> = { parfait: 0.2, bien: 0.06, rate: 0 };
+export const TIMING_ZONE_OR = 0.16;    // largeur de la zone dorée (fraction de la jauge)
+export const TIMING_ZONE_VERT = 0.42;  // largeur de la zone verte (dorée incluse)
+export const GARDE_PARFAITE = 0.7;     // parade PARFAITE : −70 % au lieu de −45 %
+// Position du curseur (0..1) → résultat. Zones centrées sur 0,5. Helper PUR (testé).
+// `zones` permet de rétrécir la fenêtre (carte blessée) — défaut = zones standard.
+export function timingDepuisPosition(pos: number, zones: { or: number; vert: number } = { or: TIMING_ZONE_OR, vert: TIMING_ZONE_VERT }): Timing {
+  const d = Math.abs(pos - 0.5);
+  if (d <= zones.or / 2) return 'parfait';
+  if (d <= zones.vert / 2) return 'bien';
+  return 'rate';
+}
+
+// --- 🩸 VISÉE BLESSÉE : plus ta carte souffre, plus viser est dur -----------------------
+// La jauge de timing s'appuie sur l'état de TA carte active : curseur plus rapide et
+// zones plus étroites quand elle est blessée (mains qui tremblent). Intuitif : on le
+// SENT — et ça pousse à soigner/changer au lieu de tanker sans réfléchir.
+export const VISEE_DUREE_BASE = 900;   // ms du balayage à pleine forme
+export const VISEE_DUREE_MIN = 560;    // ms à l'agonie — la barre FILE, panique !
+export function viseeBlessure(pv: number, pvMax: number): number {
+  return Math.max(0, Math.min(1, 1 - pv / Math.max(1, pvMax)));
+}
+export function viseeDuree(blessure: number): number {
+  return Math.round(VISEE_DUREE_BASE - (VISEE_DUREE_BASE - VISEE_DUREE_MIN) * blessure);
+}
+export function viseeZones(blessure: number): { or: number; vert: number } {
+  return {
+    or: TIMING_ZONE_OR * (1 - 0.45 * blessure),   // zone dorée jusqu'à −45 %
+    vert: TIMING_ZONE_VERT * (1 - 0.3 * blessure), // zone verte jusqu'à −30 %
+  };
+}
+
+// --- 💧 FATIGUE DE SOIN (rééquilibrage 19/07, demande Yoann : « soins trop puissants ») --
+// Chaque soin reçu par un combattant rend le SUIVANT 25 % moins efficace (plancher
+// 40 %). S'applique aux DEUX camps et à toutes les sources (attaque soin, Signature,
+// vol de vie, régén d'objet, consommables) — SAUF le gimmick regen du boss hebdo,
+// qui est son identité. Intuitif : « le soin fatigue », fini les combats-éponges.
+export const FATIGUE_SOIN_PCT = 25;
+export const FATIGUE_SOIN_PLANCHER = 0.4;
+export function multFatigueSoin(soinsRecus: number): number {
+  return Math.max(FATIGUE_SOIN_PLANCHER, 1 - (FATIGUE_SOIN_PCT / 100) * Math.max(0, soinsRecus));
+}
+// Applique un soin en tenant compte de la fatigue et incrémente le compteur.
+function appliquerSoin(c: Combattant, base: number): number {
+  const gain = Math.max(0, Math.round(base * multFatigueSoin(c.soinsRecus)));
+  if (gain > 0) {
+    c.pv = Math.min(c.pvMax, c.pv + gain);
+    c.soinsRecus++;
+  }
+  return gain;
+}
+
+// --- ⚡ COMBO DE PARFAITS (la boucle addictive du duel) -------------------------------
+// Chaque PARFAIT enchaîné met +8 % de dégâts « en banque » pour les coups suivants
+// (plafonné à +24 %). Un RATÉ casse tout, un BIEN préserve sans ajouter. Le compteur
+// vit côté UI (duel.tsx) et le multiplicateur s'applique via jouerRound(comboA).
+export const COMBO_PARFAIT_PCT = 8;
+export const COMBO_PARFAIT_MAX = 3;
+export function multCombo(comboAvant: number): number {
+  return 1 + (COMBO_PARFAIT_PCT / 100) * Math.max(0, Math.min(COMBO_PARFAIT_MAX, Math.round(comboAvant)));
+}
+
 // --- Les fiches des 24 combattants --------------------------------------------------
 
 export const FICHES: Record<string, FicheCombat> = {
@@ -83,7 +149,7 @@ export const FICHES: Record<string, FicheCombat> = {
   boba: { pv: 98, atk: 16, vit: 10, attaques: [{ nom: 'Boulet de tapioca', type: 'degats', puissance: 1 }, { nom: 'Roulade géante', type: 'degats', puissance: 1.35 }] },
   classico: { pv: 92, atk: 16, vit: 12, attaques: [{ nom: 'Gorgée classique', type: 'degats', puissance: 1 }, { nom: 'Recette originale', type: 'boost', puissance: 1 }] },
   theo: { pv: 90, atk: 15, vit: 13, attaques: [{ nom: 'Coup de sachet', type: 'degats', puissance: 1 }, { nom: 'Infusion soporifique', type: 'etourdit', puissance: 0.7 }] },
-  lacto: { pv: 96, atk: 15, vit: 11, attaques: [{ nom: 'Éclaboussure', type: 'degats', puissance: 1 }, { nom: 'Bain de lait', type: 'soin', puissance: 1.5 }] },
+  lacto: { pv: 96, atk: 15, vit: 11, attaques: [{ nom: 'Éclaboussure', type: 'degats', puissance: 1 }, { nom: 'Bain de lait', type: 'soin', puissance: 1.15 }] },
   paillette: { pv: 86, atk: 15, vit: 15, attaques: [{ nom: 'Pique-paille', type: 'degats', puissance: 1 }, { nom: 'Rafale de pailles', type: 'double', puissance: 0.65 }] },
   sucrette: { pv: 88, atk: 16, vit: 14, attaques: [{ nom: 'Jet de sucre', type: 'degats', puissance: 1 }, { nom: 'Rush de glucose', type: 'boost', puissance: 1 }] },
   // 🍓 Fruités (rares)
@@ -96,16 +162,16 @@ export const FICHES: Record<string, FicheCombat> = {
   // ✨ Toppings (épiques)
   popping: { pv: 116, atk: 23, vit: 15, attaques: [{ nom: 'Bulle qui claque', type: 'degats', puissance: 1 }, { nom: 'Explosion popping', type: 'zone', puissance: 0.65 }] },
   jelly: { pv: 124, atk: 21, vit: 13, attaques: [{ nom: 'Rebond gélatineux', type: 'degats', puissance: 1 }, { nom: 'Mur de gelée', type: 'bouclier', puissance: 1 }] },
-  mochito: { pv: 122, atk: 21, vit: 13, attaques: [{ nom: 'Tape moelleuse', type: 'degats', puissance: 1 }, { nom: 'Câlin mochi', type: 'soin', puissance: 1.5 }] },
-  coco: { pv: 120, atk: 22, vit: 14, attaques: [{ nom: 'Noix de coco', type: 'degats', puissance: 1 }, { nom: 'Lait de coco', type: 'soin', puissance: 1.4 }] },
+  mochito: { pv: 122, atk: 21, vit: 13, attaques: [{ nom: 'Tape moelleuse', type: 'degats', puissance: 1 }, { nom: 'Câlin mochi', type: 'soin', puissance: 1.15 }] },
+  coco: { pv: 120, atk: 22, vit: 14, attaques: [{ nom: 'Noix de coco', type: 'degats', puissance: 1 }, { nom: 'Lait de coco', type: 'soin', puissance: 1.1 }] },
   pudding: { pv: 118, atk: 22, vit: 14, attaques: [{ nom: 'Flan flan', type: 'degats', puissance: 1 }, { nom: 'Caramélisation', type: 'boost', puissance: 1 }] },
-  nuage: { pv: 126, atk: 21, vit: 12, attaques: [{ nom: 'Coup de brume', type: 'degats', puissance: 0.95 }, { nom: 'Cocon de chantilly', type: 'soin', puissance: 1.6 }] },
+  nuage: { pv: 126, atk: 21, vit: 12, attaques: [{ nom: 'Coup de brume', type: 'degats', puissance: 0.95 }, { nom: 'Cocon de chantilly', type: 'soin', puissance: 1.25 }] },
   // 👑 Signatures (légendaires)
   'taro-queen': { pv: 140, atk: 26, vit: 16, attaques: [{ nom: 'Sceptre taro', type: 'degats', puissance: 1.05 }, { nom: 'Décret royal', type: 'degats', puissance: 1.45 }] },
   'matcha-sensei': { pv: 138, atk: 25, vit: 18, attaques: [{ nom: 'Fouet cérémonial', type: 'degats', puissance: 1.05 }, { nom: 'Méditation zen', type: 'etourdit', puissance: 0.75 }] },
   'brown-sugar-king': { pv: 146, atk: 26, vit: 15, attaques: [{ nom: 'Rayure de caramel', type: 'degats', puissance: 1.05 }, { nom: 'Couronne fondante', type: 'boost', puissance: 1 }] },
   'oreo-star': { pv: 136, atk: 26, vit: 17, attaques: [{ nom: 'Éclat de cookie', type: 'degats', puissance: 1.05 }, { nom: 'Pluie d\'étoiles', type: 'zone', puissance: 0.6 }] },
-  'caramel-chef': { pv: 142, atk: 25, vit: 15, attaques: [{ nom: 'Louche brûlante', type: 'degats', puissance: 1.05 }, { nom: 'Nappage réparateur', type: 'soin', puissance: 1.5 }] },
+  'caramel-chef': { pv: 142, atk: 25, vit: 15, attaques: [{ nom: 'Louche brûlante', type: 'degats', puissance: 1.05 }, { nom: 'Nappage réparateur', type: 'soin', puissance: 1.15 }] },
   'bubble-master': { pv: 148, atk: 28, vit: 19, attaques: [{ nom: 'Perle suprême', type: 'degats', puissance: 1.1 }, { nom: 'Jugement du Boba', type: 'degats', puissance: 1.55 }] },
 };
 
@@ -127,6 +193,7 @@ export type Combattant = {
   nom: string;
   set: SetId;
   rarete: Rarete;
+  niveau: number;          // 💪 niveau d'entraînement (1..10, joueur uniquement)
   pvMax: number;
   pv: number;
   atk: number;
@@ -143,6 +210,7 @@ export type Combattant = {
   gimmick?: BossGimmick;   // 👹 règle spéciale (boss hebdomadaire uniquement)
   gardePct: number;        // réduction du prochain impact (Garde ou changement)
   gardeCooldown: number;   // tours restants avant une nouvelle Garde
+  soinsRecus: number;      // 💧 fatigue de soin : chaque soin suivant rend moins
   collantTours: number;    // 🍯 −4 VIT pendant N actions
   givre: boolean;          // ❄️ prochain impact ×1,35
   petillant: boolean;      // 🫧 prochain impact éclabousse le banc
@@ -174,20 +242,24 @@ export type EvtCombat =
 
 export type Rng = () => number;
 
-export function creerCombattant(id: string, echelle = 1, objets: ObjetId[] = []): Combattant {
+// `niveau` = niveau d'ENTRAÎNEMENT de la carte (1..NIVEAU_CARTE_MAX, joueur uniquement) :
+// +6 % PV/ATQ par niveau au-delà du 1 via multNiveauCarte. La VIT ne bouge pas.
+export function creerCombattant(id: string, echelle = 1, objets: ObjetId[] = [], niveau = 1): Combattant {
   const fiche = FICHES[id];
   const meta = trouverCollectible(id);
   if (!fiche || !meta) throw new Error(`fiche de combat manquante : ${id}`);
   // effet agrégé des objets équipés (+ bonus de panoplie) + PASSIF de la carte
   const eff = agregerEffets(objets, PASSIFS[id]?.eff);
-  const atk = Math.round(fiche.atk * echelle * (1 + (eff.atkPct ?? 0) / 100));
+  const mNv = multNiveauCarte(niveau);
+  const atk = Math.round(fiche.atk * echelle * mNv * (1 + (eff.atkPct ?? 0) / 100));
   const vit = fiche.vit + (eff.vit ?? 0);
-  const pvMax = Math.round(fiche.pv * echelle * (1 + (eff.pvPct ?? 0) / 100));
+  const pvMax = Math.round(fiche.pv * echelle * mNv * (1 + (eff.pvPct ?? 0) / 100));
   return {
     id,
     nom: meta.nom,
     set: meta.set,
     rarete: meta.rarete,
+    niveau: Math.max(1, Math.round(niveau)),
     pvMax,
     pv: pvMax,
     atk,
@@ -203,6 +275,7 @@ export function creerCombattant(id: string, echelle = 1, objets: ObjetId[] = [])
     speRestantes: SPE_USAGES,
     gardePct: 0,
     gardeCooldown: 0,
+    soinsRecus: 0,
     collantTours: 0,
     givre: false,
     petillant: false,
@@ -224,9 +297,9 @@ function appliquerOutsider(cs: Combattant[]) {
 export function creerCombat(
   idsA: string[], idsB: string[], echelleB = 1,
   objetsA: Record<string, ObjetId[]> = {}, objetsB: Record<string, ObjetId[]> = {},
-  mutateur?: Mutateur,
+  mutateur?: Mutateur, niveauxA: Record<string, number> = {},
 ): EtatCombat {
-  const a = idsA.map((id) => creerCombattant(id, 1, objetsA[id] ?? []));
+  const a = idsA.map((id) => creerCombattant(id, 1, objetsA[id] ?? [], niveauxA[id] ?? 1));
   const b = idsB.map((id) => creerCombattant(id, echelleB, objetsB[id] ?? []));
   appliquerOutsider(a);
   appliquerOutsider(b); // même règle des deux côtés (une compo modeste reste dangereuse)
@@ -238,13 +311,14 @@ export function creerCombat(
 // 👹 Combat contre le boss hebdomadaire : ton équipe de 3 vs UNE éponge à PV + gimmick.
 export function creerCombatBoss(
   idsA: string[], boss: Boss, objetsA: Record<string, ObjetId[]> = {}, mutateur?: Mutateur,
+  niveauxA: Record<string, number> = {},
 ): EtatCombat {
   const bossC = creerCombattant(boss.combattantId, boss.echelle, []);
   bossC.pvMax = Math.round(bossC.pvMax * boss.pvBonus);
   bossC.pv = bossC.pvMax;
   bossC.nom = boss.nom;
   bossC.gimmick = boss.gimmick;
-  const a = idsA.map((id) => creerCombattant(id, 1, objetsA[id] ?? []));
+  const a = idsA.map((id) => creerCombattant(id, 1, objetsA[id] ?? [], niveauxA[id] ?? 1));
   appliquerOutsider(a); // le bonus outsider s'applique à l'équipe du joueur, pas au boss
   const etat: EtatCombat = {
     equipes: { a, b: [bossC] },
@@ -368,7 +442,9 @@ function actualiserPhaseBoss(c: Combattant, cote: CoteCombat, evts: EvtCombat[])
   }
 }
 
-function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rng: Rng, evts: EvtCombat[]) {
+// `timing`/`combo` ne sont fournis QUE pour le côté joueur (a) : jauge tap-parfait
+// et nombre de PARFAITS déjà en banque avant cette action.
+function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rng: Rng, evts: EvtCombat[], timing?: Timing, combo = 0) {
   const moi = actif(etat, cote);
   const indexMoi = etat.actifs[cote];
   const cible = actif(etat, adverse(cote));
@@ -391,29 +467,28 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
   if (choix === 'signature' && moi.charge < CHARGE_MAX) choix = 0;
   if (choix === 1 && moi.speRestantes <= 0) choix = 0;
   const estSpe = choix === 1;
-  const actionSoignante = choix === 'signature'
-    ? Boolean(SIGNATURES[moi.set].soinPct)
-    : moi.attaques[choix].type === 'soin';
-  let degatsPourVolDeVie = 0;
   if (estSpe) moi.speRestantes--;                                      // 🔋 une munition (même si ça rate)
 
   const mut = etat.mutateur;                                           // ⚡ mutateur du jour
   const boost = moi.boostTours > 0 ? 1.4 : 1;
   const bonusPrecision = (moi.eff.precisionPct ?? 0) / 100;             // 🎯
-  const chanceCrit = (CHANCE_CRITIQUE + (moi.eff.critPct ?? 0) / 100) * (mut?.critChanceX2 ? 2 : 1); // 🍀 💥
+  const chanceCrit = (CHANCE_CRITIQUE + (moi.eff.critPct ?? 0) / 100) * (mut?.critChanceX2 ? 2 : 1)
+    + (timing ? TIMING_CRIT[timing] : 0); // 🍀 💥 🎯 un bon timing rend le critique plus probable
 
   // Inflige des dégâts à UNE cible — précision, critique, bouclier, effets d'objets, mutateur.
   // `estZone` active la réduction Isotherme ; `perceForce` = la signature transperce.
   // Retourne true si la cible est touchée. Un coup encaissé charge la jauge de la cible (+1).
   const frapper = (qui: Combattant, indexQui: number, puissance: number, precisionBase: number, estZone = false): boolean => {
-    if (!mut?.precisionParfaite && rng() > Math.min(1, precisionBase + bonusPrecision)) {
+    // 🎯 un tap PARFAIT ne peut pas rater : la prise de risque est récompensée
+    if (timing !== 'parfait' && !mut?.precisionParfaite && rng() > Math.min(1, precisionBase + bonusPrecision)) {
       evts.push({ t: 'statut', cote: adverse(cote), texte: `${qui.nom} esquive l'attaque ! 💨` });
       return false;
     }
     const mult = multType(moi.set, qui.set);
     const crit = rng() < chanceCrit;
     if (crit) evts.push({ t: 'statut', cote, texte: 'Coup critique ! 💥' });
-    let degats = Math.round(moi.atk * puissance * mult * boost * (crit ? 1.5 : 1) * (0.9 + rng() * 0.2) * (mut?.degatsMult ?? 1));
+    let degats = Math.round(moi.atk * puissance * mult * boost * (crit ? 1.5 : 1) * (0.9 + rng() * 0.2) * (mut?.degatsMult ?? 1)
+      * (timing ? TIMING_MULT[timing] * multCombo(combo) : 1)); // 🎯 timing × ⚡ combo de parfaits
     // 👹 gimmick : le boss « insensible à la zone » ne prend aucun dégât de zone
     if (estZone && qui.gimmick === 'zone-immune') {
       degats = 0;
@@ -454,9 +529,12 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
     evts.push({ t: 'degats', cote: adverse(cote), index: indexQui, valeur: degats, efficace: mult, pvApres: qui.pv });
     if (revive) evts.push({ t: 'statut', cote: adverse(cote), texte: `${qui.nom} tient bon à 1 PV ! 🧿` });
     else if (qui.pv <= 0) evts.push({ t: 'ko', cote: adverse(cote), index: indexQui, nom: qui.nom });
-    // 🩸 Le vol de vie est calculé UNE FOIS après l'action. Une attaque de zone
-    // ou multi-coup ne peut donc plus déclencher plusieurs soins indépendants.
-    degatsPourVolDeVie += inflige;
+    // 🩸 vol de vie de l'attaquant (Caramel / panoplie Sucré) — modulé par le mutateur
+    // de soin puis par la 💧 fatigue de soin
+    if (inflige > 0 && moi.eff.volDeViePct && moi.pv > 0) {
+      const soin = appliquerSoin(moi, inflige * moi.eff.volDeViePct / 100 * (mut?.soinMult ?? 1));
+      if (soin > 0) evts.push({ t: 'soin', cote, index: indexMoi, valeur: soin, pvApres: moi.pv });
+    }
     // 🌵 épines : la cible renvoie une partie des dégâts à l'attaquant
     if (inflige > 0 && qui.eff.epinesPct && moi.pv > 0) {
       const retour = Math.round(inflige * qui.eff.epinesPct / 100);
@@ -492,6 +570,7 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
     moi.charge = 0;
     evts.push({ t: 'annonce', cote, texte: `⭐ ${moi.nom} déchaîne ${sig.nom} !` });
     let degatsSig = Math.min(Math.round(cible.pvMax * sig.pvPct / 100), Math.round(moi.atk * SIG_CAP_ATK));
+    if (timing) degatsSig = Math.round(degatsSig * TIMING_MULT[timing] * multCombo(combo)); // 🎯 timing × ⚡ combo
     if (cible.givre) {
       degatsSig = Math.ceil(degatsSig * 1.35);
       cible.givre = false;
@@ -522,9 +601,7 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
     if (reviveSig) evts.push({ t: 'statut', cote: adverse(cote), texte: `${cible.nom} tient bon à 1 PV ! 🧿` });
     else if (cible.pv <= 0) evts.push({ t: 'ko', cote: adverse(cote), index: indexCible, nom: cible.nom });
     if (sig.soinPct && moi.pv > 0 && moi.pv < moi.pvMax) {
-      const demande = Math.round(moi.pvMax * sig.soinPct / 100 * (mut?.soinMult ?? 1));
-      const g = Math.min(demande, moi.pvMax - moi.pv);
-      moi.pv += g;
+      const g = appliquerSoin(moi, moi.pvMax * sig.soinPct / 100 * (mut?.soinMult ?? 1)); // 💧 fatigue
       if (g > 0) evts.push({ t: 'soin', cote, index: indexMoi, valeur: g, pvApres: moi.pv });
     }
     if (sig.etourdit && cible.pv > 0) {
@@ -580,13 +657,11 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
         break;
       }
       case 'soin': {
-        // Le multiplicateur offensif de Spé ne s'applique pas aux soins. Leur
-        // rendement est borné en % des PV max pour rester stable entre raretés.
-        const brut = Math.round(moi.atk * attaque.puissance * (mut?.soinMult ?? 1));
-        const plafond = Math.round(moi.pvMax * SOIN_DIRECT_MAX_PV_PCT / 100);
-        const gain = Math.min(brut, plafond, moi.pvMax - moi.pv);
-        moi.pv += gain;
-        if (gain > 0) evts.push({ t: 'soin', cote, index: indexMoi, valeur: gain, pvApres: moi.pv });
+        // 💧 fatigue de soin : chaque soin successif du combat rend 25 % de moins
+        const avantFatigue = moi.soinsRecus;
+        const gain = appliquerSoin(moi, moi.atk * attaque.puissance * bonus * (mut?.soinMult ?? 1) * (timing ? TIMING_MULT[timing] : 1));
+        evts.push({ t: 'soin', cote, index: indexMoi, valeur: gain, pvApres: moi.pv });
+        if (avantFatigue === 1) evts.push({ t: 'statut', cote, texte: `Le soin FATIGUE : chaque soin suivant rend moins à ${moi.nom} !` });
         break;
       }
       case 'bouclier':
@@ -617,26 +692,9 @@ function agir(etat: EtatCombat, cote: CoteCombat, choix: 0 | 1 | 'signature', rn
   if (moi.boostTours > 0) moi.boostTours--;
   if (moi.collantTours > 0) moi.collantTours--;
 
-  // 🩸 Vol de vie global : additionne les dégâts réellement infligés, puis
-  // applique les deux plafonds. Les soins de zone/multi-coups restent utiles
-  // sans pouvoir rendre une barre complète sur une seule action.
-  if (degatsPourVolDeVie > 0 && moi.eff.volDeViePct && moi.pv > 0 && moi.pv < moi.pvMax) {
-    const pct = Math.min(VOL_DE_VIE_MAX_PCT, moi.eff.volDeViePct);
-    const demande = Math.round(degatsPourVolDeVie * pct / 100 * (mut?.soinMult ?? 1));
-    const plafondAction = Math.round(moi.pvMax * VOL_DE_VIE_MAX_PV_PCT_ACTION / 100);
-    const soin = Math.min(demande, plafondAction, moi.pvMax - moi.pv);
-    if (soin > 0) {
-      moi.pv += soin;
-      evts.push({ t: 'soin', cote, index: indexMoi, valeur: soin, pvApres: moi.pv });
-    }
-  }
-
-  // 🍯 Régénération passive après une action NON soignante. Un soin actif ou la
-  // Signature Milk ne cumule plus un second soin gratuit dans le même tour.
-  if (!actionSoignante && moi.eff.soinTour && moi.pv > 0 && moi.pv < moi.pvMax) {
-    const demande = Math.round(moi.eff.soinTour * (mut?.soinMult ?? 1));
-    const soin = Math.min(demande, REGEN_MAX_PAR_ACTION, moi.pvMax - moi.pv);
-    moi.pv += soin;
+  // 🍯 régénération par tour (Nappé / panoplie Sucré) — après l'action, 💧 fatigue incluse
+  if (moi.eff.soinTour && moi.pv > 0 && moi.pv < moi.pvMax) {
+    const soin = appliquerSoin(moi, moi.eff.soinTour * (mut?.soinMult ?? 1));
     if (soin > 0) evts.push({ t: 'soin', cote, index: indexMoi, valeur: soin, pvApres: moi.pv });
   }
 
@@ -662,7 +720,9 @@ export function preparerIntentionIA(etat: EtatCombat, rng: Rng = Math.random) {
 
 // Joue un round complet : les deux camps agissent dans l'ordre de VIT.
 // `choixA` = attaque du joueur (ou changement) ; le camp b joue à l'IA (ou `choixB`).
-export function jouerRound(etat: EtatCombat, choixA: ActionJoueur, rng: Rng = Math.random, choixB?: 0 | 1 | 'signature'): EvtCombat[] {
+// `timingA` = résultat de la jauge tap-parfait du joueur (attaque, Signature ou Garde).
+// `comboA` = PARFAITS consécutifs déjà en banque AVANT cette action (⚡ multCombo).
+export function jouerRound(etat: EtatCombat, choixA: ActionJoueur, rng: Rng = Math.random, choixB?: 0 | 1 | 'signature', timingA?: Timing, comboA = 0): EvtCombat[] {
   if (etat.fini) return [];
   const evts: EvtCombat[] = [];
   etat.round++;
@@ -676,10 +736,13 @@ export function jouerRound(etat: EtatCombat, choixA: ActionJoueur, rng: Rng = Ma
   if (choixA === 'garde') {
     const moi = actif(etat, 'a');
     if (moi.gardeCooldown <= 0) {
-      moi.gardePct = Math.max(moi.gardePct, GARDE_REDUCTION);
+      const parfaite = timingA === 'parfait'; // 🎯 PARADE PARFAITE : bloque plus, charge plus
+      moi.gardePct = Math.max(moi.gardePct, parfaite ? GARDE_PARFAITE : GARDE_REDUCTION);
       moi.gardeCooldown = GARDE_COOLDOWN + 1;
-      moi.charge = Math.min(CHARGE_MAX, moi.charge + 1);
-      evts.push({ t: 'statut', cote: 'a', texte: `${moi.nom} se met en GARDE : prochain impact −${Math.round(GARDE_REDUCTION * 100)} % !` });
+      moi.charge = Math.min(CHARGE_MAX, moi.charge + (parfaite ? 2 : 1));
+      evts.push({ t: 'statut', cote: 'a', texte: parfaite
+        ? `PARADE PARFAITE ! ${moi.nom} bloquera −${Math.round(GARDE_PARFAITE * 100)} % et charge fort sa jauge !`
+        : `${moi.nom} se met en GARDE : prochain impact −${Math.round(GARDE_REDUCTION * 100)} % !` });
       if (!etat.fini) agir(etat, 'b', cb, rng, evts);
       finirRound();
       return evts;
@@ -707,8 +770,7 @@ export function jouerRound(etat: EtatCombat, choixA: ActionJoueur, rng: Rng = Ma
         const e = conso.effet;
         evts.push({ t: 'annonce', cote: 'a', texte: `${moi.nom} utilise ${conso.nom} !` });
         if (e.soinPct) {
-          const g = Math.round(moi.pvMax * e.soinPct / 100);
-          moi.pv = Math.min(moi.pvMax, moi.pv + g);
+          const g = appliquerSoin(moi, moi.pvMax * e.soinPct / 100); // 💧 fatigue de soin
           evts.push({ t: 'soin', cote: 'a', index: idxMoi, valeur: g, pvApres: moi.pv });
         }
         if (e.retireEtourdi && moi.etourdi) { moi.etourdi = false; evts.push({ t: 'statut', cote: 'a', texte: `${moi.nom} retrouve ses esprits ! 🌿` }); }
@@ -739,7 +801,7 @@ export function jouerRound(etat: EtatCombat, choixA: ActionJoueur, rng: Rng = Ma
   const ordre: CoteCombat[] = premier === 'a' ? ['a', 'b'] : ['b', 'a'];
   for (const cote of ordre) {
     if (etat.fini) break;
-    agir(etat, cote, cote === 'a' ? choixA : cb, rng, evts);
+    agir(etat, cote, cote === 'a' ? choixA : cb, rng, evts, cote === 'a' ? timingA : undefined, cote === 'a' ? comboA : 0);
   }
   finirRound();
   return evts;

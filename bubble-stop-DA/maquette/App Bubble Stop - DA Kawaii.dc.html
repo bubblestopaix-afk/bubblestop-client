@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400..700&family=Outfit:wght@300..800&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#ece7f3;}
+    a{color:#633e90;text-decoration:none;}a:hover{color:#452a6e;}
+  </style>
+</helmet>
+
+<section style="padding:44px 48px 24px;font-family:Outfit,sans-serif;display:flex;flex-direction:column;gap:24px;">
+
+  <div style="display:flex;align-items:center;gap:18px;">
+    <span style="background:#9fc038;color:#2c380c;font-weight:800;font-size:13px;letter-spacing:1px;padding:7px 14px;border-radius:999px;">TURN 3</span>
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <div style="font-family:Fredoka,sans-serif;font-weight:600;font-size:26px;color:#633e90;">Boba Quest — écrans du jeu (piste 2c)</div>
+      <div style="font-weight:500;font-size:13.5px;color:#7d6f95;">Le cœur du jeu décliné dans la direction « carte au trésor » : <a href="#3a">3a</a> Parcours, <a href="#3b">3b</a> Capsules, <a href="#3c">3c</a> Collection. Mascottes-perles, nœuds illustrés, ombres candy — plus de fantaisie, même ADN.</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:44px;flex-wrap:wrap;align-items:flex-start;">
+
+    <!-- ============ 3a · PARCOURS ============ -->
+    <div id="3a" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#9fc038;color:#2c380c;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">3a</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Parcours — la carte des niveaux</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div style="height:100%;overflow-y:auto;background:linear-gradient(175deg,#efeaf7,#f7f5fb 42%);font-family:Outfit,sans-serif;"><div style="padding:56px 18px 30px;display:flex;flex-direction:column;gap:14px;min-height:100%;box-sizing:border-box;">
+
+          <div style="display:flex;align-items:center;gap:11px;">
+            <span style="width:40px;height:40px;border-radius:50%;background:#fff;border:2.5px solid #f0ebf8;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 3px 0 #e0d6ef;"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M9 2 L3 10 l6 8" stroke="#633e90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <div style="flex:1;display:flex;flex-direction:column;"><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:22px;color:#633e90;line-height:1;">L'Aventure</span><span style="font-weight:600;font-size:11.5px;color:#9384ac;margin-top:2px;">Vallée des Perles · niveau 14</span></div>
+            <span style="display:flex;align-items:center;gap:6px;background:#fff;border:2.5px solid #ece7f6;border-radius:999px;padding:6px 12px;box-shadow:0 3px 0 #e0d6ef;"><span style="width:17px;height:17px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:3px;left:3px;width:5px;height:5px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:14px;color:#4c2d77;">1 240</span></span>
+          </div>
+
+          <div style="position:relative;border-radius:28px;overflow:hidden;background:linear-gradient(172deg,#6a44a0,#4c2d77 70%);box-shadow:0 14px 30px rgba(35,17,66,.28);padding:16px 0 10px;">
+            <svg viewBox="0 0 366 540" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;">
+              <path d="M-20,50 Q80,26 180,50 T400,50 L400,-20 L-20,-20 Z" fill="#f2a7cf" opacity=".1"></path>
+              <path d="M-20,520 Q120,500 240,520 T460,520 L460,560 L-20,560 Z" fill="#3a2260" opacity=".5"></path>
+            </svg>
+            <span style="position:absolute;left:24px;top:70px;font-size:12px;color:#f2da33;opacity:.85;">✦</span>
+            <span style="position:absolute;right:30px;top:150px;font-size:10px;color:#f7b8d6;opacity:.7;">✧</span>
+            <span style="position:absolute;left:40px;bottom:150px;font-size:11px;color:#eae8f5;opacity:.5;">✦</span>
+            <span style="position:absolute;right:40px;bottom:60px;font-size:13px;color:#f2da33;opacity:.7;">✧</span>
+
+            <div style="position:relative;z-index:2;display:flex;justify-content:center;margin-bottom:4px;"><span style="background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);color:#fff;font-family:Fredoka,sans-serif;font-weight:600;font-size:13px;padding:5px 16px;border-radius:999px;">Vallée des Perles</span></div>
+
+            <div style="position:relative;z-index:2;height:470px;">
+              <svg viewBox="0 0 366 470" style="position:absolute;inset:0;width:100%;height:100%;">
+                <path d="M300 440 C 180 430, 200 380, 250 360 S 120 320, 90 296 S 250 250, 280 216 S 140 176, 110 140 S 230 96, 190 52" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="8" stroke-linecap="round" stroke-dasharray="1 16"></path>
+              </svg>
+              <!-- N12 done -->
+              <div style="position:absolute;right:44px;top:412px;"><span style="width:36px;height:36px;border-radius:50%;background:#9fc038;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#2c380c;box-shadow:0 3px 8px rgba(0,0,0,.28);">12</span></div>
+              <!-- capsule milestone -->
+              <div style="position:absolute;left:210px;top:334px;display:flex;flex-direction:column;align-items:center;gap:2px;"><span style="width:38px;height:38px;border-radius:13px;background:#f2da33;border:3px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.3);"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M4.8 12.4A7.2 7.2 0 0 1 19.2 12.4Z" fill="#fff"></path><rect x="4.3" y="11.4" width="15.4" height="2.4" rx="1.2" fill="#c06a99"></rect><path d="M4.9 13.6A7 7 0 0 0 19.1 13.6Z" fill="#ec647b"></path></svg></span></div>
+              <!-- N13 done -->
+              <div style="position:absolute;left:54px;top:272px;"><span style="width:36px;height:36px;border-radius:50%;background:#9fc038;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#2c380c;box-shadow:0 3px 8px rgba(0,0,0,.28);">13</span></div>
+              <!-- N14 current with mascot -->
+              <div style="position:absolute;left:236px;top:184px;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                <div style="position:relative;width:58px;height:58px;">
+                  <span style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(242,218,51,.55),transparent 68%);"></span>
+                  <svg width="46" height="46" viewBox="0 0 40 40" style="position:absolute;top:6px;left:6px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.3));"><circle cx="20" cy="20" r="17" fill="#f4a0c6" stroke="#fff" stroke-width="2.5"></circle><circle cx="14" cy="18" r="2.3" fill="#5a2a4e"></circle><circle cx="26" cy="18" r="2.3" fill="#5a2a4e"></circle><path d="M15 24 Q20 28 25 24" stroke="#5a2a4e" stroke-width="2.2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="3" fill="#fff" opacity=".5"></circle></svg>
+                </div>
+                <span style="background:#fff;color:#633e90;font-weight:800;font-size:11px;padding:3px 11px;border-radius:999px;box-shadow:0 3px 8px rgba(0,0,0,.22);">Niveau 14</span>
+              </div>
+              <!-- N15 locked -->
+              <div style="position:absolute;left:92px;top:120px;"><span style="width:34px;height:34px;border-radius:50%;background:#6b4c9c;border:2.5px solid rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,.28);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="#e6dcf5" stroke-width="2"></rect><path d="M8 11 V8 a4 4 0 0 1 8 0 v3" stroke="#e6dcf5" stroke-width="2"></path></svg></span></div>
+              <!-- N16 boss treasure locked -->
+              <div style="position:absolute;left:168px;top:34px;display:flex;flex-direction:column;align-items:center;gap:3px;"><span style="width:46px;height:46px;border-radius:16px;background:#6b4c9c;border:2.5px solid rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.3);"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="9.2" rx="1.6" fill="#e6dcf5"></rect><path d="M4 10.4 A5 3 0 0 1 20 10.4 Z" fill="#cdbce8"></path><rect x="10.8" y="8" width="2.4" height="11.6" fill="#b39fd6"></rect><circle cx="12" cy="12.2" r="1.6" fill="#f2da33"></circle></svg></span><span style="background:rgba(255,255,255,.16);color:#e6dcf5;font-weight:700;font-size:10px;padding:2px 9px;border-radius:999px;">Coffre du boss</span></div>
+            </div>
+          </div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:24px;padding:16px 17px;box-shadow:0 8px 18px rgba(35,17,66,.08);display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:18px;color:#633e90;">Niveau 14</span>
+              <span style="display:flex;gap:3px;">
+                <svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 3l2.5 5.5 6 .6-4.5 4 1.3 5.9L12 21l-5.3 2.9 1.3-5.9-4.5-4 6-.6Z" fill="#f2da33"></path></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 3l2.5 5.5 6 .6-4.5 4 1.3 5.9L12 21l-5.3 2.9 1.3-5.9-4.5-4 6-.6Z" fill="#f2da33"></path></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 3l2.5 5.5 6 .6-4.5 4 1.3 5.9L12 21l-5.3 2.9 1.3-5.9-4.5-4 6-.6Z" fill="#e4ddef"></path></svg>
+              </span>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <span style="flex:1;background:#f7f5fb;border-radius:14px;padding:9px 11px;display:flex;flex-direction:column;gap:1px;"><span style="font-weight:600;font-size:11px;color:#9384ac;">Objectif</span><span style="font-weight:800;font-size:13px;color:#443657;">Éclate 30 perles</span></span>
+              <span style="flex:1;background:#f7f5fb;border-radius:14px;padding:9px 11px;display:flex;flex-direction:column;gap:1px;"><span style="font-weight:600;font-size:11px;color:#9384ac;">Munitions</span><span style="font-weight:800;font-size:13px;color:#443657;">24 tirs</span></span>
+            </div>
+            <div style="background:#9fc038;border-radius:16px;padding:14px;text-align:center;font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#2c380c;box-shadow:0 5px 0 #6f8f1f;">Jouer le niveau 14 ›</div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============ 3b · CAPSULES ============ -->
+    <div id="3b" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#9fc038;color:#2c380c;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">3b</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Capsules — la machine gachapon</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div style="height:100%;overflow-y:auto;background:linear-gradient(175deg,#efeaf7,#f7f5fb 42%);font-family:Outfit,sans-serif;"><div style="padding:56px 18px 30px;display:flex;flex-direction:column;gap:14px;min-height:100%;box-sizing:border-box;">
+
+          <div style="display:flex;align-items:center;gap:11px;">
+            <span style="width:40px;height:40px;border-radius:50%;background:#fff;border:2.5px solid #f0ebf8;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 3px 0 #e0d6ef;"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M9 2 L3 10 l6 8" stroke="#633e90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <span style="flex:1;font-family:Fredoka,sans-serif;font-weight:600;font-size:22px;color:#633e90;">Capsules</span>
+            <span style="display:flex;align-items:center;gap:6px;background:#fff;border:2.5px solid #ece7f6;border-radius:999px;padding:6px 12px;box-shadow:0 3px 0 #e0d6ef;"><span style="width:17px;height:17px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:3px;left:3px;width:5px;height:5px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:14px;color:#4c2d77;">1 240</span></span>
+          </div>
+
+          <div style="position:relative;border-radius:28px;overflow:hidden;background:linear-gradient(172deg,#6a44a0,#4c2d77 72%);box-shadow:0 14px 30px rgba(35,17,66,.28);padding:20px 18px 22px;display:flex;flex-direction:column;align-items:center;">
+            <span style="position:absolute;left:24px;top:26px;font-size:13px;color:#f2da33;opacity:.85;">✦</span>
+            <span style="position:absolute;right:28px;top:40px;font-size:10px;color:#f7b8d6;opacity:.7;">✧</span>
+            <span style="position:absolute;top:14px;left:50%;transform:translateX(-50%);background:#ec647b;color:#fff;font-weight:800;font-size:10.5px;letter-spacing:.5px;padding:4px 12px;border-radius:999px;box-shadow:0 3px 0 #b83a52;">2 CAPSULES GRATUITES</span>
+            <!-- machine -->
+            <div style="position:relative;width:172px;height:196px;margin-top:26px;">
+              <div style="position:absolute;top:0;left:6px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle at 40% 30%,rgba(255,255,255,.35),rgba(255,255,255,.12));border:4px solid #fff;box-shadow:inset 0 -10px 30px rgba(60,34,96,.4);overflow:hidden;">
+                <span style="position:absolute;top:36px;left:26px;width:30px;height:30px;border-radius:50%;background:#ec647b;box-shadow:0 3px 0 #b83a52;"></span>
+                <span style="position:absolute;top:22px;left:74px;width:26px;height:26px;border-radius:50%;background:#f2da33;box-shadow:0 3px 0 #c9901f;"></span>
+                <span style="position:absolute;top:54px;left:104px;width:30px;height:30px;border-radius:50%;background:#89cfe3;box-shadow:0 3px 0 #5faec6;"></span>
+                <span style="position:absolute;top:74px;left:44px;width:34px;height:34px;border-radius:50%;background:#9fc038;box-shadow:0 3px 0 #6f8f1f;"></span>
+                <span style="position:absolute;top:92px;left:92px;width:28px;height:28px;border-radius:50%;background:#f7b8d6;box-shadow:0 3px 0 #c489ad;"></span>
+                <span style="position:absolute;top:108px;left:24px;width:24px;height:24px;border-radius:50%;background:#b98fe0;box-shadow:0 3px 0 #7d5bb0;"></span>
+              </div>
+              <div style="position:absolute;top:150px;left:0;width:172px;height:46px;border-radius:16px;background:linear-gradient(#7a55b0,#5a3a8c);border:3px solid rgba(255,255,255,.35);"></div>
+              <div style="position:absolute;top:164px;left:50%;transform:translateX(-50%);width:52px;height:24px;border-radius:8px;background:#2c1a4a;box-shadow:inset 0 2px 5px rgba(0,0,0,.5);"></div>
+              <div style="position:absolute;top:150px;right:12px;width:22px;height:22px;border-radius:50%;background:#f2da33;border:3px solid #fff;"></div>
+            </div>
+            <div style="font-family:Fredoka,sans-serif;font-weight:600;font-size:19px;color:#fff;margin-top:16px;">Capsule Classique</div>
+            <div style="font-weight:600;font-size:12px;color:#d9c9f0;margin-top:2px;">Tente ta chance — un personnage à chaque tirage</div>
+          </div>
+
+          <div style="display:flex;gap:11px;">
+            <div style="flex:1;background:#fff;border:3px solid #8a68b8;border-radius:20px;padding:13px 12px;display:flex;flex-direction:column;gap:6px;box-shadow:0 8px 16px rgba(35,17,66,.1);">
+              <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:15px;color:#633e90;">Classique</span>
+              <div style="display:flex;align-items:center;gap:5px;"><span style="width:15px;height:15px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:2.5px;left:2.5px;width:4.5px;height:4.5px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:15px;color:#443657;">400</span></div>
+              <span style="font-weight:600;font-size:10.5px;color:#9384ac;line-height:1.3;">Commun 62% · Rare 26% · Épique 9% · Légend. 3%</span>
+            </div>
+            <div style="flex:1;background:#fff;border:3px solid #f0b737;border-radius:20px;padding:13px 12px;display:flex;flex-direction:column;gap:6px;box-shadow:0 8px 16px rgba(35,17,66,.1);position:relative;overflow:hidden;">
+              <span style="position:absolute;right:-10px;top:-10px;font-size:34px;opacity:.15;">✦</span>
+              <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:15px;color:#c9901f;">Dorée</span>
+              <div style="display:flex;align-items:center;gap:5px;"><span style="width:15px;height:15px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:2.5px;left:2.5px;width:4.5px;height:4.5px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:15px;color:#443657;">1 200</span></div>
+              <span style="font-weight:600;font-size:10.5px;color:#9384ac;line-height:1.3;">Rare 60% · Épique 30% · Légendaire 10%</span>
+            </div>
+          </div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:20px;padding:13px 15px;display:flex;flex-direction:column;gap:9px;box-shadow:0 8px 16px rgba(35,17,66,.07);">
+            <div style="display:flex;align-items:center;gap:9px;">
+              <span style="width:26px;height:26px;border-radius:8px;background:#fdf3c2;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="15" height="15" viewBox="0 0 24 24"><path d="M12 3l2.5 5.5 6 .6-4.5 4 1.3 5.9L12 21l-5.3 2.9 1.3-5.9-4.5-4 6-.6Z" fill="#c9901f"></path></svg></span>
+              <span style="flex:1;font-weight:700;font-size:12.5px;color:#443657;">Épique garanti dans <strong style="color:#c9901f;">3 capsules</strong></span>
+            </div>
+            <div style="height:7px;border-radius:4px;background:#ece7f6;overflow:hidden;"><div style="width:70%;height:100%;background:#f0b737;border-radius:4px;"></div></div>
+            <div style="display:flex;align-items:center;gap:9px;">
+              <span style="width:26px;height:26px;border-radius:8px;background:#fbe4ee;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="15" height="15" viewBox="0 0 24 24"><path d="M12 3l7 4v6c0 4-3 6.5-7 8-4-1.5-7-4-7-8V7Z" fill="#d2588a"></path></svg></span>
+              <span style="flex:1;font-weight:700;font-size:12.5px;color:#443657;">Légendaire garanti dans <strong style="color:#d2588a;">12 capsules</strong></span>
+            </div>
+            <div style="height:7px;border-radius:4px;background:#ece7f6;overflow:hidden;"><div style="width:33%;height:100%;background:#d2588a;border-radius:4px;"></div></div>
+          </div>
+
+          <div style="background:#9fc038;border-radius:16px;padding:15px;text-align:center;font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#2c380c;box-shadow:0 5px 0 #6f8f1f;display:flex;align-items:center;justify-content:center;gap:8px;">Ouvrir une capsule <span style="display:inline-flex;align-items:center;gap:4px;background:#2c380c;color:#c7e06a;padding:3px 9px;border-radius:999px;font-size:13px;">400 perles</span></div>
+          <div style="text-align:center;font-weight:700;font-size:12.5px;color:#5c7a1f;">Ou utilise une de tes 2 capsules gratuites ›</div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============ 3c · COLLECTION ============ -->
+    <div id="3c" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#9fc038;color:#2c380c;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">3c</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Collection — l'album Boba Crew</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div style="height:100%;overflow-y:auto;background:#f7f5fb;font-family:Outfit,sans-serif;"><div style="padding:56px 18px 30px;display:flex;flex-direction:column;gap:13px;min-height:100%;box-sizing:border-box;">
+
+          <div style="display:flex;align-items:center;gap:11px;">
+            <span style="width:40px;height:40px;border-radius:50%;background:#fff;border:2.5px solid #f0ebf8;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 3px 0 #e0d6ef;"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M9 2 L3 10 l6 8" stroke="#633e90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <span style="flex:1;font-family:Fredoka,sans-serif;font-weight:600;font-size:22px;color:#633e90;">Ma collection</span>
+            <span style="display:flex;align-items:center;gap:6px;background:#fff;border:2.5px solid #ece7f6;border-radius:999px;padding:6px 12px;box-shadow:0 3px 0 #e0d6ef;"><span style="width:17px;height:17px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:3px;left:3px;width:5px;height:5px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:14px;color:#4c2d77;">1 240</span></span>
+          </div>
+
+          <div style="position:relative;overflow:hidden;background:linear-gradient(150deg,#6a44a0,#4c2d77);border-radius:24px;padding:17px 18px;box-shadow:0 12px 26px rgba(35,17,66,.24);">
+            <span style="position:absolute;right:16px;top:14px;font-size:15px;color:#f2da33;opacity:.7;">✦</span>
+            <div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:18px;color:#fff;">Boba Crew</span><span style="font-weight:800;font-size:16px;color:#f2da33;">18/24</span></div>
+            <div style="height:10px;border-radius:5px;background:rgba(0,0,0,.22);overflow:hidden;margin-top:10px;"><div style="width:75%;height:100%;border-radius:5px;background:linear-gradient(90deg,#9fc038,#c7e06a);"></div></div>
+            <div style="font-weight:600;font-size:12px;color:#d9c9f0;margin-top:9px;line-height:1.5;">Chaque set complété = un prix réel. Collection complète = <strong style="color:#fff;">Bubble Legend</strong> (boisson offerte + 3 tampons) !</div>
+          </div>
+
+          <!-- Set Milk (complet) -->
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:22px;padding:14px 15px;box-shadow:0 8px 18px rgba(35,17,66,.07);display:flex;flex-direction:column;gap:11px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="width:34px;height:34px;border-radius:11px;background:#f1ecfa;display:flex;align-items:center;justify-content:center;font-size:18px;">🧋</span>
+              <div style="flex:1;"><div style="font-weight:800;font-size:14.5px;color:#443657;">La Bande Milk Tea</div><div style="font-weight:600;font-size:11.5px;color:#7d6f95;">6/6 · récompense : +1 tampon</div></div>
+              <span style="display:flex;align-items:center;gap:5px;border:1.5px solid #8A68B8;border-radius:999px;padding:3px 9px;"><span style="width:7px;height:7px;border-radius:50%;background:#8A68B8;"></span><span style="font-weight:700;font-size:11px;color:#8A68B8;">Commun</span></span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#6b4e9e"></circle><circle cx="14" cy="18" r="2.2" fill="#2a1440"></circle><circle cx="26" cy="18" r="2.2" fill="#2a1440"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#2a1440" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".45"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Boba</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#8A68B8"></circle><circle cx="14" cy="18" r="2.2" fill="#2a1440"></circle><circle cx="26" cy="18" r="2.2" fill="#2a1440"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#2a1440" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".45"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Classico</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#a487c9"></circle><circle cx="14" cy="18" r="2.2" fill="#2a1440"></circle><circle cx="26" cy="18" r="2.2" fill="#2a1440"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#2a1440" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".45"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Théo</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#b9a3d6"></circle><circle cx="14" cy="18" r="2.2" fill="#2a1440"></circle><circle cx="26" cy="18" r="2.2" fill="#2a1440"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#2a1440" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".45"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Lacto</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#9d7fc6"></circle><circle cx="14" cy="18" r="2.2" fill="#2a1440"></circle><circle cx="26" cy="18" r="2.2" fill="#2a1440"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#2a1440" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".45"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Paillette</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#7d5bb0"></circle><circle cx="14" cy="18" r="2.2" fill="#2a1440"></circle><circle cx="26" cy="18" r="2.2" fill="#2a1440"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#2a1440" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".45"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Sucrette</span></div>
+            </div>
+            <div style="background:#9fc038;border-radius:13px;padding:11px;text-align:center;font-weight:800;font-size:13px;color:#2c380c;box-shadow:0 4px 0 #6f8f1f;">Set complet ! Réclamer : +1 tampon</div>
+          </div>
+
+          <!-- Set Fruités (complet) -->
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:22px;padding:14px 15px;box-shadow:0 8px 18px rgba(35,17,66,.07);display:flex;flex-direction:column;gap:11px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="width:34px;height:34px;border-radius:11px;background:#eef4d8;display:flex;align-items:center;justify-content:center;font-size:18px;">🍓</span>
+              <div style="flex:1;"><div style="font-weight:800;font-size:14.5px;color:#443657;">Le Gang des Fruités</div><div style="font-weight:600;font-size:11.5px;color:#7d6f95;">6/6 · récompense : +2 tampons</div></div>
+              <span style="display:flex;align-items:center;gap:5px;border:1.5px solid #4E9DC4;border-radius:999px;padding:3px 9px;"><span style="width:7px;height:7px;border-radius:50%;background:#4E9DC4;"></span><span style="font-weight:700;font-size:11px;color:#4E9DC4;">Rare</span></span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#ec647b"></circle><circle cx="14" cy="18" r="2.2" fill="#5a2333"></circle><circle cx="26" cy="18" r="2.2" fill="#5a2333"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#5a2333" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".45"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Fraisy</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#f0a730"></circle><circle cx="14" cy="18" r="2.2" fill="#5a3a12"></circle><circle cx="26" cy="18" r="2.2" fill="#5a3a12"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#5a3a12" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".45"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Mango</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#f3b9d7"></circle><circle cx="14" cy="18" r="2.2" fill="#6e3350"></circle><circle cx="26" cy="18" r="2.2" fill="#6e3350"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#6e3350" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".5"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Litchee</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#e0863f"></circle><circle cx="14" cy="18" r="2.2" fill="#5a3418"></circle><circle cx="26" cy="18" r="2.2" fill="#5a3418"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#5a3418" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".45"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Passion</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#f2da33"></circle><circle cx="14" cy="18" r="2.2" fill="#5a4a10"></circle><circle cx="26" cy="18" r="2.2" fill="#5a4a10"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#5a4a10" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".4"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Citro</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#f5889c"></circle><circle cx="14" cy="18" r="2.2" fill="#6e2a3a"></circle><circle cx="26" cy="18" r="2.2" fill="#6e2a3a"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#6e2a3a" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".45"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Pastèka</span></div>
+            </div>
+            <div style="background:#9fc038;border-radius:13px;padding:11px;text-align:center;font-weight:800;font-size:13px;color:#2c380c;box-shadow:0 4px 0 #6f8f1f;">Set complet ! Réclamer : +2 tampons</div>
+          </div>
+
+          <!-- Set Toppings (4/6) -->
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:22px;padding:14px 15px;box-shadow:0 8px 18px rgba(35,17,66,.07);display:flex;flex-direction:column;gap:11px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="width:34px;height:34px;border-radius:11px;background:#fdf3c2;display:flex;align-items:center;justify-content:center;font-size:18px;">✨</span>
+              <div style="flex:1;"><div style="font-weight:800;font-size:14.5px;color:#443657;">L'Équipe Toppings</div><div style="font-weight:600;font-size:11.5px;color:#7d6f95;">4/6 · récompense : −10 %</div></div>
+              <span style="display:flex;align-items:center;gap:5px;border:1.5px solid #C99012;border-radius:999px;padding:3px 9px;"><span style="width:7px;height:7px;border-radius:50%;background:#C99012;"></span><span style="font-weight:700;font-size:11px;color:#C99012;">Épique</span></span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#f0b737"></circle><circle cx="14" cy="18" r="2.2" fill="#5a4210"></circle><circle cx="26" cy="18" r="2.2" fill="#5a4210"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#5a4210" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".4"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Popping</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#9fc038"></circle><circle cx="14" cy="18" r="2.2" fill="#3a4a10"></circle><circle cx="26" cy="18" r="2.2" fill="#3a4a10"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#3a4a10" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".4"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Jelly</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#c9a24a"></circle><circle cx="14" cy="18" r="2.2" fill="#5a4418"></circle><circle cx="26" cy="18" r="2.2" fill="#5a4418"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#5a4418" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".45"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Mochito</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#e6d9b8"></circle><circle cx="14" cy="18" r="2.2" fill="#5a4e30"></circle><circle cx="26" cy="18" r="2.2" fill="#5a4e30"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#5a4e30" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".5"></circle></svg><span style="font-weight:700;font-size:8.5px;color:#443657;">Coco</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><span style="width:42px;height:42px;border-radius:50%;background:#ece7f6;border:2px dashed #ccc0e4;display:flex;align-items:center;justify-content:center;font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#b3a6cf;">?</span><span style="font-weight:700;font-size:8.5px;color:#a99fc0;">???</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><span style="width:42px;height:42px;border-radius:50%;background:#ece7f6;border:2px dashed #ccc0e4;display:flex;align-items:center;justify-content:center;font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#b3a6cf;">?</span><span style="font-weight:700;font-size:8.5px;color:#a99fc0;">???</span></div>
+            </div>
+          </div>
+
+          <!-- Set Signatures (2/6) -->
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:22px;padding:14px 15px;box-shadow:0 8px 18px rgba(35,17,66,.07);display:flex;flex-direction:column;gap:11px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="width:34px;height:34px;border-radius:11px;background:#fbe4ee;display:flex;align-items:center;justify-content:center;font-size:18px;">👑</span>
+              <div style="flex:1;"><div style="font-weight:800;font-size:14.5px;color:#443657;">Les Signatures Royales</div><div style="font-weight:600;font-size:11.5px;color:#7d6f95;">2/6 · récompense : boisson offerte</div></div>
+              <span style="display:flex;align-items:center;gap:5px;border:1.5px solid #D2588A;border-radius:999px;padding:3px 9px;"><span style="width:7px;height:7px;border-radius:50%;background:#D2588A;"></span><span style="font-weight:700;font-size:11px;color:#D2588A;">Légend.</span></span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#8a5fb0"></circle><path d="M11 10 L14 6 L17 9 L20 5 L23 9 L26 6 L29 10 Z" fill="#f2da33"></path><circle cx="14" cy="19" r="2.2" fill="#2a1440"></circle><circle cx="26" cy="19" r="2.2" fill="#2a1440"></circle><path d="M15 25 Q20 28.5 25 25" stroke="#2a1440" stroke-width="2" fill="none" stroke-linecap="round"></path></svg><span style="font-weight:700;font-size:8px;color:#443657;">Taro Queen</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#8ebe74"></circle><circle cx="14" cy="18" r="2.2" fill="#2a3a18"></circle><circle cx="26" cy="18" r="2.2" fill="#2a3a18"></circle><path d="M14 24 Q20 26 26 24" stroke="#2a3a18" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".4"></circle></svg><span style="font-weight:700;font-size:8px;color:#443657;">Matcha</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><span style="width:42px;height:42px;border-radius:50%;background:#ece7f6;border:2px dashed #ccc0e4;display:flex;align-items:center;justify-content:center;font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#b3a6cf;">?</span><span style="font-weight:700;font-size:8px;color:#a99fc0;">???</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><span style="width:42px;height:42px;border-radius:50%;background:#ece7f6;border:2px dashed #ccc0e4;display:flex;align-items:center;justify-content:center;font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#b3a6cf;">?</span><span style="font-weight:700;font-size:8px;color:#a99fc0;">???</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><span style="width:42px;height:42px;border-radius:50%;background:#ece7f6;border:2px dashed #ccc0e4;display:flex;align-items:center;justify-content:center;font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#b3a6cf;">?</span><span style="font-weight:700;font-size:8px;color:#a99fc0;">???</span></div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;"><span style="width:42px;height:42px;border-radius:50%;background:#ece7f6;border:2px dashed #ccc0e4;display:flex;align-items:center;justify-content:center;font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#b3a6cf;">?</span><span style="font-weight:700;font-size:8px;color:#a99fc0;">???</span></div>
+            </div>
+          </div>
+
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============ 3d · BOUTIQUE DES PRIX ============ -->
+    <div id="3d" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#9fc038;color:#2c380c;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">3d</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Boutique des prix</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div style="height:100%;overflow-y:auto;background:#f7f5fb;font-family:Outfit,sans-serif;"><div style="padding:56px 18px 30px;display:flex;flex-direction:column;gap:13px;min-height:100%;box-sizing:border-box;">
+
+          <div style="display:flex;align-items:center;gap:11px;">
+            <span style="width:40px;height:40px;border-radius:50%;background:#fff;border:2.5px solid #f0ebf8;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 3px 0 #e0d6ef;"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M9 2 L3 10 l6 8" stroke="#633e90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <span style="flex:1;font-family:Fredoka,sans-serif;font-weight:600;font-size:21px;color:#633e90;">Boutique des prix</span>
+            <span style="display:flex;align-items:center;gap:6px;background:#fff;border:2.5px solid #ece7f6;border-radius:999px;padding:6px 12px;box-shadow:0 3px 0 #e0d6ef;"><span style="width:17px;height:17px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:3px;left:3px;width:5px;height:5px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:14px;color:#4c2d77;">1 240</span></span>
+          </div>
+          <div style="text-align:center;font-weight:700;font-size:13.5px;color:#7d6f95;margin-top:-2px;">Échange tes perles contre de vrais prix Bubble Stop</div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:20px;padding:14px 15px;display:flex;flex-direction:column;gap:9px;box-shadow:0 8px 16px rgba(35,17,66,.07);">
+            <div style="display:flex;align-items:center;gap:10px;"><div style="flex:1;"><div style="font-weight:800;font-size:16px;color:#443657;">+1 tampon</div><div style="font-weight:600;font-size:11.5px;color:#7d6f95;">Un tampon direct sur ta carte de fidélité</div></div><span style="display:flex;align-items:center;gap:5px;background:#ece7f6;border-radius:999px;padding:6px 11px;"><span style="width:14px;height:14px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:2px;left:2px;width:4px;height:4px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:13px;color:#452a6e;">15 000</span></span></div>
+            <span style="display:inline-flex;align-self:flex-start;align-items:center;gap:5px;background:#edf6e1;border:1px solid #9fc038;border-radius:999px;padding:4px 10px;font-weight:700;font-size:11px;color:#5c7a1f;">1 par mois — encore disponible</span>
+            <div style="height:8px;border-radius:4px;background:#ece7f6;overflow:hidden;"><div style="width:8%;height:100%;background:#9fc038;border-radius:4px;"></div></div>
+            <div style="background:#ece7f6;border-radius:14px;padding:12px;text-align:center;font-weight:800;font-size:13.5px;color:#a99fc0;">Encore 13 760 perles</div>
+          </div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:20px;padding:14px 15px;display:flex;flex-direction:column;gap:9px;box-shadow:0 8px 16px rgba(35,17,66,.07);">
+            <div style="display:flex;align-items:center;gap:10px;"><div style="flex:1;"><div style="font-weight:800;font-size:16px;color:#443657;">−10 %</div><div style="font-weight:600;font-size:11.5px;color:#7d6f95;">Sur ta prochaine commande en boutique</div></div><span style="display:flex;align-items:center;gap:5px;background:#ece7f6;border-radius:999px;padding:6px 11px;"><span style="width:14px;height:14px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:2px;left:2px;width:4px;height:4px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:13px;color:#452a6e;">50 000</span></span></div>
+            <span style="display:inline-flex;align-self:flex-start;align-items:center;gap:5px;background:#edf6e1;border:1px solid #9fc038;border-radius:999px;padding:4px 10px;font-weight:700;font-size:11px;color:#5c7a1f;">3 par mois — encore 3 ce mois-ci</span>
+            <div style="height:8px;border-radius:4px;background:#ece7f6;overflow:hidden;"><div style="width:3%;height:100%;background:#9fc038;border-radius:4px;"></div></div>
+            <div style="background:#ece7f6;border-radius:14px;padding:12px;text-align:center;font-weight:800;font-size:13.5px;color:#a99fc0;">Encore 48 760 perles</div>
+          </div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:20px;padding:14px 15px;display:flex;flex-direction:column;gap:9px;box-shadow:0 8px 16px rgba(35,17,66,.07);">
+            <div style="display:flex;align-items:center;gap:10px;"><div style="flex:1;"><div style="font-weight:800;font-size:16px;color:#443657;">Grande boisson offerte</div><div style="font-weight:600;font-size:11.5px;color:#7d6f95;">Taille L (M pour les Signatures)</div></div><span style="display:flex;align-items:center;gap:5px;background:#ece7f6;border-radius:999px;padding:6px 11px;"><span style="width:14px;height:14px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:2px;left:2px;width:4px;height:4px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:13px;color:#452a6e;">200 000</span></span></div>
+            <span style="display:inline-flex;align-self:flex-start;align-items:center;gap:5px;background:#edf6e1;border:1px solid #9fc038;border-radius:999px;padding:4px 10px;font-weight:700;font-size:11px;color:#5c7a1f;">1 par mois — encore disponible</span>
+            <div style="height:8px;border-radius:4px;background:#ece7f6;overflow:hidden;"><div style="width:1%;height:100%;background:#9fc038;border-radius:4px;"></div></div>
+            <div style="background:#ece7f6;border-radius:14px;padding:12px;text-align:center;font-weight:800;font-size:13.5px;color:#a99fc0;">Encore 198 760 perles</div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;"><svg width="19" height="19" viewBox="0 0 24 24"><rect x="4.8" y="10.6" width="14.4" height="9.4" rx="1.6" fill="#ec647b"></rect><rect x="4" y="8.3" width="16" height="3.6" rx="1.2" fill="#c23e57"></rect><path d="M12 8C9.5 8 8.4 4.3 10.6 4.3C12 4.3 12 6.6 12 8C12 6.6 12 4.3 13.4 4.3C15.6 4.3 14.5 8 12 8Z" fill="#f2da33"></path></svg><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#633e90;">Mes prix</span></div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:16px;padding:13px 15px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 14px rgba(35,17,66,.06);">
+            <div style="flex:1;"><div style="font-weight:700;font-size:14px;color:#443657;">+2 tampons</div><div style="font-weight:600;font-size:11px;color:#a99fc0;">Set complété · 12 juillet</div></div>
+            <span style="background:#edf6e1;border:1px solid #9fc038;border-radius:999px;padding:5px 11px;font-weight:800;font-size:11px;color:#5c7a1f;">À réclamer</span>
+          </div>
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:16px;padding:13px 15px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 14px rgba(35,17,66,.06);">
+            <div style="flex:1;"><div style="font-weight:700;font-size:14px;color:#a99fc0;text-decoration:line-through;">−10 %</div><div style="font-weight:600;font-size:11px;color:#a99fc0;">Roulette du mois · 3 juillet</div></div>
+            <span style="background:#f7f5fb;border:1px solid #e7e1f2;border-radius:999px;padding:5px 11px;font-weight:800;font-size:11px;color:#a99fc0;">Utilisé</span>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============ 3e · ARÈNE ============ -->
+    <div id="3e" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#9fc038;color:#2c380c;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">3e</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">L'Arène — duels &amp; maîtres</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div style="height:100%;overflow-y:auto;background:#f7f5fb;font-family:Outfit,sans-serif;"><div style="padding:56px 18px 30px;display:flex;flex-direction:column;gap:13px;min-height:100%;box-sizing:border-box;">
+
+          <div style="display:flex;align-items:center;gap:11px;">
+            <span style="width:40px;height:40px;border-radius:50%;background:#fff;border:2.5px solid #f0ebf8;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 3px 0 #e0d6ef;"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M9 2 L3 10 l6 8" stroke="#633e90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <span style="flex:1;font-family:Fredoka,sans-serif;font-weight:600;font-size:21px;color:#633e90;">L'Arène</span>
+            <span style="display:flex;align-items:center;gap:6px;background:#fff;border:2.5px solid #ece7f6;border-radius:999px;padding:6px 12px;box-shadow:0 3px 0 #e0d6ef;"><span style="width:17px;height:17px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:3px;left:3px;width:5px;height:5px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:14px;color:#4c2d77;">1 240</span></span>
+          </div>
+
+          <div style="position:relative;overflow:hidden;background:linear-gradient(150deg,#6a44a0,#4c2d77);border-radius:24px;padding:17px 18px;box-shadow:0 12px 26px rgba(35,17,66,.24);">
+            <span style="position:absolute;right:16px;top:14px;font-size:15px;color:#f2da33;opacity:.7;">✦</span>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span style="width:48px;height:48px;border-radius:15px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;flex:none;"><svg width="28" height="28" viewBox="0 0 24 24"><path d="M6 4 h12 v3 a6 6 0 0 1 -12 0 Z" fill="#f2da33"></path><path d="M4 5 h2 v2 a2 2 0 0 1 -2 0 Z M18 5 h2 v2 a2 2 0 0 1 -2 2" fill="none" stroke="#f2da33" stroke-width="1.4"></path><rect x="10.5" y="13" width="3" height="4" fill="#f2da33"></rect><rect x="8" y="17" width="8" height="2.5" rx="1" fill="#f2da33"></rect></svg></span>
+              <div style="flex:1;"><div style="font-family:Fredoka,sans-serif;font-weight:600;font-size:19px;color:#fff;">Rang 7 · Ligue Argent</div><div style="font-weight:600;font-size:12px;color:#d9c9f0;">2 victoires avant une capsule</div></div>
+            </div>
+            <div style="height:10px;border-radius:5px;background:rgba(0,0,0,.22);overflow:hidden;margin-top:12px;"><div style="width:60%;height:100%;border-radius:5px;background:linear-gradient(90deg,#89cfe3,#b6e4f0);"></div></div>
+          </div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:22px;padding:14px 15px;display:flex;flex-direction:column;gap:11px;box-shadow:0 8px 18px rgba(35,17,66,.07);">
+            <div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Mon équipe</span><span style="font-weight:700;font-size:11.5px;color:#7d6f95;">Budget 3/3</span></div>
+            <div style="display:flex;gap:10px;">
+              <div style="flex:1;background:#f1ecfa;border-radius:16px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:5px;"><svg width="48" height="48" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#8a5fb0"></circle><path d="M11 10 L14 6 L17 9 L20 5 L23 9 L26 6 L29 10 Z" fill="#f2da33"></path><circle cx="14" cy="19" r="2.2" fill="#2a1440"></circle><circle cx="26" cy="19" r="2.2" fill="#2a1440"></circle><path d="M15 25 Q20 28.5 25 25" stroke="#2a1440" stroke-width="2" fill="none" stroke-linecap="round"></path></svg><span style="font-weight:700;font-size:10.5px;color:#443657;">Taro Queen</span></div>
+              <div style="flex:1;background:#eef4d8;border-radius:16px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:5px;"><svg width="48" height="48" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#ec647b"></circle><circle cx="14" cy="18" r="2.2" fill="#5a2333"></circle><circle cx="26" cy="18" r="2.2" fill="#5a2333"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#5a2333" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".45"></circle></svg><span style="font-weight:700;font-size:10.5px;color:#443657;">Fraisy</span></div>
+              <div style="flex:1;background:#fbe4ee;border-radius:16px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:5px;"><svg width="48" height="48" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#8ebe74"></circle><circle cx="14" cy="18" r="2.2" fill="#2a3a18"></circle><circle cx="26" cy="18" r="2.2" fill="#2a3a18"></circle><path d="M14 24 Q20 26 26 24" stroke="#2a3a18" stroke-width="2" fill="none" stroke-linecap="round"></path><circle cx="13" cy="13" r="2.7" fill="#fff" opacity=".4"></circle></svg><span style="font-weight:700;font-size:10.5px;color:#443657;">Matcha</span></div>
+            </div>
+            <div style="text-align:center;font-weight:700;font-size:12px;color:#815fae;">Modifier mon équipe ›</div>
+          </div>
+
+          <div style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;padding:2px 4px 0;">Maîtres de l'Arène</div>
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:18px;padding:12px 14px;display:flex;align-items:center;gap:11px;box-shadow:0 6px 14px rgba(35,17,66,.06);">
+            <svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#6b4e9e"></circle><circle cx="14" cy="18" r="2.2" fill="#2a1440"></circle><circle cx="26" cy="18" r="2.2" fill="#2a1440"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#2a1440" stroke-width="2" fill="none" stroke-linecap="round"></path></svg>
+            <div style="flex:1;"><div style="font-weight:800;font-size:14px;color:#443657;">Maître Boba</div><div style="font-weight:600;font-size:11px;color:#7d6f95;">Facile · récompense : +200 perles</div></div>
+            <span style="background:#9fc038;color:#2c380c;font-weight:800;font-size:12px;padding:8px 14px;border-radius:999px;box-shadow:0 3px 0 #6f8f1f;">Combat</span>
+          </div>
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:18px;padding:12px 14px;display:flex;align-items:center;gap:11px;box-shadow:0 6px 14px rgba(35,17,66,.06);">
+            <svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#8ebe74"></circle><circle cx="14" cy="18" r="2.2" fill="#2a3a18"></circle><circle cx="26" cy="18" r="2.2" fill="#2a3a18"></circle><path d="M15 24 Q20 27.5 25 24" stroke="#2a3a18" stroke-width="2" fill="none" stroke-linecap="round"></path></svg>
+            <div style="flex:1;"><div style="font-weight:800;font-size:14px;color:#443657;">Dame Matcha</div><div style="font-weight:600;font-size:11px;color:#7d6f95;">Moyen · récompense : 1 capsule</div></div>
+            <span style="background:#9fc038;color:#2c380c;font-weight:800;font-size:12px;padding:8px 14px;border-radius:999px;box-shadow:0 3px 0 #6f8f1f;">Combat</span>
+          </div>
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:18px;padding:12px 14px;display:flex;align-items:center;gap:11px;box-shadow:0 6px 14px rgba(35,17,66,.06);opacity:.62;">
+            <span style="position:relative;width:42px;height:42px;flex:none;"><svg width="42" height="42" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#c9a24a"></circle></svg><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="#5a4418" stroke-width="2"></rect><path d="M8 11 V8 a4 4 0 0 1 8 0 v3" stroke="#5a4418" stroke-width="2"></path></svg></span></span>
+            <div style="flex:1;"><div style="font-weight:800;font-size:14px;color:#443657;">Roi Caramel</div><div style="font-weight:600;font-size:11px;color:#7d6f95;">Difficile · récompense : +2 tampons</div></div>
+            <span style="background:#ece7f6;color:#a99fc0;font-weight:800;font-size:11px;padding:8px 12px;border-radius:999px;">Rang 9</span>
+          </div>
+
+          <div style="background:#633e90;border-radius:16px;padding:15px;display:flex;align-items:center;gap:11px;box-shadow:0 6px 0 #452a6e;margin-top:2px;">
+            <span style="width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;flex:none;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 9 L16 9 M16 9 L13 6 M16 9 L13 12" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M20 15 L8 15 M8 15 L11 12 M8 15 L11 18" stroke="#c7e06a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <div style="flex:1;"><div style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#fff;">Défier un ami</div><div style="font-weight:600;font-size:11.5px;color:#d9c9f0;">Duel amical ou avec mise de doublons</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9.5 6 L15.5 12 L9.5 18" stroke="#d9c9f0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============ 3f · ROULETTE ============ -->
+    <div id="3f" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#9fc038;color:#2c380c;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">3f</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Roulette du mois</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div style="height:100%;overflow-y:auto;background:linear-gradient(175deg,#efeaf7,#f7f5fb 42%);font-family:Outfit,sans-serif;"><div style="padding:56px 18px 30px;display:flex;flex-direction:column;gap:14px;min-height:100%;box-sizing:border-box;">
+
+          <div style="display:flex;align-items:center;gap:11px;">
+            <span style="width:40px;height:40px;border-radius:50%;background:#fff;border:2.5px solid #f0ebf8;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 3px 0 #e0d6ef;"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M9 2 L3 10 l6 8" stroke="#633e90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <span style="flex:1;font-family:Fredoka,sans-serif;font-weight:600;font-size:21px;color:#633e90;">Roulette du mois</span>
+            <span style="display:flex;align-items:center;gap:6px;background:#fff;border:2.5px solid #ece7f6;border-radius:999px;padding:6px 12px;box-shadow:0 3px 0 #e0d6ef;"><span style="width:17px;height:17px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:3px;left:3px;width:5px;height:5px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:14px;color:#4c2d77;">1 240</span></span>
+          </div>
+
+          <div style="position:relative;overflow:hidden;background:linear-gradient(172deg,#6a44a0,#4c2d77 74%);border-radius:28px;box-shadow:0 14px 30px rgba(35,17,66,.28);padding:20px 18px 24px;display:flex;flex-direction:column;align-items:center;">
+            <span style="position:absolute;left:24px;top:26px;font-size:13px;color:#f2da33;opacity:.85;">✦</span>
+            <span style="position:absolute;right:28px;top:40px;font-size:10px;color:#f7b8d6;opacity:.7;">✧</span>
+            <div style="background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);color:#fff;font-family:Fredoka,sans-serif;font-weight:600;font-size:13px;padding:5px 16px;border-radius:999px;">Toujours gagnante · 1 tour / mois</div>
+            <div style="position:relative;width:230px;height:246px;margin-top:14px;">
+              <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:3;width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-top:22px solid #fff;filter:drop-shadow(0 3px 3px rgba(0,0,0,.3));"></div>
+              <div style="position:absolute;top:14px;left:15px;width:200px;height:200px;border-radius:50%;background:#fff;padding:6px;box-shadow:0 10px 24px rgba(0,0,0,.35);">
+                <svg viewBox="0 0 200 200" style="width:100%;height:100%;">
+                  <path d="M100 100 L100 8 A92 92 0 0 1 165 35 Z" fill="#A3C724"></path>
+                  <path d="M100 100 L165 35 A92 92 0 0 1 192 100 Z" fill="#8A68B8"></path>
+                  <path d="M100 100 L192 100 A92 92 0 0 1 165 165 Z" fill="#7EC8E3"></path>
+                  <path d="M100 100 L165 165 A92 92 0 0 1 100 192 Z" fill="#FFD166"></path>
+                  <path d="M100 100 L100 192 A92 92 0 0 1 35 165 Z" fill="#54418A"></path>
+                  <path d="M100 100 L35 165 A92 92 0 0 1 8 100 Z" fill="#F3A0BD"></path>
+                  <path d="M100 100 L8 100 A92 92 0 0 1 35 35 Z" fill="#7E9B12"></path>
+                  <path d="M100 100 L35 35 A92 92 0 0 1 100 8 Z" fill="#D2588A"></path>
+                  <circle cx="100" cy="100" r="92" fill="none" stroke="#fff" stroke-width="3"></circle>
+                </svg>
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:#fff;border:4px solid #f2da33;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,.25);"><span style="width:16px;height:16px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:3px;left:3px;width:5px;height:5px;border-radius:50%;background:#fff;opacity:.6;"></span></span></div>
+              </div>
+            </div>
+            <div style="font-weight:700;font-size:12.5px;color:#d9c9f0;margin-top:14px;text-align:center;">Ton tour gratuit t'attend — reviens le 1er de chaque mois</div>
+          </div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:20px;padding:14px 15px;display:grid;grid-template-columns:1fr 1fr;gap:9px 14px;box-shadow:0 8px 16px rgba(35,17,66,.07);">
+            <div style="display:flex;align-items:center;gap:7px;"><span style="width:12px;height:12px;border-radius:4px;background:#A3C724;"></span><span style="font-weight:700;font-size:12px;color:#443657;">+1 tampon</span></div>
+            <div style="display:flex;align-items:center;gap:7px;"><span style="width:12px;height:12px;border-radius:4px;background:#8A68B8;"></span><span style="font-weight:700;font-size:12px;color:#443657;">+300 perles</span></div>
+            <div style="display:flex;align-items:center;gap:7px;"><span style="width:12px;height:12px;border-radius:4px;background:#7EC8E3;"></span><span style="font-weight:700;font-size:12px;color:#443657;">+2 tampons</span></div>
+            <div style="display:flex;align-items:center;gap:7px;"><span style="width:12px;height:12px;border-radius:4px;background:#FFD166;"></span><span style="font-weight:700;font-size:12px;color:#443657;">−10 %</span></div>
+            <div style="display:flex;align-items:center;gap:7px;"><span style="width:12px;height:12px;border-radius:4px;background:#54418A;"></span><span style="font-weight:700;font-size:12px;color:#443657;">+800 perles</span></div>
+            <div style="display:flex;align-items:center;gap:7px;"><span style="width:12px;height:12px;border-radius:4px;background:#F3A0BD;"></span><span style="font-weight:700;font-size:12px;color:#443657;">Capsule dorée</span></div>
+            <div style="display:flex;align-items:center;gap:7px;"><span style="width:12px;height:12px;border-radius:4px;background:#7E9B12;"></span><span style="font-weight:700;font-size:12px;color:#443657;">+3 tampons</span></div>
+            <div style="display:flex;align-items:center;gap:7px;"><span style="width:12px;height:12px;border-radius:4px;background:#D2588A;"></span><span style="font-weight:700;font-size:12px;color:#443657;">Boisson offerte</span></div>
+          </div>
+
+          <div style="background:#9fc038;border-radius:16px;padding:15px;text-align:center;font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#2c380c;box-shadow:0 5px 0 #6f8f1f;">Tourner la roue ›</div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============ 3g · INFINI (SHOOTER) ============ -->
+    <div id="3g" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#9fc038;color:#2c380c;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">3g</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Infini — le shooter à perles</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div style="height:100%;overflow-y:auto;background:#f7f5fb;font-family:Outfit,sans-serif;"><div style="padding:56px 18px 30px;display:flex;flex-direction:column;gap:13px;min-height:100%;box-sizing:border-box;">
+
+          <div style="display:flex;align-items:center;gap:11px;">
+            <span style="width:40px;height:40px;border-radius:50%;background:#fff;border:2.5px solid #f0ebf8;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 3px 0 #e0d6ef;"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M9 2 L3 10 l6 8" stroke="#633e90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <span style="flex:1;font-family:Fredoka,sans-serif;font-weight:600;font-size:21px;color:#633e90;">Infini</span>
+            <span style="display:flex;align-items:center;gap:6px;background:#fff;border:2.5px solid #ece7f6;border-radius:999px;padding:6px 12px;box-shadow:0 3px 0 #e0d6ef;"><span style="width:17px;height:17px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:3px;left:3px;width:5px;height:5px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:14px;color:#4c2d77;">1 240</span></span>
+          </div>
+
+          <div style="position:relative;overflow:hidden;background:linear-gradient(172deg,#6a44a0,#4c2d77 75%);border-radius:26px;padding:16px;box-shadow:0 14px 30px rgba(35,17,66,.28);">
+            <div style="display:flex;align-items:center;justify-content:space-between;position:relative;z-index:2;">
+              <span style="display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.22);border-radius:999px;padding:5px 12px;"><span style="font-weight:600;font-size:10px;color:#d9c9f0;letter-spacing:1px;">SCORE</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#fff;">3 240</span></span>
+              <span style="display:flex;align-items:center;gap:5px;background:#f2da33;border-radius:999px;padding:5px 11px;"><svg width="13" height="13" viewBox="0 0 24 24"><path d="M12 3l2.5 5.5 6 .6-4.5 4 1.3 5.9L12 21l-5.3 2.9 1.3-5.9-4.5-4 6-.6Z" fill="#8a6d10"></path></svg><span style="font-weight:800;font-size:12px;color:#54470a;">Record 8 420</span></span>
+            </div>
+            <!-- bubble cluster -->
+            <div style="display:flex;flex-direction:column;align-items:center;gap:5px;margin-top:16px;position:relative;z-index:2;">
+              <div style="display:flex;gap:6px;"><span style="width:26px;height:26px;border-radius:50%;background:#ec647b;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 3px 3px 0 rgba(255,255,255,.3);"></span><span style="width:26px;height:26px;border-radius:50%;background:#89cfe3;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 3px 3px 0 rgba(255,255,255,.3);"></span><span style="width:26px;height:26px;border-radius:50%;background:#f2da33;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 3px 3px 0 rgba(255,255,255,.3);"></span><span style="width:26px;height:26px;border-radius:50%;background:#9fc038;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 3px 3px 0 rgba(255,255,255,.3);"></span><span style="width:26px;height:26px;border-radius:50%;background:#ec647b;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 3px 3px 0 rgba(255,255,255,.3);"></span></div>
+              <div style="display:flex;gap:6px;margin-left:16px;"><span style="width:26px;height:26px;border-radius:50%;background:#f2da33;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 3px 3px 0 rgba(255,255,255,.3);"></span><span style="width:26px;height:26px;border-radius:50%;background:#9fc038;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 3px 3px 0 rgba(255,255,255,.3);"></span><span style="width:26px;height:26px;border-radius:50%;background:#b98fe0;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 3px 3px 0 rgba(255,255,255,.3);"></span><span style="width:26px;height:26px;border-radius:50%;background:#89cfe3;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 3px 3px 0 rgba(255,255,255,.3);"></span></div>
+              <div style="display:flex;gap:6px;"><span style="width:26px;height:26px;border-radius:50%;background:#9fc038;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 3px 3px 0 rgba(255,255,255,.3);"></span><span style="width:26px;height:26px;border-radius:50%;background:#ec647b;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 3px 3px 0 rgba(255,255,255,.3);"></span><span style="width:26px;height:26px;border-radius:50%;background:#f2da33;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 3px 3px 0 rgba(255,255,255,.3);"></span></div>
+            </div>
+            <!-- aim + launcher -->
+            <div style="position:relative;z-index:2;height:70px;margin-top:6px;display:flex;justify-content:center;">
+              <svg viewBox="0 0 200 70" style="position:absolute;inset:0;width:100%;height:100%;"><path d="M100 66 L100 20" stroke="rgba(255,255,255,.4)" stroke-width="2.5" stroke-dasharray="2 7" stroke-linecap="round"></path></svg>
+              <span style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:30px;height:30px;border-radius:50%;background:#f7b8d6;box-shadow:inset -3px -3px 0 rgba(0,0,0,.12),inset 3px 3px 0 rgba(255,255,255,.35);border:2px solid #fff;"></span>
+              <span style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:60px;height:20px;border-radius:14px 14px 6px 6px;background:linear-gradient(#8a68b8,#5a3a8c);border:2px solid rgba(255,255,255,.3);"></span>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:11px;">
+            <div style="flex:1;background:#fff;border:3px solid #f0ebf8;border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:2px;box-shadow:0 6px 14px rgba(35,17,66,.06);"><span style="font-weight:600;font-size:11px;color:#9384ac;">Meilleure chaîne</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:19px;color:#633e90;">×14</span></div>
+            <div style="flex:1;background:#fff;border:3px solid #f0ebf8;border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:2px;box-shadow:0 6px 14px rgba(35,17,66,.06);"><span style="font-weight:600;font-size:11px;color:#9384ac;">Perles / partie</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:19px;color:#633e90;">≤ 450</span></div>
+          </div>
+
+          <div style="background:#fbf2e5;border:2px solid #f2da33;border-radius:14px;padding:11px 14px;display:flex;align-items:center;gap:9px;"><span style="font-size:15px;">⚡</span><span style="font-weight:700;font-size:12.5px;color:#6b5320;">Bonus du jour : perles <strong>×2</strong> sur ta 1ʳᵉ partie</span></div>
+
+          <div style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;padding:2px 4px 0;">Perles spéciales</div>
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:18px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 14px rgba(35,17,66,.06);">
+            <span style="position:relative;width:38px;height:38px;flex:none;border-radius:50%;background:#ec647b;box-shadow:inset -3px -3px 0 rgba(0,0,0,.14),inset 3px 3px 0 rgba(255,255,255,.35);"><span style="position:absolute;top:-4px;right:-3px;font-size:13px;">💥</span></span>
+            <div style="flex:1;"><div style="font-weight:800;font-size:13.5px;color:#443657;">Perle Bombe <span style="font-weight:600;color:#a99fc0;">2/3</span></div><div style="font-weight:600;font-size:11px;color:#7d6f95;line-height:1.35;">Explose toutes les perles autour de l'impact</div></div>
+            <span style="display:flex;align-items:center;gap:4px;background:#9fc038;border-radius:999px;padding:7px 12px;box-shadow:0 3px 0 #6f8f1f;"><span style="width:12px;height:12px;border-radius:50%;background:#2c380c;"></span><span style="font-weight:800;font-size:12px;color:#2c380c;">350</span></span>
+          </div>
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:18px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 14px rgba(35,17,66,.06);">
+            <span style="width:38px;height:38px;flex:none;border-radius:50%;background:conic-gradient(#ec647b,#f2da33,#9fc038,#89cfe3,#b98fe0,#ec647b);box-shadow:inset -3px -3px 0 rgba(0,0,0,.1),inset 3px 3px 0 rgba(255,255,255,.3);"></span>
+            <div style="flex:1;"><div style="font-weight:800;font-size:13.5px;color:#443657;">Perle Arc-en-ciel <span style="font-weight:600;color:#a99fc0;">1/3</span></div><div style="font-weight:600;font-size:11px;color:#7d6f95;line-height:1.35;">Match garanti — prend la meilleure couleur</div></div>
+            <span style="display:flex;align-items:center;gap:4px;background:#9fc038;border-radius:999px;padding:7px 12px;box-shadow:0 3px 0 #6f8f1f;"><span style="width:12px;height:12px;border-radius:50%;background:#2c380c;"></span><span style="font-weight:800;font-size:12px;color:#2c380c;">200</span></span>
+          </div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:18px;padding:12px 14px;display:flex;align-items:center;gap:11px;box-shadow:0 6px 14px rgba(35,17,66,.06);">
+            <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="#8a5fb0"></circle><path d="M11 10 L14 6 L17 9 L20 5 L23 9 L26 6 L29 10 Z" fill="#f2da33"></path><circle cx="14" cy="19" r="2.2" fill="#2a1440"></circle><circle cx="26" cy="19" r="2.2" fill="#2a1440"></circle><path d="M15 25 Q20 28.5 25 25" stroke="#2a1440" stroke-width="2" fill="none" stroke-linecap="round"></path></svg>
+            <div style="flex:1;"><div style="font-weight:800;font-size:13.5px;color:#443657;">Copain de tir : Taro Queen</div><div style="font-weight:600;font-size:11px;color:#7d6f95;">Bonus passif : +8 % de perles par partie</div></div>
+          </div>
+
+          <div style="background:#9fc038;border-radius:16px;padding:15px;text-align:center;font-family:Fredoka,sans-serif;font-weight:600;font-size:18px;color:#2c380c;box-shadow:0 5px 0 #6f8f1f;">Jouer ›</div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============ 3h · BOBA PASS ============ -->
+    <div id="3h" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#9fc038;color:#2c380c;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">3h</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Boba Pass — la piste hebdo</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div style="height:100%;overflow-y:auto;background:#f7f5fb;font-family:Outfit,sans-serif;"><div style="padding:56px 18px 30px;display:flex;flex-direction:column;gap:11px;min-height:100%;box-sizing:border-box;">
+
+          <div style="display:flex;align-items:center;gap:11px;">
+            <span style="width:40px;height:40px;border-radius:50%;background:#fff;border:2.5px solid #f0ebf8;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 3px 0 #e0d6ef;"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M9 2 L3 10 l6 8" stroke="#633e90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <span style="flex:1;font-family:Fredoka,sans-serif;font-weight:600;font-size:21px;color:#633e90;">Boba Pass</span>
+            <span style="display:flex;align-items:center;gap:6px;background:#fff;border:2.5px solid #ece7f6;border-radius:999px;padding:6px 12px;box-shadow:0 3px 0 #e0d6ef;"><span style="width:17px;height:17px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:3px;left:3px;width:5px;height:5px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:14px;color:#4c2d77;">1 240</span></span>
+          </div>
+
+          <div style="position:relative;overflow:hidden;background:linear-gradient(150deg,#6a44a0,#4c2d77);border-radius:24px;padding:17px 18px;box-shadow:0 12px 26px rgba(35,17,66,.24);">
+            <span style="position:absolute;right:16px;top:14px;font-size:15px;color:#f2da33;opacity:.7;">✦</span>
+            <div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#fff;">Semaine 29</span><span style="font-weight:800;font-size:16px;color:#f2da33;">1 850 XP</span></div>
+            <div style="height:12px;border-radius:6px;background:rgba(0,0,0,.22);overflow:hidden;margin-top:10px;"><div style="width:84%;height:100%;border-radius:6px;background:linear-gradient(90deg,#9fc038,#c7e06a);"></div></div>
+            <div style="font-weight:600;font-size:12px;color:#d9c9f0;margin-top:9px;">Encore 350 XP avant le palier final · nouveau pass chaque lundi</div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:9px;background:#fbf2e5;border:2px solid #f2da33;border-radius:14px;padding:9px 13px;"><span style="background:#ec647b;color:#fff;font-weight:800;font-size:10px;padding:3px 9px;border-radius:999px;">2</span><span style="font-weight:700;font-size:12.5px;color:#6b5320;">2 paliers à réclamer !</span></div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:16px;padding:11px 13px;display:flex;align-items:center;gap:11px;box-shadow:0 5px 12px rgba(35,17,66,.05);">
+            <span style="width:34px;height:34px;border-radius:50%;background:#9fc038;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12 l4 4 L19 7" stroke="#2c380c" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <div style="flex:1;"><div style="font-weight:800;font-size:13.5px;color:#443657;">+350 perles</div><div style="font-weight:600;font-size:11px;color:#7d6f95;">1 150 XP</div></div>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M5 12 l4 4 L19 7" stroke="#9fc038" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </div>
+
+          <div style="background:#fff;border:3px solid #9fc038;border-radius:16px;padding:11px 13px;display:flex;align-items:center;gap:11px;box-shadow:0 5px 12px rgba(35,17,66,.05);">
+            <span style="width:34px;height:34px;border-radius:50%;background:#9fc038;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M5 12 A7 7 0 0 1 19 12 Z" fill="#fff"></path><path d="M5 12 A7 7 0 0 0 19 12 Z" fill="#4c2d77"></path><circle cx="12" cy="12" r="1.5" fill="#f2da33"></circle></svg></span>
+            <div style="flex:1;"><div style="font-weight:800;font-size:13.5px;color:#443657;">Capsule classique</div><div style="font-weight:600;font-size:11px;color:#7d6f95;">1 450 XP</div></div>
+            <span style="background:#9fc038;color:#2c380c;font-weight:800;font-size:12px;padding:8px 14px;border-radius:999px;box-shadow:0 3px 0 #6f8f1f;">Réclamer</span>
+          </div>
+
+          <div style="background:#fff;border:3px solid #9fc038;border-radius:16px;padding:11px 13px;display:flex;align-items:center;gap:11px;box-shadow:0 5px 12px rgba(35,17,66,.05);">
+            <span style="width:34px;height:34px;border-radius:50%;background:#9fc038;display:flex;align-items:center;justify-content:center;flex:none;font-weight:800;font-size:14px;color:#2c380c;">9</span>
+            <div style="flex:1;"><div style="font-weight:800;font-size:13.5px;color:#443657;">+450 perles</div><div style="font-weight:600;font-size:11px;color:#7d6f95;">1 800 XP</div></div>
+            <span style="background:#9fc038;color:#2c380c;font-weight:800;font-size:12px;padding:8px 14px;border-radius:999px;box-shadow:0 3px 0 #6f8f1f;">Réclamer</span>
+          </div>
+
+          <div style="background:#fffdf5;border:2px solid #f2da33;border-radius:16px;padding:11px 13px;display:flex;align-items:center;gap:11px;box-shadow:0 5px 12px rgba(35,17,66,.05);opacity:.85;">
+            <span style="width:34px;height:34px;border-radius:50%;background:#f2da33;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="17" height="17" viewBox="0 0 24 24"><path d="M6 4 h12 v3 a6 6 0 0 1 -12 0 Z M10.5 13 h3 v4 h-3 Z M8 17 h8 v2.5 h-8 Z" fill="#8a6d10"></path></svg></span>
+            <div style="flex:1;"><div style="font-weight:800;font-size:13.5px;color:#443657;">Capsule DORÉE 👑 + 500 perles</div><div style="font-weight:600;font-size:11px;color:#7d6f95;">2 200 XP · palier final</div></div>
+            <span style="display:flex;align-items:center;justify-content:center;flex:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="#a99fc0" stroke-width="2"></rect><path d="M8 11 V8 a4 4 0 0 1 8 0 v3" stroke="#a99fc0" stroke-width="2"></path></svg></span>
+          </div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:20px;padding:14px 15px;display:flex;flex-direction:column;gap:9px;box-shadow:0 8px 16px rgba(35,17,66,.06);margin-top:2px;">
+            <div style="font-family:Fredoka,sans-serif;font-weight:600;font-size:15px;color:#633e90;">Comment gagner de l'XP ?</div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="width:22px;height:22px;border-radius:7px;background:#eef4d8;display:flex;align-items:center;justify-content:center;font-size:11px;">🎯</span><span style="flex:1;font-weight:600;font-size:12.5px;color:#7d6f95;">Terminer un niveau d'Aventure</span><span style="font-weight:800;font-size:12px;color:#815fae;">+40</span></div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="width:22px;height:22px;border-radius:7px;background:#fdf3c2;display:flex;align-items:center;justify-content:center;font-size:11px;">⚡</span><span style="flex:1;font-weight:600;font-size:12.5px;color:#7d6f95;">Réclamer un défi du jour</span><span style="font-weight:800;font-size:12px;color:#815fae;">+30</span></div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="width:22px;height:22px;border-radius:7px;background:#fbe4ee;display:flex;align-items:center;justify-content:center;font-size:11px;">⚔️</span><span style="flex:1;font-weight:600;font-size:12.5px;color:#7d6f95;">Gagner un combat d'Arène</span><span style="font-weight:800;font-size:12px;color:#815fae;">+30</span></div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="width:22px;height:22px;border-radius:7px;background:#f1ecfa;display:flex;align-items:center;justify-content:center;font-size:11px;">🎁</span><span style="flex:1;font-weight:600;font-size:12.5px;color:#7d6f95;">Ouvrir une capsule</span><span style="font-weight:800;font-size:12px;color:#815fae;">+15</span></div>
+            <div style="display:flex;align-items:center;gap:9px;"><span style="width:22px;height:22px;border-radius:7px;background:#e4eef8;display:flex;align-items:center;justify-content:center;font-size:11px;">🫧</span><span style="flex:1;font-weight:600;font-size:12.5px;color:#7d6f95;">Jouer une partie d'Infini</span><span style="font-weight:800;font-size:12px;color:#815fae;">+10</span></div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+  </div>
+</section>
+
+<section style="padding:44px 48px 24px;font-family:Outfit,sans-serif;display:flex;flex-direction:column;gap:24px;">
+
+  <div style="display:flex;align-items:center;gap:18px;">
+    <span style="background:#633e90;color:#fff;font-weight:800;font-size:13px;letter-spacing:1px;padding:7px 14px;border-radius:999px;">TURN 2</span>
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <div style="font-family:Fredoka,sans-serif;font-weight:600;font-size:26px;color:#633e90;">Boba Quest — 3 pistes créatives</div>
+      <div style="font-weight:500;font-size:13.5px;color:#7d6f95;">Le hub du jeu, avec plus de fantaisie que les écrans utilitaires. Même ADN (violet, perles, Fredoka) mais chaque piste assume un ton différent. Dis-moi laquelle tu veux garder (<a href="#2a">2a</a> / <a href="#2b">2b</a> / <a href="#2c">2c</a>).</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:44px;flex-wrap:wrap;align-items:flex-start;">
+
+    <!-- ============ 2a · ARCADE VIOLET IMMERSIF ============ -->
+    <div id="2a" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#4c2d77;color:#fff;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">2a</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Arcade violet immersif</span><span style="font-weight:500;font-size:12px;color:#a99fc0;">— nuit gourmande, verre &amp; néons doux</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+        <div style="height:100%;position:relative;overflow:hidden;background:radial-gradient(120% 60% at 50% 0%,#6a44a0 0%,#4c2d77 46%,#3c2260 100%);font-family:Outfit,sans-serif;">
+          <svg viewBox="0 0 402 874" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;">
+            <path d="M-20,150 Q80,120 180,150 T400,150 T620,150 L620,-20 L-20,-20 Z" fill="#f2a7cf" opacity=".08"></path>
+            <path d="M-20,200 Q100,170 220,200 T460,200 L460,-20 L-20,-20 Z" fill="#c9a3ee" opacity=".1"></path>
+          </svg>
+          <span style="position:absolute;left:34px;top:150px;font-size:16px;color:#f2da33;opacity:.85;">✦</span>
+          <span style="position:absolute;right:44px;top:120px;font-size:11px;color:#eae8f5;opacity:.55;">✧</span>
+          <span style="position:absolute;right:70px;top:330px;font-size:13px;color:#f7b8d6;opacity:.6;">✦</span>
+          <span style="position:absolute;left:26px;top:470px;font-size:10px;color:#9fc038;opacity:.6;">✧</span>
+
+          <div style="position:relative;z-index:2;height:100%;overflow-y:auto;"><div style="padding:56px 18px 30px;display:flex;flex-direction:column;gap:14px;min-height:100%;box-sizing:border-box;">
+
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.14);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;flex:none;"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M9 2 L3 10 l6 8" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+              <div style="flex:1;display:flex;flex-direction:column;">
+                <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:26px;color:#fff;letter-spacing:.5px;line-height:1;">BOBA QUEST</span>
+                <span style="font-weight:500;font-size:12.5px;color:#d9c9f0;margin-top:3px;">Joue, collectionne, gagne de vrais prix</span>
+              </div>
+            </div>
+
+            <div style="position:relative;border-radius:26px;padding:18px 20px;background:linear-gradient(135deg,rgba(255,255,255,.18),rgba(255,255,255,.06));border:1px solid rgba(255,255,255,.22);box-shadow:0 10px 30px rgba(20,8,42,.4),inset 0 1px 1px rgba(255,255,255,.3);overflow:hidden;">
+              <div style="position:absolute;right:-30px;top:-30px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(159,192,56,.35),transparent 70%);"></div>
+              <div style="display:flex;align-items:center;gap:12px;position:relative;z-index:2;">
+                <span style="width:52px;height:52px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#7a55b0,#3c2260);display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(159,192,56,.4),inset 0 2px 4px rgba(255,255,255,.25);flex:none;"><span style="width:15px;height:15px;border-radius:50%;background:#fff;opacity:.55;margin:-10px 0 0 -10px;"></span></span>
+                <div style="flex:1;">
+                  <div style="display:flex;align-items:baseline;gap:7px;"><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:32px;color:#fff;line-height:1;">1 240</span><span style="font-weight:600;font-size:14px;color:#d9c9f0;">perles</span></div>
+                  <span style="font-weight:500;font-size:11px;color:#c3b2e0;">À dépenser en capsules, perles spéciales &amp; vrais prix</span>
+                </div>
+              </div>
+              <div style="margin-top:13px;background:linear-gradient(90deg,#9fc038,#b6d94f);border-radius:999px;padding:8px 14px;display:inline-flex;align-items:center;gap:7px;box-shadow:0 4px 0 #6f8f1f;position:relative;z-index:2;"><span style="font-size:13px;">⚡</span><span style="font-weight:800;font-size:12px;color:#2c380c;">Bonus du jour : perles ×2 sur ta 1ʳᵉ partie</span></div>
+            </div>
+
+            <div style="border-radius:22px;padding:15px 17px;background:linear-gradient(135deg,rgba(255,255,255,.16),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.2);box-shadow:inset 0 1px 1px rgba(255,255,255,.25);">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;">
+                <span style="display:flex;align-items:center;gap:7px;font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#fff;white-space:nowrap;">🏆 Boba Pass</span>
+                <span style="display:flex;align-items:center;gap:7px;"><span style="font-weight:800;font-size:13px;color:#f2da33;">1 850 XP</span><span style="background:#ec647b;color:#fff;font-weight:800;font-size:11px;min-width:20px;height:20px;border-radius:999px;display:flex;align-items:center;justify-content:center;">2</span></span>
+              </div>
+              <div style="height:11px;border-radius:6px;background:rgba(0,0,0,.25);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.3);"><div style="width:64%;height:100%;border-radius:6px;background:linear-gradient(90deg,#f2da33,#ffe680);box-shadow:0 0 12px rgba(242,218,51,.7);"></div></div>
+              <span style="display:block;margin-top:8px;font-weight:600;font-size:12px;color:#d9c9f0;">2 paliers à réclamer !</span>
+            </div>
+
+            <div style="position:relative;border-radius:24px;padding:18px;background:linear-gradient(135deg,#9fc038,#89ab2c);display:flex;align-items:center;gap:14px;box-shadow:0 6px 0 #6f8f1f,0 14px 30px rgba(20,8,42,.35);overflow:hidden;">
+              <span style="position:absolute;right:16px;top:12px;font-size:14px;color:#fff;opacity:.5;">✦</span>
+              <span style="width:52px;height:52px;border-radius:16px;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;flex:none;"><svg width="30" height="30" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="#4c2d77" stroke-width="1.6"></circle><circle cx="12" cy="12" r="4.4" fill="#fff" stroke="#4c2d77" stroke-width="1.3"></circle><circle cx="12" cy="12" r="1.9" fill="#4c2d77"></circle><line x1="12" y1="1.6" x2="12" y2="5" stroke="#4c2d77" stroke-width="1.7" stroke-linecap="round"></line><line x1="12" y1="19" x2="12" y2="22.4" stroke="#4c2d77" stroke-width="1.7" stroke-linecap="round"></line><line x1="1.6" y1="12" x2="5" y2="12" stroke="#4c2d77" stroke-width="1.7" stroke-linecap="round"></line><line x1="19" y1="12" x2="22.4" y2="12" stroke="#4c2d77" stroke-width="1.7" stroke-linecap="round"></line></svg></span>
+              <div style="flex:1;"><div style="font-family:Fredoka,sans-serif;font-weight:600;font-size:21px;color:#2c380c;line-height:1;">Aventure</div><div style="font-weight:600;font-size:12px;color:#3f5417;opacity:.85;margin-top:3px;">Niveau 14 · 38 étoiles — libère les capsules</div></div>
+              <span style="background:#4c2d77;color:#c7e06a;font-weight:800;font-size:13px;padding:10px 15px;border-radius:999px;box-shadow:0 3px 0 #2c1a4a;">JOUER</span>
+            </div>
+
+            <div style="border-radius:22px;padding:15px 17px;background:linear-gradient(135deg,rgba(255,255,255,.16),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.2);display:flex;flex-direction:column;gap:11px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;"><span style="display:flex;align-items:center;gap:7px;font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#fff;white-space:nowrap;">⚡ Défis du jour</span><span style="font-weight:800;font-size:13px;color:#9fc038;">1/3</span></div>
+              <div style="display:flex;align-items:center;gap:11px;"><div style="flex:1;"><div style="font-weight:700;font-size:12.5px;color:#eae8f5;margin-bottom:5px;">Joue 3 parties</div><div style="height:6px;border-radius:3px;background:rgba(0,0,0,.25);overflow:hidden;"><div style="width:66%;height:100%;background:#9fc038;border-radius:3px;"></div></div></div><span style="font-weight:700;font-size:11px;color:#c3b2e0;min-width:34px;text-align:right;">2/3</span></div>
+              <div style="display:flex;align-items:center;gap:11px;"><div style="flex:1;"><div style="font-weight:700;font-size:12.5px;color:#eae8f5;margin-bottom:5px;">Ouvre 1 capsule</div><div style="height:6px;border-radius:3px;background:rgba(0,0,0,.25);overflow:hidden;"><div style="width:100%;height:100%;background:#9fc038;border-radius:3px;"></div></div></div><span style="background:#9fc038;color:#2c380c;font-weight:800;font-size:11.5px;padding:6px 10px;border-radius:999px;display:flex;align-items:center;gap:3px;">+50</span></div>
+              <div style="display:flex;align-items:center;gap:11px;"><div style="flex:1;"><div style="font-weight:700;font-size:12.5px;color:#eae8f5;margin-bottom:5px;">Gagne 1 duel en Arène</div><div style="height:6px;border-radius:3px;background:rgba(0,0,0,.25);overflow:hidden;"><div style="width:0%;height:100%;background:#9fc038;border-radius:3px;"></div></div></div><span style="font-weight:700;font-size:11px;color:#c3b2e0;min-width:34px;text-align:right;">0/1</span></div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div style="position:relative;border-radius:20px;padding:14px;background:linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.18);display:flex;flex-direction:column;gap:8px;"><span style="width:42px;height:42px;border-radius:13px;background:#fff;box-shadow:0 3px 8px rgba(20,8,42,.25);display:flex;align-items:center;justify-content:center;"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M5.2 19.4L15.4 7.2" stroke="#633e90" stroke-width="2.5" stroke-linecap="round"></path><path d="M14.3 5.6L18.2 8.1L16.6 10L12.7 7Z" fill="#633e90"></path><path d="M4 16.4L7.6 20" stroke="#633e90" stroke-width="2.3" stroke-linecap="round"></path><path d="M18.8 19.4L8.6 7.2" stroke="#9fc038" stroke-width="2.5" stroke-linecap="round"></path><path d="M9.7 5.6L5.8 8.1L7.4 10L11.3 7Z" fill="#9fc038"></path><path d="M20 16.4L16.4 20" stroke="#9fc038" stroke-width="2.3" stroke-linecap="round"></path><path d="M12 1.8l.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7Z" fill="#f2da33"></path></svg></span><span style="font-weight:800;font-size:14.5px;color:#fff;">L'Arène</span><span style="font-weight:600;font-size:11.5px;color:#c3b2e0;line-height:1.35;">Rang 7 · duels &amp; tournoi hebdo</span></div>
+              <div style="position:relative;border-radius:20px;padding:14px;background:linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.18);display:flex;flex-direction:column;gap:8px;"><span style="width:42px;height:42px;border-radius:13px;background:#fff;box-shadow:0 3px 8px rgba(20,8,42,.25);display:flex;align-items:center;justify-content:center;"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M6 12C6 8.6 9.3 8.6 12 12C14.7 15.4 18 15.4 18 12C18 8.6 14.7 8.6 12 12C9.3 15.4 6 15.4 6 12Z" fill="#3d9ab8"></path><path d="M7.6 10.8C8.3 10.1 9.5 10.3 10.6 11.4" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" opacity=".75"></path><path d="M19.4 4.9l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5Z" fill="#f2da33"></path></svg></span><span style="font-weight:800;font-size:14.5px;color:#fff;">Infini</span><span style="font-weight:600;font-size:11.5px;color:#c3b2e0;line-height:1.35;">Record : 8 420 · farm à perles</span></div>
+              <div style="position:relative;border-radius:20px;padding:14px;background:linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.18);display:flex;flex-direction:column;gap:8px;"><span style="position:absolute;top:10px;right:10px;background:#ec647b;color:#fff;font-weight:800;font-size:11px;min-width:20px;height:20px;border-radius:999px;display:flex;align-items:center;justify-content:center;">2</span><span style="width:42px;height:42px;border-radius:13px;background:#fff;box-shadow:0 3px 8px rgba(20,8,42,.25);display:flex;align-items:center;justify-content:center;"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M4.8 12.4A7.2 7.2 0 0 1 19.2 12.4Z" fill="#f7b8d6"></path><circle cx="12" cy="9.6" r="2.1" fill="#4c2d77"></circle><path d="M6.6 8.2A5.6 5.6 0 0 1 10 5.6" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round" opacity=".85"></path><rect x="4.3" y="11.4" width="15.4" height="2.4" rx="1.2" fill="#fff"></rect><path d="M4.9 13.6A7 7 0 0 0 19.1 13.6Z" fill="#c06a99"></path><path d="M12 2.3l.55 1.4 1.4.55-1.4.55-.55 1.4-.55-1.4-1.4-.55 1.4-.55Z" fill="#f2da33"></path></svg></span><span style="font-weight:800;font-size:14.5px;color:#fff;">Capsules</span><span style="font-weight:600;font-size:11.5px;color:#c3b2e0;line-height:1.35;">2 gratuites à ouvrir !</span></div>
+              <div style="position:relative;border-radius:20px;padding:14px;background:linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.18);display:flex;flex-direction:column;gap:8px;"><span style="width:42px;height:42px;border-radius:13px;background:#fff;box-shadow:0 3px 8px rgba(20,8,42,.25);display:flex;align-items:center;justify-content:center;"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 6.2Q8 4.2 4 5.6L4 18.2Q8 16.8 12 18.6Q16 16.8 20 18.2L20 5.6Q16 4.2 12 6.2Z" fill="#8ebe74"></path><path d="M12 6.2L12 18.6" stroke="#4c7a35" stroke-width="1.2"></path><circle cx="7.6" cy="10" r="1.5" fill="#633e90"></circle><circle cx="16.4" cy="10" r="1.5" fill="#f2da33"></circle><circle cx="7.6" cy="13.6" r="1.5" fill="#ec647b"></circle><circle cx="16.4" cy="13.6" r="1.5" fill="#fff"></circle></svg></span><span style="font-weight:800;font-size:14.5px;color:#fff;">Collection</span><span style="font-weight:600;font-size:11.5px;color:#c3b2e0;line-height:1.35;">18/40 trouvés</span></div>
+              <div style="position:relative;border-radius:20px;padding:14px;background:linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.18);display:flex;flex-direction:column;gap:8px;"><span style="position:absolute;top:10px;right:10px;background:#f2da33;color:#54470a;font-weight:800;font-size:11px;min-width:20px;height:20px;border-radius:999px;display:flex;align-items:center;justify-content:center;">1</span><span style="width:42px;height:42px;border-radius:13px;background:#fff;box-shadow:0 3px 8px rgba(20,8,42,.25);display:flex;align-items:center;justify-content:center;"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 13L12 5.4A7.6 7.6 0 0 1 18.6 9.2Z" fill="#f2da33"></path><path d="M12 13L18.6 9.2A7.6 7.6 0 0 1 18.6 16.8Z" fill="#ec647b"></path><path d="M12 13L18.6 16.8A7.6 7.6 0 0 1 12 20.6Z" fill="#9fc038"></path><path d="M12 13L12 20.6A7.6 7.6 0 0 1 5.4 16.8Z" fill="#89cfe3"></path><path d="M12 13L5.4 16.8A7.6 7.6 0 0 1 5.4 9.2Z" fill="#f7b8d6"></path><path d="M12 13L5.4 9.2A7.6 7.6 0 0 1 12 5.4Z" fill="#633e90"></path><circle cx="12" cy="13" r="2" fill="#fff" stroke="#4c2d77" stroke-width="1"></circle><path d="M12 2.6L10.2 5.8L13.8 5.8Z" fill="#4c2d77"></path></svg></span><span style="font-weight:800;font-size:14.5px;color:#fff;">Roulette</span><span style="font-weight:600;font-size:11.5px;color:#c3b2e0;line-height:1.35;">Ton tour gratuit t'attend !</span></div>
+              <div style="position:relative;border-radius:20px;padding:14px;background:linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.18);display:flex;flex-direction:column;gap:8px;"><span style="width:42px;height:42px;border-radius:13px;background:#fff;box-shadow:0 3px 8px rgba(20,8,42,.25);display:flex;align-items:center;justify-content:center;"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="4.8" y="10.6" width="14.4" height="9.4" rx="1.6" fill="#ec647b"></rect><rect x="4" y="8.3" width="16" height="3.6" rx="1.2" fill="#c23e57"></rect><rect x="10.8" y="8.3" width="2.4" height="11.7" fill="#fff"></rect><path d="M12 8C9.5 8 8.4 4.3 10.6 4.3C12 4.3 12 6.6 12 8C12 6.6 12 4.3 13.4 4.3C15.6 4.3 14.5 8 12 8Z" fill="#f2da33"></path><path d="M20.6 4.8l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5Z" fill="#f2da33" opacity=".85"></path></svg></span><span style="font-weight:800;font-size:14.5px;color:#fff;">Boutique</span><span style="font-weight:600;font-size:11.5px;color:#c3b2e0;line-height:1.35;">Échange tes perles</span></div>
+            </div>
+
+            <div style="text-align:center;font-weight:600;font-size:11.5px;color:#b8a6d6;padding-top:2px;">312 parties · 47 capsules ouvertes</div>
+          </div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============ 2b · CANDY POP PASTEL ============ -->
+    <div id="2b" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#ec647b;color:#fff;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">2b</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Candy pop pastel</span><span style="font-weight:500;font-size:12px;color:#a99fc0;">— sticker &amp; bonbon, ombres candy 3D</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div style="height:100%;overflow-y:auto;background:#efeaf7;font-family:Outfit,sans-serif;"><div style="padding:56px 18px 30px;display:flex;flex-direction:column;gap:14px;min-height:100%;box-sizing:border-box;">
+
+          <div style="display:flex;align-items:center;gap:11px;">
+            <span style="width:40px;height:40px;border-radius:50%;background:#fff;border:2.5px solid #f0ebf8;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 3px 0 #e0d6ef;"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M9 2 L3 10 l6 8" stroke="#633e90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <span style="flex:1;font-family:Fredoka,sans-serif;font-weight:600;font-size:25px;color:#633e90;">Boba Quest</span>
+            <span style="display:flex;align-items:center;gap:6px;background:#fff;border:2.5px solid #ece7f6;border-radius:999px;padding:6px 12px;box-shadow:0 3px 0 #e0d6ef;"><span style="width:17px;height:17px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:3px;left:3px;width:5px;height:5px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:14px;color:#4c2d77;">1 240</span></span>
+          </div>
+
+          <div style="position:relative;background:linear-gradient(150deg,#fff,#fdf4f9);border:3px solid #fff;border-radius:28px;padding:18px 20px;box-shadow:0 12px 26px rgba(35,17,66,.12);overflow:hidden;">
+            <span style="position:absolute;right:14px;top:12px;font-size:18px;color:#f7b8d6;">✦</span>
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="position:relative;width:58px;height:58px;flex:none;">
+                <span style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 36% 30%,#8a68b8,#4c2d77);box-shadow:0 5px 0 #34205c;"></span>
+                <span style="position:absolute;top:12px;left:12px;width:12px;height:12px;border-radius:50%;background:#fff;opacity:.55;"></span>
+                <span style="position:absolute;bottom:13px;left:16px;width:5px;height:5px;border-radius:50%;background:#1e1433;"></span>
+                <span style="position:absolute;bottom:13px;right:16px;width:5px;height:5px;border-radius:50%;background:#1e1433;"></span>
+                <svg width="16" height="8" viewBox="0 0 16 8" style="position:absolute;bottom:6px;left:50%;transform:translateX(-50%);"><path d="M2 2 Q8 7 14 2" stroke="#1e1433" stroke-width="1.8" fill="none" stroke-linecap="round"></path></svg>
+              </div>
+              <div style="flex:1;">
+                <div style="display:flex;align-items:baseline;gap:7px;"><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:34px;color:#633e90;line-height:1;">1 240</span><span style="font-weight:700;font-size:14px;color:#a385c4;">perles</span></div>
+                <span style="font-weight:600;font-size:11.5px;color:#9384ac;">Capsules · perles spéciales · vrais prix</span>
+              </div>
+            </div>
+            <div style="margin-top:13px;background:#9fc038;border-radius:999px;padding:9px 15px;display:inline-flex;align-items:center;gap:7px;box-shadow:0 4px 0 #6f8f1f;"><span style="font-size:14px;">⚡</span><span style="font-weight:800;font-size:12.5px;color:#2c380c;">Bonus du jour : perles ×2 sur ta 1ʳᵉ partie</span></div>
+          </div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:24px;padding:15px 17px;box-shadow:0 8px 18px rgba(35,17,66,.08);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="display:flex;align-items:center;gap:7px;font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;white-space:nowrap;">🏆 Boba Pass</span><span style="display:flex;align-items:center;gap:7px;"><span style="font-weight:800;font-size:13px;color:#815fae;">1 850 XP</span><span style="background:#ec647b;color:#fff;font-weight:800;font-size:11px;min-width:20px;height:20px;border-radius:999px;display:flex;align-items:center;justify-content:center;">2</span></span></div>
+            <div style="position:relative;height:14px;border-radius:8px;background:#ece7f6;">
+              <div style="position:absolute;left:0;top:0;bottom:0;width:64%;border-radius:8px;background:linear-gradient(90deg,#8a68b8,#633e90);"></div>
+              <span style="position:absolute;left:calc(64% - 12px);top:-4px;width:22px;height:22px;border-radius:50%;background:#4c2d77;border:2.5px solid #fff;box-shadow:0 3px 6px rgba(35,17,66,.3);"></span>
+            </div>
+            <span style="display:block;margin-top:9px;font-weight:600;font-size:12px;color:#7d6f95;">2 paliers à réclamer !</span>
+          </div>
+
+          <div style="position:relative;background:linear-gradient(150deg,#a9cc45,#8fb52c);border-radius:26px;padding:17px 18px;display:flex;align-items:center;gap:13px;box-shadow:0 7px 0 #6f8f1f,0 14px 26px rgba(35,17,66,.16);overflow:hidden;">
+            <span style="position:absolute;right:14px;bottom:10px;font-size:15px;color:#fff;opacity:.55;">✦</span>
+            <div style="position:relative;width:50px;height:50px;flex:none;">
+              <span style="position:absolute;inset:0;border-radius:16px;background:#fff;box-shadow:inset 0 -3px 0 rgba(0,0,0,.06);"></span>
+              <svg width="30" height="30" viewBox="0 0 24 24" style="position:absolute;top:10px;left:10px;"><circle cx="12" cy="12" r="8" fill="none" stroke="#4c2d77" stroke-width="1.6"></circle><circle cx="12" cy="12" r="4.4" fill="#f7b8d6" stroke="#4c2d77" stroke-width="1.3"></circle><circle cx="12" cy="12" r="1.9" fill="#4c2d77"></circle></svg>
+            </div>
+            <div style="flex:1;"><div style="font-family:Fredoka,sans-serif;font-weight:600;font-size:21px;color:#2c380c;line-height:1;">Aventure</div><div style="font-weight:600;font-size:12px;color:#3f5417;opacity:.9;margin-top:3px;">Niveau 14 · 38 ⭐ — libère les capsules</div></div>
+            <span style="background:#fff;color:#5c7a1f;font-weight:800;font-size:13px;padding:10px 15px;border-radius:999px;box-shadow:0 4px 0 rgba(0,0,0,.12);">JOUER</span>
+          </div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:24px;padding:15px 17px;box-shadow:0 8px 18px rgba(35,17,66,.08);display:flex;flex-direction:column;gap:11px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;"><span style="display:flex;align-items:center;gap:7px;font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;white-space:nowrap;">⚡ Défis du jour</span><span style="font-weight:800;font-size:14px;color:#5c7a1f;">1/3</span></div>
+            <div style="display:flex;align-items:center;gap:11px;"><div style="flex:1;"><div style="font-weight:700;font-size:12.5px;color:#443657;margin-bottom:5px;">Joue 3 parties</div><div style="height:7px;border-radius:4px;background:#ece7f6;overflow:hidden;"><div style="width:66%;height:100%;background:#9fc038;border-radius:4px;"></div></div></div><span style="font-weight:700;font-size:11px;color:#a99fc0;min-width:34px;text-align:right;">2/3</span></div>
+            <div style="display:flex;align-items:center;gap:11px;"><div style="flex:1;"><div style="font-weight:700;font-size:12.5px;color:#443657;margin-bottom:5px;">Ouvre 1 capsule</div><div style="height:7px;border-radius:4px;background:#ece7f6;overflow:hidden;"><div style="width:100%;height:100%;background:#9fc038;border-radius:4px;"></div></div></div><span style="background:#9fc038;color:#2c380c;font-weight:800;font-size:11.5px;padding:6px 11px;border-radius:999px;box-shadow:0 3px 0 #6f8f1f;">+50</span></div>
+            <div style="display:flex;align-items:center;gap:11px;"><div style="flex:1;"><div style="font-weight:700;font-size:12.5px;color:#443657;margin-bottom:5px;">Gagne 1 duel en Arène</div><div style="height:7px;border-radius:4px;background:#ece7f6;overflow:hidden;"><div style="width:0%;height:100%;background:#9fc038;border-radius:4px;"></div></div></div><span style="font-weight:700;font-size:11px;color:#a99fc0;min-width:34px;text-align:right;">0/1</span></div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div style="background:#2bb4a9;border-radius:22px;padding:14px;box-shadow:0 6px 0 #1c8d84;display:flex;flex-direction:column;gap:8px;"><span style="width:44px;height:44px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M5.2 19.4L15.4 7.2" stroke="#633e90" stroke-width="2.5" stroke-linecap="round"></path><path d="M14.3 5.6L18.2 8.1L16.6 10L12.7 7Z" fill="#633e90"></path><path d="M4 16.4L7.6 20" stroke="#633e90" stroke-width="2.3" stroke-linecap="round"></path><path d="M18.8 19.4L8.6 7.2" stroke="#9fc038" stroke-width="2.5" stroke-linecap="round"></path><path d="M9.7 5.6L5.8 8.1L7.4 10L11.3 7Z" fill="#9fc038"></path><path d="M20 16.4L16.4 20" stroke="#9fc038" stroke-width="2.3" stroke-linecap="round"></path><path d="M12 1.8l.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7Z" fill="#f2da33"></path></svg></span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:15px;color:#fff;">L'Arène</span><span style="font-weight:600;font-size:11px;color:rgba(255,255,255,.9);line-height:1.3;">Rang 7 · duels hebdo</span></div>
+            <div style="background:#89cfe3;border-radius:22px;padding:14px;box-shadow:0 6px 0 #5faec6;display:flex;flex-direction:column;gap:8px;"><span style="width:44px;height:44px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M6 12C6 8.6 9.3 8.6 12 12C14.7 15.4 18 15.4 18 12C18 8.6 14.7 8.6 12 12C9.3 15.4 6 15.4 6 12Z" fill="#3d9ab8"></path><path d="M7.6 10.8C8.3 10.1 9.5 10.3 10.6 11.4" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" opacity=".75"></path><path d="M19.4 4.9l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5Z" fill="#f2da33"></path></svg></span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:15px;color:#fff;">Infini</span><span style="font-weight:600;font-size:11px;color:rgba(255,255,255,.92);line-height:1.3;">Record : 8 420</span></div>
+            <div style="position:relative;background:#e3b2d3;border-radius:22px;padding:14px;box-shadow:0 6px 0 #c489ad;display:flex;flex-direction:column;gap:8px;"><span style="position:absolute;top:9px;right:9px;background:#ec647b;color:#fff;font-weight:800;font-size:11px;min-width:20px;height:20px;border-radius:999px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 0 #b83a52;">2</span><span style="width:44px;height:44px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M4.8 12.4A7.2 7.2 0 0 1 19.2 12.4Z" fill="#f7b8d6"></path><circle cx="12" cy="9.6" r="2.1" fill="#4c2d77"></circle><path d="M6.6 8.2A5.6 5.6 0 0 1 10 5.6" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round" opacity=".85"></path><rect x="4.3" y="11.4" width="15.4" height="2.4" rx="1.2" fill="#fff"></rect><path d="M4.9 13.6A7 7 0 0 0 19.1 13.6Z" fill="#c06a99"></path><path d="M12 2.3l.55 1.4 1.4.55-1.4.55-.55 1.4-.55-1.4-1.4-.55 1.4-.55Z" fill="#f2da33"></path></svg></span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:15px;color:#fff;">Capsules</span><span style="font-weight:600;font-size:11px;color:rgba(255,255,255,.95);line-height:1.3;">2 gratuites !</span></div>
+            <div style="background:#8ebe74;border-radius:22px;padding:14px;box-shadow:0 6px 0 #6b9a54;display:flex;flex-direction:column;gap:8px;"><span style="width:44px;height:44px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 6.2Q8 4.2 4 5.6L4 18.2Q8 16.8 12 18.6Q16 16.8 20 18.2L20 5.6Q16 4.2 12 6.2Z" fill="#8ebe74"></path><path d="M12 6.2L12 18.6" stroke="#4c7a35" stroke-width="1.2"></path><circle cx="7.6" cy="10" r="1.5" fill="#633e90"></circle><circle cx="16.4" cy="10" r="1.5" fill="#f2da33"></circle><circle cx="7.6" cy="13.6" r="1.5" fill="#ec647b"></circle><circle cx="16.4" cy="13.6" r="1.5" fill="#fff"></circle></svg></span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:15px;color:#fff;">Collection</span><span style="font-weight:600;font-size:11px;color:rgba(255,255,255,.95);line-height:1.3;">18/40 trouvés</span></div>
+            <div style="position:relative;background:#f0b737;border-radius:22px;padding:14px;box-shadow:0 6px 0 #c9901f;display:flex;flex-direction:column;gap:8px;"><span style="position:absolute;top:9px;right:9px;background:#fff;color:#c9901f;font-weight:800;font-size:11px;min-width:20px;height:20px;border-radius:999px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 0 rgba(0,0,0,.12);">1</span><span style="width:44px;height:44px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 13L12 5.4A7.6 7.6 0 0 1 18.6 9.2Z" fill="#f2da33"></path><path d="M12 13L18.6 9.2A7.6 7.6 0 0 1 18.6 16.8Z" fill="#ec647b"></path><path d="M12 13L18.6 16.8A7.6 7.6 0 0 1 12 20.6Z" fill="#9fc038"></path><path d="M12 13L12 20.6A7.6 7.6 0 0 1 5.4 16.8Z" fill="#89cfe3"></path><path d="M12 13L5.4 16.8A7.6 7.6 0 0 1 5.4 9.2Z" fill="#f7b8d6"></path><path d="M12 13L5.4 9.2A7.6 7.6 0 0 1 12 5.4Z" fill="#633e90"></path><circle cx="12" cy="13" r="2" fill="#fff" stroke="#4c2d77" stroke-width="1"></circle><path d="M12 2.6L10.2 5.8L13.8 5.8Z" fill="#4c2d77"></path></svg></span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:15px;color:#fff;">Roulette</span><span style="font-weight:600;font-size:11px;color:rgba(255,255,255,.95);line-height:1.3;">Tour gratuit !</span></div>
+            <div style="background:#ec647b;border-radius:22px;padding:14px;box-shadow:0 6px 0 #c23e57;display:flex;flex-direction:column;gap:8px;"><span style="width:44px;height:44px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="4.8" y="10.6" width="14.4" height="9.4" rx="1.6" fill="#ec647b"></rect><rect x="4" y="8.3" width="16" height="3.6" rx="1.2" fill="#c23e57"></rect><rect x="10.8" y="8.3" width="2.4" height="11.7" fill="#fff"></rect><path d="M12 8C9.5 8 8.4 4.3 10.6 4.3C12 4.3 12 6.6 12 8C12 6.6 12 4.3 13.4 4.3C15.6 4.3 14.5 8 12 8Z" fill="#f2da33"></path><path d="M20.6 4.8l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5Z" fill="#f2da33" opacity=".85"></path></svg></span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:15px;color:#fff;">Boutique</span><span style="font-weight:600;font-size:11px;color:rgba(255,255,255,.95);line-height:1.3;">Échange tes perles</span></div>
+          </div>
+
+          <div style="text-align:center;font-weight:600;font-size:11.5px;color:#a99fc0;padding-top:2px;">312 parties · 47 capsules ouvertes</div>
+        </div>
+      </div>
+      </x-import>
+    </div>
+
+    <!-- ============ 2c · BOBA ADVENTURE MAP ============ -->
+    <div id="2c" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#9fc038;color:#2c380c;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">2c</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Boba Adventure map</span><span style="font-weight:500;font-size:12px;color:#a99fc0;">— carte au trésor, la plus fantaisiste</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div style="height:100%;overflow:auto;background:linear-gradient(175deg,#efeaf7,#f7f5fb 40%);font-family:Outfit,sans-serif;padding:56px 18px 30px;display:flex;flex-direction:column;gap:14px;">
+
+          <div style="display:flex;align-items:center;gap:11px;">
+            <span style="width:40px;height:40px;border-radius:50%;background:#fff;border:2.5px solid #f0ebf8;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 3px 0 #e0d6ef;"><svg width="11" height="18" viewBox="0 0 12 20" fill="none"><path d="M9 2 L3 10 l6 8" stroke="#633e90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            <div style="flex:1;display:flex;flex-direction:column;"><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:24px;color:#633e90;line-height:1;">Boba Quest</span><span style="font-weight:600;font-size:11.5px;color:#9384ac;margin-top:2px;">Ton aventure boba</span></div>
+            <span style="display:flex;align-items:center;gap:6px;background:#fff;border:2.5px solid #ece7f6;border-radius:999px;padding:6px 12px;box-shadow:0 3px 0 #e0d6ef;"><span style="width:17px;height:17px;border-radius:50%;background:#4c2d77;position:relative;"><span style="position:absolute;top:3px;left:3px;width:5px;height:5px;border-radius:50%;background:#fff;opacity:.6;"></span></span><span style="font-weight:800;font-size:14px;color:#4c2d77;">1 240</span></span>
+          </div>
+
+          <div style="position:relative;border-radius:28px;overflow:hidden;background:linear-gradient(170deg,#6a44a0,#4c2d77);box-shadow:0 14px 30px rgba(35,17,66,.28);padding:18px 0 8px;">
+            <svg viewBox="0 0 366 470" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;">
+              <path d="M-20,60 Q80,34 180,60 T400,60 L400,-20 L-20,-20 Z" fill="#f2a7cf" opacity=".1"></path>
+            </svg>
+            <span style="position:absolute;left:26px;top:64px;font-size:13px;color:#f2da33;opacity:.85;">✦</span>
+            <span style="position:absolute;right:34px;top:120px;font-size:10px;color:#f7b8d6;opacity:.7;">✧</span>
+            <span style="position:absolute;right:50px;bottom:120px;font-size:12px;color:#eae8f5;opacity:.5;">✦</span>
+
+            <div style="position:relative;z-index:2;padding:0 20px 6px;">
+              <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:20px;color:#fff;">L'Aventure</span>
+              <span style="display:block;font-weight:600;font-size:12px;color:#d9c9f0;margin-top:1px;">Niveau 14 · 38 étoiles</span>
+            </div>
+
+            <div style="position:relative;z-index:2;height:300px;">
+              <svg viewBox="0 0 366 300" style="position:absolute;inset:0;width:100%;height:100%;">
+                <path d="M60 268 C 150 250, 30 200, 130 180 S 340 150, 250 120 S 70 80, 180 44" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="7" stroke-linecap="round" stroke-dasharray="1 15"></path>
+              </svg>
+              <!-- node 12 done -->
+              <div style="position:absolute;left:44px;top:242px;display:flex;flex-direction:column;align-items:center;gap:3px;"><span style="width:34px;height:34px;border-radius:50%;background:#9fc038;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#2c380c;box-shadow:0 3px 8px rgba(0,0,0,.25);">12</span></div>
+              <!-- node 13 done -->
+              <div style="position:absolute;left:112px;top:162px;display:flex;flex-direction:column;align-items:center;gap:3px;"><span style="width:34px;height:34px;border-radius:50%;background:#9fc038;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#2c380c;box-shadow:0 3px 8px rgba(0,0,0,.25);">13</span></div>
+              <!-- treasure capsule node -->
+              <div style="position:absolute;right:38px;top:104px;display:flex;flex-direction:column;align-items:center;gap:2px;">
+                <span style="width:40px;height:40px;border-radius:14px;background:#f2da33;border:3px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.28);"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M5 12 A7 7 0 0 1 19 12 Z" fill="#fff"></path><path d="M5 12 A7 7 0 0 0 19 12 Z" fill="#ec647b"></path><circle cx="12" cy="12" r="1.6" fill="#4c2d77"></circle></svg></span>
+              </div>
+              <!-- current node 14 with mascot -->
+              <div style="position:absolute;left:150px;top:16px;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                <div style="position:relative;width:54px;height:54px;">
+                  <span style="position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(242,218,51,.5),transparent 68%);"></span>
+                  <span style="position:absolute;top:7px;left:7px;width:40px;height:40px;border-radius:50%;background:radial-gradient(circle at 36% 30%,#f9a8cd,#e3739f);border:3px solid #fff;box-shadow:0 4px 10px rgba(0,0,0,.3);"></span>
+                  <span style="position:absolute;top:22px;left:17px;width:4px;height:4px;border-radius:50%;background:#5a2a4e;"></span>
+                  <span style="position:absolute;top:22px;left:29px;width:4px;height:4px;border-radius:50%;background:#5a2a4e;"></span>
+                  <svg width="14" height="7" viewBox="0 0 14 7" style="position:absolute;top:29px;left:20px;"><path d="M1 1 Q7 6 13 1" stroke="#5a2a4e" stroke-width="1.6" fill="none" stroke-linecap="round"></path></svg>
+                </div>
+                <span style="background:#fff;color:#633e90;font-weight:800;font-size:11px;padding:3px 10px;border-radius:999px;box-shadow:0 3px 8px rgba(0,0,0,.2);">Niveau 14</span>
+              </div>
+            </div>
+
+            <div style="position:relative;z-index:2;padding:2px 16px 4px;">
+              <div style="background:#9fc038;border-radius:16px;padding:13px;text-align:center;font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#2c380c;box-shadow:0 5px 0 #6f8f1f;">Continuer l'aventure ›</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:9px;overflow-x:auto;overflow-y:hidden;padding:12px 18px 4px;margin:0 -18px;">
+            <div style="flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;width:64px;"><span style="position:relative;width:56px;height:56px;border-radius:20px;background:#ec647b;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 0 #c23e57;"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M5.2 19.4L15.4 7.2" stroke="#fff" stroke-width="2.5" stroke-linecap="round"></path><path d="M14.3 5.6L18.2 8.1L16.6 10L12.7 7Z" fill="#fff"></path><path d="M4 16.4L7.6 20" stroke="#fff" stroke-width="2.3" stroke-linecap="round"></path><path d="M18.8 19.4L8.6 7.2" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity=".7"></path><path d="M9.7 5.6L5.8 8.1L7.4 10L11.3 7Z" fill="#fff" opacity=".7"></path><path d="M20 16.4L16.4 20" stroke="#fff" stroke-width="2.3" stroke-linecap="round" opacity=".7"></path><path d="M12 1.8l.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7Z" fill="#f2da33"></path></svg></span><span style="font-weight:700;font-size:11px;color:#443657;">Arène</span></div>
+            <div style="flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;width:64px;"><span style="position:relative;width:56px;height:56px;border-radius:20px;background:#e3b2d3;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 0 #c489ad;"><span style="position:absolute;top:-4px;right:-4px;background:#ec647b;color:#fff;font-weight:800;font-size:10px;min-width:19px;height:19px;border-radius:999px;display:flex;align-items:center;justify-content:center;border:2px solid #f7f5fb;">2</span><svg width="26" height="26" viewBox="0 0 24 24"><path d="M4.8 12.4A7.2 7.2 0 0 1 19.2 12.4Z" fill="#fff"></path><circle cx="12" cy="9.6" r="2.1" fill="#a8437f"></circle><rect x="4.3" y="11.4" width="15.4" height="2.4" rx="1.2" fill="#a8437f"></rect><path d="M4.9 13.6A7 7 0 0 0 19.1 13.6Z" fill="#fff" opacity=".85"></path><path d="M12 2.3l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5Z" fill="#f2da33"></path></svg></span><span style="font-weight:700;font-size:11px;color:#443657;">Capsules</span></div>
+            <div style="flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;width:64px;"><span style="width:56px;height:56px;border-radius:20px;background:#8ebe74;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 0 #6b9a54;"><svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 6.2Q8 4.2 4 5.6L4 18.2Q8 16.8 12 18.6Q16 16.8 20 18.2L20 5.6Q16 4.2 12 6.2Z" fill="#fff"></path><path d="M12 6.2L12 18.6" stroke="#8ebe74" stroke-width="1.2"></path><circle cx="7.6" cy="10" r="1.5" fill="#633e90"></circle><circle cx="16.4" cy="10" r="1.5" fill="#f2da33"></circle><circle cx="7.6" cy="13.6" r="1.5" fill="#ec647b"></circle><circle cx="16.4" cy="13.6" r="1.5" fill="#89cfe3"></circle></svg></span><span style="font-weight:700;font-size:11px;color:#443657;">Collection</span></div>
+            <div style="flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;width:64px;"><span style="position:relative;width:56px;height:56px;border-radius:20px;background:#f0b737;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 0 #c9901f;"><span style="position:absolute;top:-4px;right:-4px;background:#fff;color:#c9901f;font-weight:800;font-size:10px;min-width:19px;height:19px;border-radius:999px;display:flex;align-items:center;justify-content:center;border:2px solid #f7f5fb;">1</span><svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.8" fill="#fff"></circle><path d="M12 5.2L12 20.8M5.2 13L18.8 13M7.2 8.2L16.8 17.8M16.8 8.2L7.2 17.8" stroke="#f0b737" stroke-width="1.1"></path><circle cx="12" cy="13" r="2.2" fill="#ec647b"></circle><path d="M12 2.4L10.1 5.8L13.9 5.8Z" fill="#633e90"></path></svg></span><span style="font-weight:700;font-size:11px;color:#443657;">Roulette</span></div>
+            <div style="flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;width:64px;"><span style="width:56px;height:56px;border-radius:20px;background:#2bb4a9;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 0 #1c8d84;"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="4.8" y="10.6" width="14.4" height="9.4" rx="1.6" fill="#fff"></rect><rect x="4" y="8.3" width="16" height="3.6" rx="1.2" fill="#fff"></rect><rect x="10.8" y="8.3" width="2.4" height="11.7" fill="#2bb4a9"></rect><path d="M12 8C9.5 8 8.4 4.3 10.6 4.3C12 4.3 12 6.6 12 8C12 6.6 12 4.3 13.4 4.3C15.6 4.3 14.5 8 12 8Z" fill="#f2da33"></path></svg></span><span style="font-weight:700;font-size:11px;color:#443657;">Boutique</span></div>
+          </div>
+
+          <div style="background:#fff;border:3px solid #f0ebf8;border-radius:24px;padding:15px 17px;box-shadow:0 8px 18px rgba(35,17,66,.08);display:flex;flex-direction:column;gap:11px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;"><span style="display:flex;align-items:center;gap:7px;font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;white-space:nowrap;">⚡ Défis du jour</span><span style="font-weight:800;font-size:13px;color:#5c7a1f;">1/3</span></div>
+            <div style="display:flex;align-items:center;gap:11px;"><div style="flex:1;"><div style="font-weight:700;font-size:12.5px;color:#443657;margin-bottom:5px;">Joue 3 parties</div><div style="height:7px;border-radius:4px;background:#ece7f6;overflow:hidden;"><div style="width:66%;height:100%;background:#9fc038;border-radius:4px;"></div></div></div><span style="font-weight:700;font-size:11px;color:#a99fc0;min-width:34px;text-align:right;">2/3</span></div>
+            <div style="display:flex;align-items:center;gap:11px;"><div style="flex:1;"><div style="font-weight:700;font-size:12.5px;color:#443657;margin-bottom:5px;">Ouvre 1 capsule</div><div style="height:7px;border-radius:4px;background:#ece7f6;overflow:hidden;"><div style="width:100%;height:100%;background:#9fc038;border-radius:4px;"></div></div></div><span style="background:#9fc038;color:#2c380c;font-weight:800;font-size:11.5px;padding:6px 11px;border-radius:999px;box-shadow:0 3px 0 #6f8f1f;">+50</span></div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+  </div>
+</section>
+
+<section style="padding:44px 48px 72px;font-family:Outfit,sans-serif;display:flex;flex-direction:column;gap:30px;">
+
+  <div style="display:flex;align-items:center;gap:18px;">
+    <img src="assets/logo/bubble-stop-logo-violet.png" alt="Bubble Stop" style="width:130px;height:auto;display:block;">
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <div style="font-family:Fredoka,sans-serif;font-weight:600;font-size:26px;color:#633e90;">L'app dans la DA kawaii</div>
+      <div style="font-weight:500;font-size:13.5px;color:#7d6f95;">Écrans re-skinnés d'après la Charte Graphique — même violet, mêmes pastels, mêmes rondeurs que les menus.</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:44px;flex-wrap:wrap;align-items:flex-start;">
+
+    <!-- ============ 1a · ACCUEIL ============ -->
+    <div id="1a" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#633e90;color:#ffffff;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">1a</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Accueil</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+        <div style="height:100%;display:flex;flex-direction:column;background:#f7f5fb;font-family:Outfit,sans-serif;">
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+
+            <div style="position:relative;overflow:hidden;background:#633e90;border-radius:0 0 30px 30px;padding:66px 22px 26px;flex:none;">
+              <svg viewBox="0 0 393 160" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;">
+                <path d="M-20,34 Q40,22 100,34 T220,34 T340,34 T460,34 L460,-20 L-20,-20 Z" fill="#f2a7cf" opacity=".12"></path>
+                <path d="M-20,58 Q50,44 120,58 T260,58 T400,58 L400,-20 L-20,-20 Z" fill="#a883d6" opacity=".14"></path>
+                <path d="M-20,136 Q60,152 140,136 T300,136 T460,136 L460,180 L-20,180 Z" fill="#452a6e" opacity=".32"></path>
+              </svg>
+              <span style="position:absolute;right:26px;top:70px;font-size:19px;color:#f2da33;opacity:.85;">✦</span>
+              <span style="position:absolute;right:56px;top:96px;font-size:12px;color:#eae8f5;opacity:.5;">✧</span>
+              <div style="position:relative;z-index:2;display:flex;flex-direction:column;gap:8px;">
+                <img src="assets/logo/bubble-stop-logo-white.png" alt="Bubble Stop" style="width:168px;height:auto;display:block;">
+                <div style="font-weight:600;font-size:15.5px;color:#d9c9f0;">Salut {{ prenom }}</div>
+              </div>
+            </div>
+
+            <div style="padding:15px 18px 0;display:flex;flex-direction:column;gap:13px;">
+
+              <div style="display:flex;flex-direction:column;gap:1px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="display:flex;align-items:center;gap:4px;flex:none;"><span style="width:11px;height:11px;border-radius:50%;background:#9fc038;"></span><span style="width:8px;height:8px;border-radius:50%;background:#f2da33;"></span><span style="width:5px;height:5px;border-radius:50%;background:#f7b8d6;"></span></span>
+                  <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:19px;color:#633e90;">Nos boissons</span>
+                </div>
+                <div style="font-weight:500;font-size:12.5px;color:#7d6f95;padding-left:2px;">À retrouver en boutique</div>
+              </div>
+
+              <div style="display:flex;gap:12px;overflow:hidden;margin-right:-18px;padding:4px 0 6px;">
+                <div style="flex:none;width:98px;background:#edf6e1;border:3px solid #ffffff;border-radius:22px;padding:8px 6px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 8px 18px rgba(35,17,66,.10);">
+                  <img src="assets/photos/fruit-tea-orange.png" alt="" style="height:92px;width:auto;transform:rotate(-2deg);filter:drop-shadow(0 5px 8px rgba(35,17,66,.22));">
+                  <span style="font-weight:700;font-size:12px;color:#443657;text-align:center;">Fruit tea</span>
+                </div>
+                <div style="flex:none;width:98px;background:#fbf2e5;border:3px solid #ffffff;border-radius:22px;padding:8px 6px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 8px 18px rgba(35,17,66,.10);">
+                  <img src="assets/photos/milk-tea.png" alt="" style="height:92px;width:auto;transform:rotate(1.8deg);filter:drop-shadow(0 5px 8px rgba(35,17,66,.22));">
+                  <span style="font-weight:700;font-size:12px;color:#443657;text-align:center;">Milk tea</span>
+                </div>
+                <div style="flex:none;width:98px;background:#fdeff6;border:3px solid #ffffff;border-radius:22px;padding:8px 6px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 8px 18px rgba(35,17,66,.10);">
+                  <img src="assets/photos/the-monde.png" alt="" style="height:92px;width:auto;transform:rotate(-1.5deg);filter:drop-shadow(0 5px 8px rgba(35,17,66,.22));">
+                  <span style="font-weight:700;font-size:12px;color:#443657;text-align:center;">Thés du monde</span>
+                </div>
+                <div style="flex:none;width:98px;background:#edf6e1;border:3px solid #ffffff;border-radius:22px;padding:8px 6px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 8px 18px rgba(35,17,66,.10);">
+                  <img src="assets/photos/milkshake.png" alt="" style="height:92px;width:auto;transform:rotate(2deg);filter:drop-shadow(0 5px 8px rgba(35,17,66,.22));">
+                  <span style="font-weight:700;font-size:12px;color:#443657;text-align:center;">Milkshake</span>
+                </div>
+                <div style="flex:none;width:98px;background:#edf6e1;border:3px solid #ffffff;border-radius:22px;padding:8px 6px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 8px 18px rgba(35,17,66,.10);">
+                  <img src="assets/photos/matcha.png" alt="" style="height:92px;width:auto;transform:rotate(-1.5deg);filter:drop-shadow(0 5px 8px rgba(35,17,66,.22));">
+                  <span style="font-weight:700;font-size:12px;color:#443657;text-align:center;">Matcha</span>
+                </div>
+                <div style="flex:none;width:98px;background:#fbf2e5;border:3px solid #ffffff;border-radius:22px;padding:8px 6px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 8px 18px rgba(35,17,66,.10);">
+                  <img src="assets/photos/citronnade.png" alt="" style="height:92px;width:auto;transform:rotate(1.8deg);filter:drop-shadow(0 5px 8px rgba(35,17,66,.22));">
+                  <span style="font-weight:700;font-size:12px;color:#443657;text-align:center;">Citronnade</span>
+                </div>
+              </div>
+
+              <sc-if value="{{ afficherJeu }}" hint-placeholder-val="{{ true }}">
+                <div style="background:#fdeff6;border:3px solid #ffffff;border-radius:24px;padding:13px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 20px rgba(35,17,66,.10);">
+                  <svg width="44" height="44" viewBox="0 0 40 40" style="flex:none;"><circle cx="20" cy="20" r="17" fill="#f4a0c6"></circle><circle cx="14" cy="18" r="2.3" fill="#5a2a4e"></circle><circle cx="26" cy="18" r="2.3" fill="#5a2a4e"></circle><path d="M15 23.5 Q20 27.5 25 23.5" stroke="#5a2a4e" stroke-width="2.2" fill="none" stroke-linecap="round"></path><circle cx="9.5" cy="22.5" r="2.7" fill="#ffffff" opacity=".5"></circle><circle cx="30.5" cy="22.5" r="2.7" fill="#ffffff" opacity=".5"></circle></svg>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#633e90;">Boba Quest</span>
+                      <span style="background:#ffc4dd;color:#93325e;font-weight:800;font-size:9.5px;letter-spacing:.5px;padding:3px 8px;border-radius:999px;">NOUVEAU</span>
+                    </div>
+                    <span style="font-weight:500;font-size:12.5px;color:#93325e;">Joue, collectionne, gagne de vrais prix !</span>
+                  </div>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="flex:none;"><path d="M9.5 6 L15.5 12 L9.5 18" stroke="#e18ab8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                </div>
+              </sc-if>
+
+              <div style="position:relative;overflow:hidden;background:#633e90;border-radius:26px;padding:17px 18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 28px rgba(35,17,66,.22);">
+                <svg viewBox="0 0 360 120" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;">
+                  <path d="M-20,24 Q40,14 100,24 T220,24 T340,24 T460,24 L460,-20 L-20,-20 Z" fill="#f2a7cf" opacity=".1"></path>
+                  <path d="M-20,102 Q60,114 140,102 T300,102 T460,102 L460,140 L-20,140 Z" fill="#452a6e" opacity=".35"></path>
+                </svg>
+                <div style="position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;">
+                  <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:17px;color:#ffffff;">Ma fidélité</span>
+                  <span style="font-weight:800;font-size:15.5px;color:#f2da33;">{{ compteur }}</span>
+                </div>
+                <div style="position:relative;z-index:2;display:flex;gap:6px;">
+                  <sc-for list="{{ barres }}" as="b" hint-placeholder-count="9">
+                    <span style="flex:1;height:12px;border-radius:6px;background:{{ b.fond }};"></span>
+                  </sc-for>
+                </div>
+                <div style="position:relative;z-index:2;font-weight:600;font-size:13px;color:#d9c9f0;">{{ msgAccueil }}</div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="display:flex;align-items:center;gap:4px;flex:none;"><span style="width:11px;height:11px;border-radius:50%;background:#9fc038;"></span><span style="width:8px;height:8px;border-radius:50%;background:#f2da33;"></span><span style="width:5px;height:5px;border-radius:50%;background:#f7b8d6;"></span></span>
+                <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:19px;color:#633e90;">En ce moment</span>
+              </div>
+
+              <div style="background:#f2da33;border:3px solid #ffffff;border-radius:22px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;box-shadow:0 10px 22px rgba(35,17,66,.14);">
+                <span style="font-weight:800;font-size:15px;color:#54470a;">Happy hour : -30 % de 15h à 17h</span>
+                <span style="font-weight:500;font-size:13px;color:#54470a;opacity:.8;line-height:1.45;">Aujourd'hui seulement : -30 % sur toutes les boissons entre 15h et 17h. File en boutique !</span>
+              </div>
+
+              <div style="text-align:center;font-weight:700;font-size:13.5px;color:#815fae;">Voir toutes les offres ›</div>
+            </div>
+          </div>
+
+          <div style="flex:none;background:#ffffff;border-top:2px solid #f0ebf8;display:flex;padding:9px 6px 24px;">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><path d="M4 11.2 L12 4.6 L20 11.2 M6.4 9.7 V19.4 H17.6 V9.7" stroke="#633e90" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-weight:800;font-size:10.5px;color:#633e90;">Accueil</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="3.6" y="5.4" width="16.8" height="13.2" rx="3.2" stroke="#a99fc0" stroke-width="2"></rect><path d="M7.6 9.4 h3 v3 h-3 Z" stroke="#a99fc0" stroke-width="1.7" stroke-linejoin="round"></path><path d="M14.4 9.6 h2.4 M14.4 12.4 h2.4 M7.6 15.4 h9.2" stroke="#a99fc0" stroke-width="1.7" stroke-linecap="round"></path></svg><span style="font-weight:600;font-size:10.5px;color:#a99fc0;">Fidélité</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><path d="M4 6 Q4 4 6 4 L11 4 Q11.8 4 12.4 4.6 L19.4 11.6 Q20.4 12.6 19.4 13.6 L13.6 19.4 Q12.6 20.4 11.6 19.4 L4.6 12.4 Q4 11.8 4 11 Z" stroke="#a99fc0" stroke-width="2" stroke-linejoin="round"></path><circle cx="8.4" cy="8.4" r="1.5" fill="#a99fc0"></circle></svg><span style="font-weight:600;font-size:10.5px;color:#a99fc0;">Offres</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.6" r="3.6" stroke="#a99fc0" stroke-width="2"></circle><path d="M5.4 19.6 Q6.6 14.6 12 14.6 Q17.4 14.6 18.6 19.6" stroke="#a99fc0" stroke-width="2" stroke-linecap="round"></path></svg><span style="font-weight:600;font-size:10.5px;color:#a99fc0;">Compte</span></div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============ 1b · FIDÉLITÉ ============ -->
+    <div id="1b" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#633e90;color:#ffffff;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">1b</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Fidélité</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div style="height:100%;display:flex;flex-direction:column;background:#f7f5fb;font-family:Outfit,sans-serif;">
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;padding:64px 18px 0;gap:11px;">
+
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="display:flex;align-items:center;gap:4px;flex:none;"><span style="width:11px;height:11px;border-radius:50%;background:#9fc038;"></span><span style="width:8px;height:8px;border-radius:50%;background:#f2da33;"></span><span style="width:5px;height:5px;border-radius:50%;background:#f7b8d6;"></span></span>
+              <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:24px;color:#633e90;">Fidélité</span>
+            </div>
+
+            <div style="position:relative;overflow:hidden;background:#633e90;border-radius:26px;padding:18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 12px 28px rgba(35,17,66,.24);">
+              <svg viewBox="0 0 360 250" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;">
+                <path d="M-20,30 Q40,18 100,30 T220,30 T340,30 T460,30 L460,-20 L-20,-20 Z" fill="#f2a7cf" opacity=".1"></path>
+                <path d="M-20,228 Q60,242 140,228 T300,228 T460,228 L460,270 L-20,270 Z" fill="#452a6e" opacity=".35"></path>
+              </svg>
+              <span style="position:absolute;left:16px;top:44px;font-size:15px;color:#f2da33;opacity:.8;">✦</span>
+              <span style="position:absolute;right:20px;bottom:52px;font-size:12px;color:#eae8f5;opacity:.45;">✧</span>
+              <div style="position:relative;z-index:2;display:flex;justify-content:center;"><img src="assets/logo/bubble-stop-logo-white.png" alt="" style="width:118px;height:auto;"></div>
+              <div style="position:relative;z-index:2;display:flex;justify-content:center;">
+                <div style="background:#ffffff;border-radius:18px;padding:9px;box-shadow:0 6px 16px rgba(35,17,66,.3);">
+                  <svg width="106" height="106" viewBox="0 0 29 29" shape-rendering="crispEdges">
+                    <rect x="0" y="0" width="7" height="7" fill="#1e1433"></rect><rect x="1" y="1" width="5" height="5" fill="#ffffff"></rect><rect x="2" y="2" width="3" height="3" fill="#1e1433"></rect>
+                    <rect x="22" y="0" width="7" height="7" fill="#1e1433"></rect><rect x="23" y="1" width="5" height="5" fill="#ffffff"></rect><rect x="24" y="2" width="3" height="3" fill="#1e1433"></rect>
+                    <rect x="0" y="22" width="7" height="7" fill="#1e1433"></rect><rect x="1" y="23" width="5" height="5" fill="#ffffff"></rect><rect x="2" y="24" width="3" height="3" fill="#1e1433"></rect>
+                    <path d="M9 0h2v1h-2zM13 0h1v2h-1zM16 1h2v1h-2zM19 0h1v3h-1zM9 2h1v2h-1zM11 3h3v1h-3zM15 3h1v2h-1zM17 3h2v2h-2zM10 5h2v1h-2zM13 6h2v1h-2zM18 6h1v1h-1zM0 9h2v1h-2zM3 9h2v2h-2zM6 9h1v2h-1zM8 8h1v3h-1zM10 9h3v1h-3zM14 8h2v2h-2zM17 9h1v1h-1zM19 8h2v1h-2zM22 9h2v1h-2zM25 9h1v2h-1zM27 8h2v2h-2zM1 12h2v1h-2zM4 13h2v1h-2zM7 12h2v2h-2zM11 12h1v3h-1zM13 13h2v1h-2zM16 12h2v1h-2zM19 12h1v2h-1zM21 13h2v1h-2zM24 12h2v2h-2zM27 12h1v2h-1zM0 15h1v2h-1zM2 15h3v1h-3zM6 16h2v1h-2zM9 15h2v2h-2zM13 15h1v3h-1zM15 16h2v1h-2zM18 15h2v1h-2zM22 15h1v2h-1zM24 16h3v1h-3zM28 15h1v2h-1zM1 18h2v2h-2zM4 18h1v1h-1zM6 19h2v1h-2zM9 18h3v1h-3zM14 18h2v2h-2zM17 19h2v1h-2zM20 18h2v1h-2zM23 18h1v2h-1zM25 19h2v1h-2zM28 18h1v3h-1zM9 21h1v2h-1zM11 20h2v2h-2zM15 21h2v1h-2zM18 21h1v2h-1zM20 21h2v2h-2zM24 21h2v1h-2zM27 21h1v1h-1zM9 24h2v1h-2zM12 23h1v3h-1zM14 24h2v2h-2zM17 24h2v1h-2zM21 24h1v2h-1zM23 24h3v1h-3zM27 24h2v2h-2zM9 27h1v2h-1zM11 27h3v1h-3zM15 27h2v2h-2zM18 27h2v1h-2zM22 27h2v1h-2zM25 27h1v2h-1z" fill="#1e1433"></path>
+                  </svg>
+                </div>
+              </div>
+              <div style="position:relative;z-index:2;font-weight:800;font-size:17px;color:#ffffff;letter-spacing:1.5px;text-align:center;">12 34 56 78</div>
+              <div style="position:relative;z-index:2;font-weight:500;font-size:12px;color:#b9a9d8;text-align:center;">Présente ce code en caisse pour cumuler tes tampons</div>
+            </div>
+
+            <div style="display:flex;gap:9px;">
+              <div style="flex:1;background:#000000;border-radius:16px;padding:11px 8px;text-align:center;font-weight:700;font-size:12.5px;color:#ffffff;box-shadow:0 6px 14px rgba(35,17,66,.14);">Apple Wallet</div>
+              <div style="flex:1;background:#ffffff;border:2px solid #f0ebf8;border-radius:16px;padding:11px 8px;text-align:center;font-weight:700;font-size:12.5px;color:#3c4043;box-shadow:0 6px 14px rgba(35,17,66,.08);">Google Wallet</div>
+            </div>
+
+            <div style="background:#ffffff;border:3px solid #f0ebf8;border-radius:24px;padding:15px 16px;display:flex;flex-direction:column;gap:11px;box-shadow:0 10px 22px rgba(35,17,66,.08);">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Mes tampons</span>
+                <span style="font-weight:800;font-size:14.5px;color:#5c7a1f;">{{ compteur }}</span>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
+                <sc-for list="{{ cases }}" as="k" hint-placeholder-count="9">
+                  <span style="width:37px;height:37px;border-radius:50%;background:{{ k.fond }};border:2px solid {{ k.bord }};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:{{ k.taille }};color:{{ k.enc }};">{{ k.label }}</span>
+                </sc-for>
+                <span style="width:37px;height:37px;border-radius:50%;background:#fbf2e5;border:2px solid #f2da33;display:flex;align-items:center;justify-content:center;">
+                  <svg width="17" height="22" viewBox="0 0 20 26"><line x1="12.5" y1="1" x2="10" y2="8" stroke="#93325e" stroke-width="2" stroke-linecap="round"></line><path d="M3.5 8 L16.5 8 L15 23 Q14.8 24.4 13.4 24.4 L6.6 24.4 Q5.2 24.4 5 23 Z" fill="#ffffff" stroke="#d9a94f" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="7.4" cy="20.6" r="1.5" fill="#5a2a4e"></circle><circle cx="10.6" cy="21" r="1.5" fill="#5a2a4e"></circle><circle cx="13" cy="20.2" r="1.5" fill="#5a2a4e"></circle></svg>
+                </span>
+              </div>
+              <div style="font-weight:500;font-size:12.5px;color:#7d6f95;text-align:center;line-height:1.4;">{{ msgTampons }}</div>
+            </div>
+
+            <div style="background:#ffffff;border:3px solid #f0ebf8;border-radius:22px;padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 18px rgba(35,17,66,.07);">
+              <span style="width:42px;height:42px;border-radius:14px;background:#fdeff6;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="5.5" width="18" height="13" rx="3" stroke="#93325e" stroke-width="2"></rect><path d="M3 9.8 H21" stroke="#93325e" stroke-width="2"></path><path d="M6.4 14.8 h4" stroke="#93325e" stroke-width="2" stroke-linecap="round"></path></svg></span>
+              <span style="flex:1;display:flex;flex-direction:column;gap:1px;"><span style="font-weight:800;font-size:14.5px;color:#443657;">Mon solde prépayé</span><span style="font-weight:400;font-size:11.5px;color:#7d6f95;">Recharge en boutique · avec ton QR fidélité</span></span>
+              <span style="display:flex;align-items:center;gap:6px;"><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">12,50 €</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9.5 6 L15.5 12 L9.5 18" stroke="#a99fc0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+            </div>
+
+            <div style="font-weight:400;font-size:12px;color:#a99fc0;text-align:center;">Pas ton QR sous la main ? Donne ton numéro au comptoir.</div>
+          </div>
+
+          <div style="flex:none;background:#ffffff;border-top:2px solid #f0ebf8;display:flex;padding:9px 6px 24px;">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><path d="M4 11.2 L12 4.6 L20 11.2 M6.4 9.7 V19.4 H17.6 V9.7" stroke="#a99fc0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-weight:600;font-size:10.5px;color:#a99fc0;">Accueil</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="3.6" y="5.4" width="16.8" height="13.2" rx="3.2" stroke="#633e90" stroke-width="2.2"></rect><path d="M7.6 9.4 h3 v3 h-3 Z" stroke="#633e90" stroke-width="1.8" stroke-linejoin="round"></path><path d="M14.4 9.6 h2.4 M14.4 12.4 h2.4 M7.6 15.4 h9.2" stroke="#633e90" stroke-width="1.8" stroke-linecap="round"></path></svg><span style="font-weight:800;font-size:10.5px;color:#633e90;">Fidélité</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><path d="M4 6 Q4 4 6 4 L11 4 Q11.8 4 12.4 4.6 L19.4 11.6 Q20.4 12.6 19.4 13.6 L13.6 19.4 Q12.6 20.4 11.6 19.4 L4.6 12.4 Q4 11.8 4 11 Z" stroke="#a99fc0" stroke-width="2" stroke-linejoin="round"></path><circle cx="8.4" cy="8.4" r="1.5" fill="#a99fc0"></circle></svg><span style="font-weight:600;font-size:10.5px;color:#a99fc0;">Offres</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.6" r="3.6" stroke="#a99fc0" stroke-width="2"></circle><path d="M5.4 19.6 Q6.6 14.6 12 14.6 Q17.4 14.6 18.6 19.6" stroke="#a99fc0" stroke-width="2" stroke-linecap="round"></path></svg><span style="font-weight:600;font-size:10.5px;color:#a99fc0;">Compte</span></div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============ 1c · OFFRES ============ -->
+    <div id="1c" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#633e90;color:#ffffff;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">1c</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Offres</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div style="height:100%;display:flex;flex-direction:column;background:#f7f5fb;font-family:Outfit,sans-serif;">
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;padding:64px 18px 0;gap:12px;">
+
+            <div style="display:flex;flex-direction:column;gap:2px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="display:flex;align-items:center;gap:4px;flex:none;"><span style="width:11px;height:11px;border-radius:50%;background:#9fc038;"></span><span style="width:8px;height:8px;border-radius:50%;background:#f2da33;"></span><span style="width:5px;height:5px;border-radius:50%;background:#f7b8d6;"></span></span>
+                <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:24px;color:#633e90;">Offres</span>
+              </div>
+              <span style="font-weight:500;font-size:13px;color:#7d6f95;">Les bons plans du moment.</span>
+            </div>
+
+            <div style="background:#f2da33;border:3px solid #ffffff;border-radius:24px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;box-shadow:0 10px 24px rgba(35,17,66,.16);">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">
+                <span style="font-weight:800;font-size:15.5px;color:#54470a;">Happy hour : -30 % de 15h à 17h</span>
+                <span style="font-weight:600;font-size:11.5px;color:#54470a;opacity:.6;flex:none;">Aujourd'hui</span>
+              </div>
+              <div style="border-bottom:2px dotted rgba(84,71,10,.25);"></div>
+              <span style="font-weight:500;font-size:13px;color:#54470a;opacity:.85;line-height:1.5;">Aujourd'hui seulement : -30 % sur toutes les boissons entre 15h et 17h. File en boutique !</span>
+            </div>
+
+            <div style="background:#ffffff;border:3px solid #f0ebf8;border-radius:24px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 18px rgba(35,17,66,.07);">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">
+                <span style="font-weight:800;font-size:15px;color:#443657;">Nouvelle saveur en avant-première</span>
+                <span style="font-weight:600;font-size:11.5px;color:#a99fc0;flex:none;">Hier</span>
+              </div>
+              <div style="border-bottom:2px dotted #f3d9e9;"></div>
+              <span style="font-weight:400;font-size:13px;color:#7d6f95;line-height:1.5;">La nouvelle saveur arrive ! Réservée aux membres de l'appli pendant 3 jours — viens la goûter avant tout le monde.</span>
+            </div>
+
+            <div style="background:#ffffff;border:3px solid #f0ebf8;border-radius:24px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 18px rgba(35,17,66,.07);">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">
+                <span style="font-weight:800;font-size:15px;color:#443657;">Le goûter : -1 € de 16h à 18h</span>
+                <span style="font-weight:600;font-size:11.5px;color:#a99fc0;flex:none;">Il y a 3 j</span>
+              </div>
+              <div style="border-bottom:2px dotted #f3d9e9;"></div>
+              <span style="font-weight:400;font-size:13px;color:#7d6f95;line-height:1.5;">Mercredi et samedi, c'est goûter : -1 € sur toutes les boissons entre 16h et 18h. On t'attend après les cours !</span>
+            </div>
+
+            <div style="background:#ffffff;border:3px solid #f0ebf8;border-radius:24px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 18px rgba(35,17,66,.07);">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">
+                <span style="font-weight:800;font-size:15px;color:#443657;">Installe l'appli = 1 tampon offert</span>
+                <span style="font-weight:600;font-size:11.5px;color:#a99fc0;flex:none;">Il y a 5 j</span>
+              </div>
+              <div style="border-bottom:2px dotted #f3d9e9;"></div>
+              <span style="font-weight:400;font-size:13px;color:#7d6f95;line-height:1.5;">Lie ta carte de fidélité dans l'appli : 1 tampon de bienvenue offert automatiquement.</span>
+            </div>
+          </div>
+
+          <div style="flex:none;background:#ffffff;border-top:2px solid #f0ebf8;display:flex;padding:9px 6px 24px;">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><path d="M4 11.2 L12 4.6 L20 11.2 M6.4 9.7 V19.4 H17.6 V9.7" stroke="#a99fc0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-weight:600;font-size:10.5px;color:#a99fc0;">Accueil</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="3.6" y="5.4" width="16.8" height="13.2" rx="3.2" stroke="#a99fc0" stroke-width="2"></rect><path d="M7.6 9.4 h3 v3 h-3 Z" stroke="#a99fc0" stroke-width="1.7" stroke-linejoin="round"></path><path d="M14.4 9.6 h2.4 M14.4 12.4 h2.4 M7.6 15.4 h9.2" stroke="#a99fc0" stroke-width="1.7" stroke-linecap="round"></path></svg><span style="font-weight:600;font-size:10.5px;color:#a99fc0;">Fidélité</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><path d="M4 6 Q4 4 6 4 L11 4 Q11.8 4 12.4 4.6 L19.4 11.6 Q20.4 12.6 19.4 13.6 L13.6 19.4 Q12.6 20.4 11.6 19.4 L4.6 12.4 Q4 11.8 4 11 Z" stroke="#633e90" stroke-width="2.2" stroke-linejoin="round"></path><circle cx="8.4" cy="8.4" r="1.5" fill="#633e90"></circle></svg><span style="font-weight:800;font-size:10.5px;color:#633e90;">Offres</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.6" r="3.6" stroke="#a99fc0" stroke-width="2"></circle><path d="M5.4 19.6 Q6.6 14.6 12 14.6 Q17.4 14.6 18.6 19.6" stroke="#a99fc0" stroke-width="2" stroke-linecap="round"></path></svg><span style="font-weight:600;font-size:10.5px;color:#a99fc0;">Compte</span></div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ============ 1d · COMPTE ============ -->
+    <div id="1d" style="display:flex;flex-direction:column;gap:12px;flex:none;">
+      <div style="display:flex;align-items:center;gap:9px;"><span style="background:#633e90;color:#ffffff;font-weight:700;font-size:12px;padding:4px 11px;border-radius:999px;">1d</span><span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:16px;color:#633e90;">Compte</span></div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div style="height:100%;display:flex;flex-direction:column;background:#f7f5fb;font-family:Outfit,sans-serif;">
+          <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;padding:64px 18px 0;gap:11px;">
+
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="display:flex;align-items:center;gap:4px;flex:none;"><span style="width:11px;height:11px;border-radius:50%;background:#9fc038;"></span><span style="width:8px;height:8px;border-radius:50%;background:#f2da33;"></span><span style="width:5px;height:5px;border-radius:50%;background:#f7b8d6;"></span></span>
+              <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:24px;color:#633e90;">Mon compte</span>
+            </div>
+
+            <div style="background:#ffffff;border:3px solid #f0ebf8;border-radius:24px;padding:14px 16px;display:flex;align-items:center;gap:13px;box-shadow:0 8px 18px rgba(35,17,66,.07);">
+              <svg width="50" height="50" viewBox="0 0 40 40" style="flex:none;"><circle cx="20" cy="20" r="17" fill="#f4a0c6"></circle><circle cx="14" cy="18" r="2.3" fill="#5a2a4e"></circle><circle cx="26" cy="18" r="2.3" fill="#5a2a4e"></circle><path d="M15 23.5 Q20 27.5 25 23.5" stroke="#5a2a4e" stroke-width="2.2" fill="none" stroke-linecap="round"></path><circle cx="9.5" cy="22.5" r="2.7" fill="#ffffff" opacity=".5"></circle><circle cx="30.5" cy="22.5" r="2.7" fill="#ffffff" opacity=".5"></circle></svg>
+              <span style="display:flex;flex-direction:column;gap:1px;"><span style="font-weight:800;font-size:16px;color:#443657;">{{ prenom }}</span><span style="font-weight:400;font-size:12.5px;color:#7d6f95;">lea.martin@gmail.com</span></span>
+            </div>
+
+            <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:15px;color:#633e90;padding:4px 4px 0;">Mon profil</span>
+            <div style="background:#ffffff;border:3px solid #f0ebf8;border-radius:22px;padding:4px 16px;box-shadow:0 8px 18px rgba(35,17,66,.07);">
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:2px dotted #f3d9e9;">
+                <span style="flex:1;display:flex;flex-direction:column;gap:1px;"><span style="font-weight:700;font-size:14.5px;color:#443657;">Mes informations</span><span style="font-weight:400;font-size:12px;color:#7d6f95;">Prénom, date de naissance, tickets</span></span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9.5 6 L15.5 12 L9.5 18" stroke="#a99fc0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 0;">
+                <span style="flex:1;display:flex;flex-direction:column;gap:1px;"><span style="font-weight:700;font-size:14.5px;color:#443657;">Notifications</span><span style="font-weight:400;font-size:12px;color:#7d6f95;">Offres et nouveautés en avant-première</span></span>
+                <span style="width:44px;height:26px;border-radius:999px;background:#9fc038;position:relative;flex:none;"><span style="position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#ffffff;box-shadow:0 1px 3px rgba(35,17,66,.25);"></span></span>
+              </div>
+            </div>
+
+            <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:15px;color:#633e90;padding:4px 4px 0;">Sécurité</span>
+            <div style="background:#ffffff;border:3px solid #f0ebf8;border-radius:22px;padding:4px 16px;box-shadow:0 8px 18px rgba(35,17,66,.07);">
+              <div style="display:flex;align-items:center;gap:10px;padding:13px 0;border-bottom:2px dotted #f3d9e9;">
+                <span style="flex:1;font-weight:700;font-size:14.5px;color:#443657;">Changer d'email</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9.5 6 L15.5 12 L9.5 18" stroke="#a99fc0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:13px 0;">
+                <span style="flex:1;font-weight:700;font-size:14.5px;color:#443657;">Changer de mot de passe</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9.5 6 L15.5 12 L9.5 18" stroke="#a99fc0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+            </div>
+
+            <span style="font-family:Fredoka,sans-serif;font-weight:600;font-size:15px;color:#633e90;padding:4px 4px 0;">Aide</span>
+            <div style="background:#ffffff;border:3px solid #f0ebf8;border-radius:22px;padding:4px 16px;box-shadow:0 8px 18px rgba(35,17,66,.07);">
+              <div style="display:flex;align-items:center;gap:10px;padding:13px 0;border-bottom:2px dotted #f3d9e9;">
+                <span style="flex:1;font-weight:700;font-size:14.5px;color:#443657;">Nous contacter</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9.5 6 L15.5 12 L9.5 18" stroke="#a99fc0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:13px 0;">
+                <span style="flex:1;font-weight:700;font-size:14.5px;color:#443657;">Politique de confidentialité</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9.5 6 L15.5 12 L9.5 18" stroke="#a99fc0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </div>
+            </div>
+
+            <div style="text-align:center;font-weight:700;font-size:14px;color:#7d6f95;padding-top:6px;">Se déconnecter</div>
+            <div style="text-align:center;font-weight:600;font-size:12.5px;color:#c24a6e;">Supprimer mon compte</div>
+          </div>
+
+          <div style="flex:none;background:#ffffff;border-top:2px solid #f0ebf8;display:flex;padding:9px 6px 24px;">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><path d="M4 11.2 L12 4.6 L20 11.2 M6.4 9.7 V19.4 H17.6 V9.7" stroke="#a99fc0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-weight:600;font-size:10.5px;color:#a99fc0;">Accueil</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><rect x="3.6" y="5.4" width="16.8" height="13.2" rx="3.2" stroke="#a99fc0" stroke-width="2"></rect><path d="M7.6 9.4 h3 v3 h-3 Z" stroke="#a99fc0" stroke-width="1.7" stroke-linejoin="round"></path><path d="M14.4 9.6 h2.4 M14.4 12.4 h2.4 M7.6 15.4 h9.2" stroke="#a99fc0" stroke-width="1.7" stroke-linecap="round"></path></svg><span style="font-weight:600;font-size:10.5px;color:#a99fc0;">Fidélité</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><path d="M4 6 Q4 4 6 4 L11 4 Q11.8 4 12.4 4.6 L19.4 11.6 Q20.4 12.6 19.4 13.6 L13.6 19.4 Q12.6 20.4 11.6 19.4 L4.6 12.4 Q4 11.8 4 11 Z" stroke="#a99fc0" stroke-width="2" stroke-linejoin="round"></path><circle cx="8.4" cy="8.4" r="1.5" fill="#a99fc0"></circle></svg><span style="font-weight:600;font-size:10.5px;color:#a99fc0;">Offres</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><svg width="23" height="23" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.6" r="3.6" stroke="#633e90" stroke-width="2.2"></circle><path d="M5.4 19.6 Q6.6 14.6 12 14.6 Q17.4 14.6 18.6 19.6" stroke="#633e90" stroke-width="2.2" stroke-linecap="round"></path></svg><span style="font-weight:800;font-size:10.5px;color:#633e90;">Compte</span></div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;prenom&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Léa&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Contenu&quot;},&quot;tampons&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:6,&quot;min&quot;:0,&quot;max&quot;:9,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Fidélité&quot;},&quot;afficherBobaQuest&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Contenu&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const t = Math.max(0, Math.min(9, this.props.tampons ?? 6));
+    const restant = 9 - t;
+    const s = restant > 1 ? 's' : '';
+    return {
+      prenom: this.props.prenom ?? 'Léa',
+      afficherJeu: this.props.afficherBobaQuest ?? true,
+      compteur: t + '/9',
+      barres: Array.from({ length: 9 }, (_, i) => ({
+        fond: i < t ? '#9fc038' : 'rgba(255,255,255,.22)',
+      })),
+      cases: Array.from({ length: 9 }, (_, i) => ({
+        label: i < t ? '✓' : String(i + 1),
+        fond: i < t ? '#edf6e1' : '#f7f5fb',
+        bord: i < t ? '#9fc038' : '#ece7f6',
+        enc: i < t ? '#3f7a1f' : '#a99fc0',
+        taille: i < t ? '16px' : '13px',
+      })),
+      msgAccueil: restant === 0
+        ? '1 boisson offerte à utiliser'
+        : 'Encore ' + restant + ' boisson' + s + ' avant la prochaine offerte',
+      msgTampons: restant === 0
+        ? 'Carte pleine — ta boisson taille L offerte t\'attend en caisse'
+        : 'Encore ' + restant + ' boisson' + s + ' avant ta boisson taille L offerte (M pour Signature)',
+    };
+  }
+}
+</script>
+</body>
+</html>

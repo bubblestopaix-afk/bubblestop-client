@@ -1,0 +1,51 @@
+/* ============================================================
+   Bubble Stop — Spacing, radii & sizing
+   4-px base grid. Radii are generous & soft — the brand's
+   "bords légèrement arrondis" language, from pills to cards.
+   ============================================================ */
+
+:root {
+  /* ---------- Spacing scale (4px base) ---------- */
+  --space-0:   0;
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   20px;
+  --space-6:   24px;
+  --space-7:   28px;
+  --space-8:   32px;
+  --space-10:  40px;
+  --space-12:  48px;
+  --space-14:  56px;
+  --space-16:  64px;
+  --space-20:  80px;
+  --space-24:  96px;
+
+  /* ---------- Radii ----------
+     Pills are fully round; cards & buttons sit around 14–20px. */
+  --radius-xs:    6px;
+  --radius-sm:    10px;
+  --radius-md:    14px;
+  --radius-lg:    20px;
+  --radius-xl:    28px;
+  --radius-2xl:   40px;
+  --radius-card:  18px;   /* white menu card                */
+  --radius-pill:  999px;  /* price pills, chips, buttons     */
+
+  /* ---------- Border widths ---------- */
+  --bw-hair:   1px;
+  --bw-thin:   1.5px;
+  --bw-base:   2px;
+  --bw-thick:  3px;
+
+  /* ---------- Container & layout ---------- */
+  --container:      1200px;
+  --container-wide: 1400px;
+  --gutter:         clamp(16px, 4vw, 48px);  /* @kind spacing */
+
+  /* ---------- Touch / control sizing ---------- */
+  --control-sm:   34px;
+  --control-md:   44px;   /* min hit target */
+  --control-lg:   54px;
+}

@@ -1,79 +1,70 @@
-# Fiche Play Store — Bubble Stop (à coller dans Play Console)
+# Fiche Google Play — Bubble Stop
 
-> Play Console → **Croître → Présence sur le Store → Fiche principale du Store**
-> Langue : **Français (France)**
+> Source de vérité à reporter dans Play Console → Présence sur le Store → Fiche principale.
+> Langue : Français (France). La commande en ligne n'est plus proposée et ne doit apparaître nulle part.
 
----
+## Nom de l'application — 30 caractères maximum
 
-## 1. Nom de l'application (max 30 caractères)
-
-```
+```text
 Bubble Stop
 ```
 
-Variante plus « SEO » si tu veux (24 car.) :
-```
-Bubble Stop : Bubble Tea
-```
+## Description courte — 80 caractères maximum
 
----
-
-## 2. Description courte (max 80 caractères)
-
-```
-Ta carte de fidélité bubble tea : cumule tes tampons, ta boisson offerte !
-```
-(74 caractères)
-
----
-
-## 3. Description complète (max 4000 caractères)
-
-```
-Bubble Stop, c'est ton bubble tea préféré, toujours dans ta poche. 🧋
-
-Avec l'appli Bubble Stop, ta carte de fidélité devient digitale : fini la carte papier oubliée ou perdue !
-
-⭐ TA CARTE DE FIDÉLITÉ
-• Cumule un tampon à chaque boisson achetée en boutique.
-• 9 boissons = la 10e offerte ! 🎁
-• Montre ton QR code en caisse : tes tampons se mettent à jour en direct.
-• Ajoute ta carte à Apple Wallet ou Google Wallet pour l'avoir encore plus vite.
-
-🛍️ COMMANDE & RETRAIT (selon les boutiques)
-• Compose ta boisson (taille, perles, lait, sucre, glaçons…) et commande à l'avance.
-• Récupère-la en boutique, sans faire la queue.
-
-🔥 OFFRES DU MOMENT
-• Profite d'offres exclusives réservées à l'appli.
-• Reçois une notification quand une promo arrive (par exemple : le mardi, tampons ×2 !).
-
-🏪 NOS BOUTIQUES
-Retrouve Bubble Stop à Aix-en-Provence, Lyon et Toulouse.
-
-🧋 LE BUBBLE TEA, C'EST QUOI ?
-Un thé (ou un lait, un milkshake, un fruit tea) garni de perles de tapioca moelleuses, de popping bobas et de toppings gourmands. Milk tea, fruit tea, boissons signature… il y en a pour tous les goûts.
-
-Crée ton compte en quelques secondes (email, Google ou Apple), active ta carte et commence à cumuler. C'est gratuit !
-
-Bubble tea, boba, thé aux perles, tapioca, fidélité, boisson offerte, click & collect : tout ce que tu aimes chez Bubble Stop, réuni dans une seule appli.
+```text
+Fidélité, offres et carte cadeau Bubble Stop, toujours dans ta poche.
 ```
 
----
+## Description complète — 4 000 caractères maximum
 
-## Mots-clés ciblés (déjà intégrés dans les textes ci-dessus)
+```text
+Bubble Stop, fresh tea & boba à Aix-en-Provence, Lyon et Toulouse.
 
-Pas de champ dédié sur Google Play — ils servent juste de repère si tu veux ajuster :
-`bubble tea`, `boba`, `thé aux perles`, `tapioca`, `milk tea`, `fruit tea`, `fidélité`, `carte de fidélité`, `tampons`, `boisson offerte`, `cadeau`, `click and collect`, `commande en ligne`, `retrait boutique`, `Aix`, `Lyon`, `Toulouse`.
+L'appli Bubble Stop réunit ta carte de fidélité, tes offres et ton solde prépayé dans une expérience simple, colorée et toujours à portée de main.
 
----
+TA CARTE DE FIDÉLITÉ
+• Présente ton QR code en caisse à chaque passage.
+• Cumule un tampon par boisson éligible achetée en boutique.
+• 9 tampons = une grande boisson offerte : taille L, ou M pour les Signatures sans taille L. Les suppléments restent payants.
+• Ajoute ta carte à Google Wallet pour la retrouver encore plus vite.
+• Consulte tes tampons, tes boissons offertes et l'historique de tes cartes complétées.
 
-## ⚠️ Visuels OBLIGATOIRES pour valider la fiche (sinon Play Console bloque)
+TA CARTE CADEAU
+• Recharge ton solde directement en boutique, à partir de 10 €.
+• Profite de 10 % offerts dès 25 € rechargés et de 20 % offerts dès 50 €.
+• Paie en caisse avec ton QR fidélité habituel.
+• Les boissons réglées avec le solde donnent des tampons normalement.
 
-| Élément | Format | Statut |
-|---|---|---|
-| **Icône de l'app** | 512 × 512 px (PNG 32 bits) | tu l'as déjà (`assets/images/icon.png`) |
-| **Image mise en avant** (feature graphic) | **1024 × 500 px** | **à fournir** (le script `store-assets/generer_visuels_store.py` peut en générer un) |
-| **Captures téléphone** | min. **2** (jusqu'à 8), ratio 16:9 ou 9:16 | tu peux réutiliser celles de l'iOS / du simulateur |
+OFFRES ET PARRAINAGE
+• Retrouve les offres Bubble Stop disponibles au bon moment.
+• Active les notifications si tu veux être prévenu des nouveautés et promotions.
+• Partage ton code parrain : après le premier achat en boutique de ton filleul, vous recevez tous les deux des tampons bonus.
 
-Catégorie suggérée : **Nourriture et boissons** (Food & Drink). Tags : fidélité, restauration, bubble tea.
+Crée gratuitement ton compte avec ton adresse email ou Google, puis active ta carte en un geste. Ta fidélité est valable dans les boutiques Bubble Stop d'Aix-en-Provence, Lyon et Toulouse.
+
+Besoin d'aide ? Écris-nous à contact@bubblestop.fr.
+```
+
+## Coordonnées publiques
+
+- Email d'assistance : `contact@bubblestop.fr`
+- Site : `https://bubblestop.fr`
+- Politique de confidentialité : `https://commande.bubblestop.fr/confidentialite`
+
+## Visuels à téléverser, dans cet ordre
+
+| Ordre | Fichier | Promesse |
+|---:|---|---|
+| 1 | `play/01_fidelite.png` | QR et fidélité dans la poche |
+| 2 | `play/02_tampons.png` | 9 tampons = 1 grande offerte |
+| 3 | `play/03_parrainage.png` | Parrainage après le premier achat en boutique |
+| 4 | `play/04_carte_cadeau.png` | Solde rechargé en boutique et bonus |
+
+- Image mise en avant : `play/00_feature_1024x500.png`.
+- Les captures font 1080 × 1920 px, sont en RGB sans transparence et utilisent de vraies vues de l'app.
+- Les QR du compte de démonstration sont remplacés par le smart-link public vers les stores afin de ne publier aucun identifiant client exploitable.
+
+## Positionnement
+
+- Catégorie : Nourriture et boissons.
+- Termes naturels déjà intégrés : bubble tea, boba, fidélité, tampons, boisson offerte, carte cadeau, parrainage, Aix-en-Provence, Lyon, Toulouse.

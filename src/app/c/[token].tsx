@@ -1,8 +1,6 @@
-import { useLocalSearchParams } from 'expo-router';
-import ReclamerCarte from '@/components/reclamer-carte';
+import { Redirect } from 'expo-router';
 
-// Route DYNAMIQUE /c/<jeton> — atteinte en navigation interne (le QR de la borne utilise /c?t=).
-export default function ReclamerCarteParChemin() {
-  const { token } = useLocalSearchParams<{ token?: string }>();
-  return <ReclamerCarte token={String(token || '')} />;
+// Compatibilité avec les anciens liens /c/<jeton> : la fonctionnalité n'est plus proposée.
+export default function AncienLienCarteRetireDynamique() {
+  return <Redirect href="/explore" />;
 }

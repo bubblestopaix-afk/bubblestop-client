@@ -1,108 +1,131 @@
-// === Accueil Bubble Stop (style app food pro) ===
-// Header de marque violet, suivi LIVE de la commande, CTA Commander,
-// raccourcis catalogue en photos, carte de fidélité, offres.
+// === Accueil Bubble Stop (DA kawaii) ===
+// Header violet à vagues, offres, vitrine produits sur pastels, Boba Quest, fidélité.
 import { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, View, Text, ScrollView, Pressable, Image, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { SvgXml } from 'react-native-svg';
 
 import { supabase } from '@/lib/supabase';
 import { useJeuVisible } from '@/lib/app-config';
+import { useFonctionnalite } from '@/lib/fonctionnalites';
 import { offreEnCours } from '@/lib/offres';
-import { MAGASINS } from '@/store/magasin';
-import { useCatalogueCloud, trouverCategorieCloud, trouverSaveurCloud } from '@/data/catalogue-cloud';
-import { photoCategorie } from '@/data/photos-categories';
-import { usePanier, ajouterLigne, totalPanier } from '@/store/panier';
-// @ts-ignore — règles de prix partagées avec le POS
-import { calculerPrix } from '@/data/catalogue';
-import { C, F, R, OMBRE } from '@/constants/charte';
-import { Chevron } from '@/components/ui-kit';
+import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
+import {
+  BoutonGhost, Chevron, Etincelle, MascottePerle, Message, TitreKawaii,
+} from '@/components/ui-kit';
 import { LogoBubbleStop } from '@/components/logo-bubblestop';
-import { PictoHub } from '@/components/jeu/ui-jeu';
 import RappelNotifs from '@/components/rappel-notifs';
+import { FAMILLES_MENU } from '@/data/menu-vitrine';
 
-const STATUT_LIB: Record<string, { txt: string; etape: number }> = {
-  en_attente: { txt: 'Commande reçue', etape: 1 },
-  en_preparation: { txt: 'En préparation', etape: 2 },
-  prete: { txt: 'Prête — viens la chercher !', etape: 3 },
-};
+// Vitrine de consultation : elle reste indépendante de l'ancienne commande en
+// ligne. Chaque tuile ouvre uniquement /menu, jamais /commander ni le panier.
+// Visuels détourés de la DA kawaii sur pastilles pastel (vert/crème/rose).
+const BOISSONS_VITRINE = [
+  { id: 'fruit-tea', nom: 'Fruit Tea', photo: require('@/assets/images/products/fruit-tea.png'), pastel: '#EDF6E1' },
+  { id: 'milk-tea', nom: 'Milk Tea', photo: require('@/assets/images/products/milk-tea.png'), pastel: '#FBF2E5' },
+  { id: 'thes-du-monde', nom: 'Thés du monde', photo: require('@/assets/images/products/thes-du-monde.png'), pastel: '#FDEFF6' },
+  { id: 'milkshake', nom: 'Milkshake', photo: require('@/assets/images/products/milkshake.png'), pastel: '#EDF6E1' },
+  { id: 'milk-tea-matcha', nom: 'Milk Tea Matcha', photo: require('@/assets/images/products/matcha.png'), pastel: '#FBF2E5' },
+  { id: 'mousses', nom: 'Mousses', photo: require('@/assets/images/photos/mousses-menu.png'), pastel: '#FDEFF6' },
+  { id: 'signatures', nom: 'Signatures', photo: require('@/assets/images/photos/creme-brulee-menu.png'), pastel: '#EDF6E1' },
+  { id: 'citronnade', nom: 'Citronnade', photo: require('@/assets/images/products/citronnade.png'), pastel: '#FDEFF6' },
+] as const;
+
+const FAMILLES_PAR_ID = new Map(FAMILLES_MENU.map((famille) => [famille.id, famille]));
+
+// Vagues du header — COPIER-COLLER du <svg> de la maquette 1a (aucune retranscription)
+const VAGUES_HEADER_XML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 393 160" preserveAspectRatio="none"><path d="M-20,34 Q40,22 100,34 T220,34 T340,34 T460,34 L460,-20 L-20,-20 Z" fill="#f2a7cf" opacity=".12"></path><path d="M-20,58 Q50,44 120,58 T260,58 T400,58 L400,-20 L-20,-20 Z" fill="#a883d6" opacity=".14"></path><path d="M-20,136 Q60,152 140,136 T300,136 T460,136 L460,180 L-20,180 Z" fill="#452a6e" opacity=".32"></path></svg>`;
+function VagueHeader() {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityElementsHidden>
+      <SvgXml xml={VAGUES_HEADER_XML} width="100%" height="100%" />
+    </View>
+  );
+}
+
+// Vagues internes de la carte fidélité — COPIER-COLLER du <svg> de la maquette 1a
+const VAGUES_FIDELITE_XML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 120" preserveAspectRatio="none"><path d="M-20,24 Q40,14 100,24 T220,24 T340,24 T460,24 L460,-20 L-20,-20 Z" fill="#f2a7cf" opacity=".1"></path><path d="M-20,102 Q60,114 140,102 T300,102 T460,102 L460,140 L-20,140 Z" fill="#452a6e" opacity=".35"></path></svg>`;
+function VaguesFidelite() {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityElementsHidden>
+      <SvgXml xml={VAGUES_FIDELITE_XML} width="100%" height="100%" />
+    </View>
+  );
+}
 
 export default function AccueilScreen() {
   const insets = useSafeAreaInsets();
-  const { categories } = useCatalogueCloud();
-  const lignes = usePanier();
   const jeuFlag = useJeuVisible(); // 🕹️ flag serveur : la carte Boba Quest s'affiche ou pas
+  const offresFlag = useFonctionnalite('offres');
   const [prenom, setPrenom] = useState('');
-  const [magasinId, setMagasinId] = useState<string | null>(null);
   const [carte, setCarte] = useState<{ tampons: number; cadeaux: number } | null>(null);
   const [carteLiee, setCarteLiee] = useState<boolean | null>(null);
-  const [cmdActive, setCmdActive] = useState<any>(null);
-  const [horairesJour, setHorairesJour] = useState<string | null>(null);
-  const [offres, setOffres] = useState<any[]>([]);
+  // null = chargement initial (ou module désactivé). On évite ainsi d'afficher
+  // "Pas d'offre" avant que Supabase ait réellement répondu.
+  const [offres, setOffres] = useState<any[] | null>(null);
   const [refresh, setRefresh] = useState(false);
+  const [erreurReseau, setErreurReseau] = useState(false);
+  const [erreurOffres, setErreurOffres] = useState(false);
 
   const charger = useCallback(async () => {
     try {
+      let echec = false;
       // Offres actives (visibles même sans compte) — les offres PROGRAMMÉES
       // (jours/heures/dates) ne s'affichent que pendant leur fenêtre (offreEnCours).
-      const { data: offresData } = await supabase.from('offres')
-        .select('id, titre, message, jours, heure_debut, heure_fin, date_debut, date_fin, active')
-        .eq('active', true)
-        .order('created_at', { ascending: false }).limit(10);
-      setOffres((offresData ?? []).filter((o) => offreEnCours(o as any)).slice(0, 5));
+      if (offresFlag.actif) {
+        const { data: offresData, error: erreurChargementOffres } = await supabase.from('offres')
+          .select('id, titre, message, jours, heure_debut, heure_fin, date_debut, date_fin, active')
+          .eq('active', true)
+          .order('created_at', { ascending: false }).limit(10);
+        if (erreurChargementOffres) {
+          echec = true;
+          setErreurOffres(true);
+        } else {
+          setErreurOffres(false);
+          setOffres((offresData ?? []).filter((o) => offreEnCours(o as any)).slice(0, 5));
+        }
+      } else {
+        setErreurOffres(false);
+        setOffres(null);
+      }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { setCarteLiee(false); return; }
+      const { data: { session }, error: erreurSession } = await supabase.auth.getSession();
+      if (erreurSession) throw erreurSession;
+      if (!session) { setCarteLiee(false); setErreurReseau(echec); return; }
 
-      // Profil : prénom + magasin + carte
-      const { data: p } = await supabase.from('profils')
-        .select('nom, prenom_sur_ticket, magasin, numero_fidelite')
+      // Profil : prénom + carte. La ville n'est plus demandée depuis le retrait
+      // de la commande en ligne ; la fidélité reste valable dans les 3 boutiques.
+      const { data: p, error: erreurProfil } = await supabase.from('profils')
+        .select('nom, numero_fidelite')
         .eq('id', session.user.id).maybeSingle();
+      if (erreurProfil) throw erreurProfil;
       // Salut PRÉNOM uniquement (1er mot du nom), pas le nom complet
       setPrenom((p?.nom || '').trim().split(/\s+/)[0] || '');
-      setMagasinId(p?.magasin ?? null);
       setCarteLiee(!!p?.numero_fidelite);
 
       // Carte de fidélité : tampons / cadeaux en direct
       if (p?.numero_fidelite) {
-        const { data: f } = await supabase.from('fidelite_cloud')
+        const { data: f, error: erreurCarte } = await supabase.from('fidelite_cloud')
           .select('tampons, cadeaux').eq('numero_fidelite', p.numero_fidelite).maybeSingle();
-        setCarte(f ? { tampons: Number(f.tampons) || 0, cadeaux: Number(f.cadeaux) || 0 } : null);
+        if (erreurCarte) echec = true;
+        else setCarte(f ? { tampons: Number(f.tampons) || 0, cadeaux: Number(f.cadeaux) || 0 } : null);
       }
 
-      // Commande active (suivi live) — filtrée sur SA commande (sinon un admin,
-      // dont la RLS lit tout, verrait ici la commande d'un autre client)
-      const { data: c } = await supabase.from('commandes')
-        .select('numero, statut')
-        .eq('client_id', session.user.id)
-        .in('statut', ['en_attente', 'en_preparation', 'prete'])
-        .order('created_at', { ascending: false }).limit(1).maybeSingle();
-      setCmdActive(c ?? null);
-
-      // Horaires du jour du magasin du client
-      if (p?.magasin) {
-        const { data: cfg } = await supabase.from('boutique_config')
-          .select('horaires').eq('id', p.magasin).maybeSingle();
-        const h = cfg?.horaires?.[String(new Date().getDay())];
-        if (h) setHorairesJour(h.ouvert === false ? 'Fermé aujourd\'hui' : (h.de && h.a ? `Ouvert aujourd'hui · ${h.de} – ${h.a}` : null));
-      }
-    } catch (_) { /* silencieux */ }
-  }, []);
+      setErreurReseau(echec);
+    } catch (_) { setErreurReseau(true); }
+  }, [offresFlag.actif]);
 
   useEffect(() => {
     charger();
-    // Statut de commande rafraîchi en continu (15 s)
+    // Tampons et offres restent frais sans imposer un rechargement manuel.
     const t = setInterval(charger, 15000);
     return () => clearInterval(t);
   }, [charger]);
 
   const onRefresh = async () => { setRefresh(true); await charger(); setRefresh(false); };
 
-  const nomMagasin = magasinId ? (MAGASINS.find((m) => m.id === magasinId)?.nom || magasinId) : null;
   const tampons = carte?.tampons ?? 0;
-  const statut = cmdActive ? STATUT_LIB[cmdActive.statut] : null;
-  const nbArticles = lignes.reduce((s, l) => s + l.quantite, 0);
-  const catsAvecPhoto = categories.filter((c: any) => !c.horsStock);
 
   return (
     <View style={styles.fond}>
@@ -110,100 +133,119 @@ export default function AccueilScreen() {
         contentContainerStyle={{ paddingBottom: 28 }}
         refreshControl={<RefreshControl refreshing={refresh} onRefresh={onRefresh} tintColor="#fff" />}
       >
-        {/* === Header de marque (violet, arrondi en bas) === */}
+        {/* === Header de marque (violet à vagues, arrondi en bas) === */}
         <View style={[styles.header, { paddingTop: insets.top + 18 }]}>
-          <LogoBubbleStop variante="blanc" largeur={182} />
+          <VagueHeader />
+          <Etincelle taille={19} style={{ position: 'absolute', top: 6 + insets.top, right: 26, opacity: 0.85 }} />
+          <Etincelle taille={12} couleur="#EAE8F5" style={{ position: 'absolute', top: 34 + insets.top, right: 56, opacity: 0.5 }} />
+          <LogoBubbleStop variante="blanc" largeur={168} />
           <Text style={styles.salut}>
             {prenom ? `Salut ${prenom}` : 'Ton bubble tea préféré, dans ta poche'}
           </Text>
-          {(nomMagasin || horairesJour) && (
-            <View style={styles.infosMag}>
-              {!!nomMagasin && <Text style={styles.infosMagTxt}>{nomMagasin}</Text>}
-              {!!horairesJour && <Text style={styles.infosMagHoraires}>{horairesJour}</Text>}
-            </View>
-          )}
         </View>
 
         <View style={styles.contenu}>
-          {/* 🔔 Rappel notifications (connecté sans permission → il raterait toutes les promos) */}
-          <RappelNotifs />
-
-          {/* === Suivi LIVE de la commande en cours (l'info n°1 quand elle existe) === */}
-          {cmdActive && statut && (
-            <Pressable
-              style={[styles.suivi, cmdActive.statut === 'prete' && styles.suiviPrete]}
-              onPress={() => router.push('/commander/mes-commandes' as any)}
-            >
-              <View style={styles.suiviHaut}>
-                <Text style={styles.suiviTitre}>Commande n°{cmdActive.numero}</Text>
-                <Chevron couleur={C.texte3} />
-              </View>
-              {/* Barre d'étapes : reçue → préparation → prête */}
-              <View style={styles.etapes}>
-                {[1, 2, 3].map((e) => (
-                  <View key={e} style={[styles.etape, e <= statut.etape && styles.etapeFaite]} />
-                ))}
-              </View>
-              <Text style={[styles.suiviTexte, cmdActive.statut === 'prete' && { color: C.vertFonce }]}>
-                {statut.txt}
-              </Text>
-            </Pressable>
+          {erreurReseau && (
+            <View accessibilityRole="alert">
+              <Message type="erreur" texte="Certaines informations ne sont pas à jour. Vérifie ta connexion." />
+              <BoutonGhost titre="Réessayer" onPress={charger} />
+            </View>
           )}
 
-          {/* === CTA Commander (action n°1) === */}
-          <Pressable style={styles.cta} onPress={() => router.push('/commander' as any)}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.ctaTitre}>Commander</Text>
-              <Text style={styles.ctaSous}>
-                {nbArticles > 0
-                  ? `Panier en cours · ${totalPanier().toFixed(2).replace('.', ',')} €`
-                  : 'Retrait en boutique, sans attendre'}
-              </Text>
+          {/* === Offres prioritaires : toujours avant la vitrine boissons === */}
+          {offresFlag.actif && offres !== null && !erreurOffres && (
+            <View style={styles.offresSection}>
+              <TitreKawaii texte="En ce moment" taille={19} />
+              {offres.length > 0 ? (
+                <>
+                  {offres.slice(0, 2).map((o, i) => (
+                    <Pressable
+                      key={o.id}
+                      style={[styles.offre, i > 0 && styles.offreBlanche]}
+                      onPress={() => router.push('/offres' as any)}>
+                      <Text style={[styles.offreTitre, i > 0 && { color: C.texte }]}>{o.titre}</Text>
+                      <Text style={[styles.offreMessage, i > 0 && { color: C.texte2 }]} numberOfLines={2}>{o.message}</Text>
+                    </Pressable>
+                  ))}
+                  {offres.length > 2 && (
+                    <Pressable style={styles.lien} onPress={() => router.push('/offres' as any)}>
+                      <Text style={styles.lienTexte}>Voir toutes les offres ›</Text>
+                    </Pressable>
+                  )}
+                </>
+              ) : (
+                <View style={styles.offreVide} accessibilityLabel="Pas d'offre pour le moment">
+                  <Etincelle taille={24} couleur={C.jaune} />
+                  <View style={styles.offreVideTextes}>
+                    <Text style={styles.offreVideTitre}>Pas d'offre pour le moment</Text>
+                    <Text style={styles.offreVideMessage}>Reviens bientôt découvrir les prochains bons plans.</Text>
+                  </View>
+                </View>
+              )}
             </View>
-            <View style={styles.ctaRond}>
-              <Chevron couleur={C.violetProfond} size={22} />
-            </View>
-          </Pressable>
+          )}
 
-          {/* === 🕹️ Boba Quest : visible si flag serveur `jeu` actif (ou admin, pour tester).
-               Interrupteur : Compte → admin → « Jeu Boba Quest » (cf. AGENTS.md). === */}
+          {/* 🔔 Rappel notifications (connecté sans permission → il raterait toutes les promos) */}
+          {offresFlag.actif && <RappelNotifs />}
+
+          {/* Vitrine boissons : consultation du menu sans réactiver la commande. */}
+          <View style={styles.vitrine}>
+            <TitreKawaii texte="Nos boissons" sousTitre="À retrouver en boutique" taille={19} />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.vitrineRail}
+              accessibilityLabel="Aperçu des boissons Bubble Stop">
+              {BOISSONS_VITRINE.map((boisson, i) => (
+                <Pressable
+                  key={boisson.id}
+                  onPress={() => router.push({
+                    pathname: '/menu/[categorieId]',
+                    params: { categorieId: boisson.id },
+                  } as any)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Découvrir ${FAMILLES_PAR_ID.get(boisson.id)?.nom ?? boisson.nom}`}
+                  accessibilityHint="Ouvre le menu vitrine de cette famille, sans commande en ligne"
+                  style={({ pressed }) => [
+                    styles.vitrineTuile,
+                    { backgroundColor: boisson.pastel },
+                    pressed && styles.vitrineTuilePressee,
+                  ]}>
+                  <Image
+                    source={boisson.photo}
+                    style={[styles.vitrinePhoto, { transform: [{ rotate: `${[-2, 1.8, -1.5, 2, -1.8, 1.6][i % 6]}deg` }] }]}
+                    resizeMode="contain"
+                    accessibilityLabel={`Photo ${boisson.nom}`}
+                  />
+                  <View style={styles.vitrineNomRang}>
+                    <Text style={styles.vitrineNom} numberOfLines={2}>{boisson.nom}</Text>
+                    <Chevron couleur={C.violetClair} size={13} />
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* === 🕹️ Boba Quest : visible pour tous, pour une sélection de membres,
+               ou pour l'admin selon les réglages serveur (cf. AGENTS.md). === */}
           {jeuFlag.visible && (
             <Pressable style={styles.jeu} onPress={() => router.push('/jeu' as any)}>
-              <PictoHub id="jouer" fond="#fff" taille={46} />
+              <MascottePerle taille={46} />
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={styles.jeuTitre}>Boba Quest</Text>
                   <View style={styles.jeuBadge}><Text style={styles.jeuBadgeTxt}>NOUVEAU</Text></View>
                 </View>
-                <Text style={styles.jeuSous}>
-                  {jeuFlag.admin && !jeuFlag.actif
-                    ? 'Caché pour les clients — visible car tu es admin'
-                    : 'Joue, collectionne, gagne de vrais prix !'}
-                </Text>
+                <Text style={styles.jeuSous}>Joue, collectionne, gagne de vrais prix !</Text>
               </View>
-              <Chevron couleur={C.lavande} />
+              <Chevron couleur={C.roseFonce} />
             </Pressable>
           )}
-
-          {/* === La carte : raccourcis catégories en photos === */}
-          <Text style={styles.sectionTitre}>La carte</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRail}>
-            {catsAvecPhoto.map((cat: any) => {
-              const photo = photoCategorie(cat);
-              return (
-                <Pressable key={cat.id} style={styles.catTuile} onPress={() => router.push(`/commander/${cat.id}` as any)}>
-                  {photo
-                    ? <Image source={photo} style={styles.catPhoto} />
-                    : <View style={[styles.catPhoto, styles.catEmoji]}><Text style={{ fontSize: 34 }}>{cat.emoji}</Text></View>}
-                  <Text style={styles.catNom} numberOfLines={1}>{cat.nom}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
 
           {/* === Carte de fidélité (tampons en direct) === */}
           {carteLiee && carte ? (
             <Pressable style={styles.fidelite} onPress={() => router.push('/explore' as any)}>
+              <VaguesFidelite />
               <View style={styles.fideliteHaut}>
                 <Text style={styles.fideliteTitre}>Ma fidélité</Text>
                 <Text style={styles.fideliteCompteur}>{tampons}/9</Text>
@@ -221,34 +263,11 @@ export default function AccueilScreen() {
             </Pressable>
           ) : carteLiee === false ? (
             <Pressable style={styles.fidelite} onPress={() => router.push('/explore' as any)}>
+              <VaguesFidelite />
               <Text style={styles.fideliteTitre}>Active ta carte de fidélité</Text>
               <Text style={styles.fideliteTexte}>Ton QR et tes tampons en direct : 9 boissons = 1 offerte ›</Text>
             </Pressable>
           ) : null}
-
-
-          {/* === Offres en cours === */}
-          {offres.length > 0 && (
-            <>
-              <Text style={styles.sectionTitre}>En ce moment</Text>
-              {offres.slice(0, 2).map((o) => (
-                <Pressable key={o.id} style={styles.offre} onPress={() => router.push('/offres' as any)}>
-                  <Text style={styles.offreTitre}>{o.titre}</Text>
-                  <Text style={styles.offreMessage} numberOfLines={2}>{o.message}</Text>
-                </Pressable>
-              ))}
-              {offres.length > 2 && (
-                <Pressable style={styles.lien} onPress={() => router.push('/offres' as any)}>
-                  <Text style={styles.lienTexte}>Voir toutes les offres ›</Text>
-                </Pressable>
-              )}
-            </>
-          )}
-
-          {/* Accès rapide : historique des commandes */}
-          <Pressable style={styles.lien} onPress={() => router.push('/commander/mes-commandes' as any)}>
-            <Text style={styles.lienTexte}>Mes commandes passées ›</Text>
-          </Pressable>
         </View>
       </ScrollView>
     </View>
@@ -258,82 +277,78 @@ export default function AccueilScreen() {
 const styles = StyleSheet.create({
   fond: { flex: 1, backgroundColor: C.fond },
 
-  // Header de marque
+  // Header de marque (vagues + étincelles par-dessus le violet)
   header: {
     backgroundColor: C.violet,
-    borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
-    paddingHorizontal: 22, paddingBottom: 40, gap: 6,
+    paddingHorizontal: 22, paddingBottom: 26, gap: 8, overflow: 'hidden',
+    borderBottomLeftRadius: 30, borderBottomRightRadius: 30,
   },
-  logo: { fontFamily: F.titre, fontSize: 30, color: '#fff', letterSpacing: 0.5 },
-  salut: { fontFamily: F.t600, fontSize: 15.5, color: C.lavande },
-  infosMag: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
-  infosMagTxt: {
-    fontFamily: F.t700, fontSize: 12.5, color: '#fff',
-    backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: R.pill,
-    paddingVertical: 6, paddingHorizontal: 12, overflow: 'hidden',
+  logo: { fontFamily: F.logo, fontSize: 30, color: '#fff', letterSpacing: 0.5 },
+  salut: { fontFamily: F.t600, fontSize: 15.5, color: C.surViolet },
+  // L'accueil respire sous le prénom ; la vitrine sépare ensuite naturellement
+  // l'en-tête de Boba Quest au lieu de coller la carte au bord du header.
+  contenu: { paddingHorizontal: 18, gap: 16, marginTop: 14 },
+
+  // Vitrine boissons : accès au menu de consultation, jamais à la commande.
+  vitrine: { gap: 9 },
+  vitrineRail: { gap: 12, paddingVertical: 5, paddingRight: 6 },
+  // Maquette 1a : contenu ancré en HAUT (l'étiquette s'étire dessous, la photo
+  // reste alignée d'une tuile à l'autre, même quand le nom fait deux lignes).
+  vitrineTuile: {
+    width: 98, padding: 8, paddingHorizontal: 6, paddingBottom: 10, gap: 6,
+    alignItems: 'center', borderRadius: 22,
+    borderWidth: BORD.largeur, borderColor: BORD.surPastel, ...OMBRE,
   },
-  infosMagHoraires: { fontFamily: F.t600, fontSize: 12.5, color: '#CDBFE6' },
-
-  // Le contenu chevauche le bas du header (cartes "posées" dessus)
-  contenu: { paddingHorizontal: 18, gap: 14, marginTop: -24 },
-
-  // Suivi de commande live
-  suivi: { backgroundColor: C.carte, borderRadius: R.carte, padding: 18, gap: 10, ...OMBRE },
-  suiviPrete: { borderWidth: 2, borderColor: C.vert },
-  suiviHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  suiviTitre: { fontFamily: F.t800, fontSize: 16, color: C.texte },
-  suiviTexte: { fontFamily: F.t700, fontSize: 14, color: C.texte2 },
-  etapes: { flexDirection: 'row', gap: 6 },
-  etape: { flex: 1, height: 6, borderRadius: 3, backgroundColor: C.lavande },
-  etapeFaite: { backgroundColor: C.vert },
-
-  // CTA Commander
-  cta: {
-    backgroundColor: C.vert, borderRadius: R.carte, padding: 20,
-    flexDirection: 'row', alignItems: 'center', gap: 12, ...OMBRE,
-  },
-  ctaTitre: { fontFamily: F.titre, fontSize: 21, color: C.violetProfond },
-  ctaSous: { fontFamily: F.t600, fontSize: 13.5, color: C.violetProfond, opacity: 0.75, marginTop: 2 },
-  ctaRond: {
-    width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff',
-    alignItems: 'center', justifyContent: 'center',
+  vitrineTuilePressee: { transform: [{ scale: 0.97 }], opacity: 0.88 },
+  vitrinePhoto: { width: 78, height: 92 },
+  vitrineNomRang: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 },
+  vitrineNom: {
+    fontFamily: F.t700, fontSize: 12, lineHeight: 15, color: C.texte,
+    textAlign: 'center', paddingLeft: 2, flexShrink: 1,
   },
 
-  sectionTitre: { fontFamily: F.titre, fontSize: 18, color: C.violet, marginTop: 8, marginBottom: -2 },
-
-  // Boba Quest (jeu à collection)
+  // Boba Quest (jeu à collection) — carte rose pâle à mascotte
   jeu: {
-    backgroundColor: C.violet, borderRadius: R.carte, padding: 16,
-    flexDirection: 'row', alignItems: 'center', gap: 12, ...OMBRE,
+    backgroundColor: C.rosePale, borderRadius: R.carte, paddingVertical: 13, paddingHorizontal: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: BORD.largeur, borderColor: BORD.surPastel, ...OMBRE,
   },
-  jeuTitre: { fontFamily: F.titre, fontSize: 18, color: '#fff' },
-  jeuBadge: { backgroundColor: C.jaune, borderRadius: R.pill, paddingVertical: 3, paddingHorizontal: 8 },
-  jeuBadgeTxt: { fontFamily: F.t800, fontSize: 10, color: C.violetProfond },
-  jeuSous: { fontFamily: F.t600, fontSize: 12.5, color: C.lavande, marginTop: 3 },
+  jeuTitre: { fontFamily: F.titre, fontSize: 17, color: C.violet },
+  jeuBadge: { backgroundColor: '#FFC4DD', borderRadius: R.pill, paddingVertical: 3, paddingHorizontal: 8 },
+  jeuBadgeTxt: { fontFamily: F.t800, fontSize: 10, color: C.roseFonce, letterSpacing: 0.4 },
+  jeuSous: { fontFamily: F.t500, fontSize: 12.5, color: C.roseFonce, marginTop: 3 },
 
-  // Rail catégories
-  catRail: { gap: 12, paddingVertical: 4, paddingRight: 6 },
-  catTuile: { alignItems: 'center', gap: 7, width: 86 },
-  catPhoto: { width: 82, height: 82, borderRadius: 24, backgroundColor: C.lavande },
-  catEmoji: { alignItems: 'center', justifyContent: 'center' },
-  catNom: { fontFamily: F.t700, fontSize: 12.5, color: C.texte, textAlign: 'center' },
-
-  // Carte fidélité
-  fidelite: { backgroundColor: C.violet, borderRadius: R.carte, padding: 20, gap: 10, ...OMBRE },
+  // Carte fidélité (violette, ombre violette DA)
+  fidelite: {
+    backgroundColor: C.violet, borderRadius: 26, padding: 17, paddingHorizontal: 18, gap: 10,
+    overflow: 'hidden', ...OMBRE_VIOLETTE,
+  },
   fideliteHaut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   fideliteTitre: { fontFamily: F.titre, fontSize: 17, color: '#fff' },
-  fideliteCompteur: { fontFamily: F.t800, fontSize: 16, color: C.vert },
+  fideliteCompteur: { fontFamily: F.t800, fontSize: 15.5, color: C.jaune },
   tampons: { flexDirection: 'row', gap: 7 },
   tampon: { flex: 1, height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.18)' },
   tamponPlein: { backgroundColor: C.vert },
-  fideliteTexte: { fontFamily: F.t600, fontSize: 13.5, color: C.lavande },
+  fideliteTexte: { fontFamily: F.t600, fontSize: 13, color: C.surViolet },
 
-
-  // Offres
-  offre: { backgroundColor: C.jaune, borderRadius: 18, padding: 16, gap: 4, ...OMBRE },
-  offreTitre: { fontFamily: F.t800, fontSize: 15.5, color: C.violetProfond },
-  offreMessage: { fontFamily: F.t600, fontSize: 13.5, color: C.violetProfond, opacity: 0.8, lineHeight: 19 },
+  // Offres — placées avant les boissons ; la 1re en jaune, les suivantes en blanc.
+  offresSection: { gap: 10 },
+  offre: {
+    backgroundColor: C.jaune, borderRadius: 22, paddingVertical: 14, paddingHorizontal: 16, gap: 4,
+    borderWidth: BORD.largeur, borderColor: BORD.surPastel, ...OMBRE,
+  },
+  offreBlanche: { backgroundColor: C.carte, borderColor: BORD.surBlanc },
+  offreTitre: { fontFamily: F.t800, fontSize: 15, color: '#54470A' },
+  offreMessage: { fontFamily: F.t500, fontSize: 13, color: '#54470A', opacity: 0.8, lineHeight: 19 },
+  offreVide: {
+    backgroundColor: C.jaunePale, borderRadius: 22, paddingVertical: 15, paddingHorizontal: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: BORD.largeur, borderColor: BORD.surPastel, ...OMBRE,
+  },
+  offreVideTextes: { flex: 1, gap: 2 },
+  offreVideTitre: { fontFamily: F.t800, fontSize: 14.5, color: C.violet },
+  offreVideMessage: { fontFamily: F.t500, fontSize: 12.5, lineHeight: 17, color: C.texte2 },
 
   lien: { paddingVertical: 4, alignItems: 'center' },
-  lienTexte: { fontFamily: F.t700, fontSize: 14, color: C.violetClair },
+  lienTexte: { fontFamily: F.t700, fontSize: 13.5, color: C.violetClair },
 });

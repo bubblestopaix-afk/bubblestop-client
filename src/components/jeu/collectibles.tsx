@@ -7,7 +7,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path, Circle, Rect, Line, Ellipse } from 'react-native-svg';
 
 import { F } from '@/constants/charte';
-import { RangMaitrise, RARETES, SETS, trouverCollectible } from '@/components/jeu/economie';
+import { RARETES, SETS, trouverCollectible } from '@/components/jeu/economie';
 
 const VIOLET = '#4c2d77';
 
@@ -302,14 +302,10 @@ const GLYPHES: Record<string, ReactElement> = {
 };
 
 // --- Pastille d'un collectible (album, capsules, fiches) -------------------------
-// cache=true → vraie silhouette du personnage, estompée + « ? ». Le mystère
-// reste intact tout en donnant à chaque case une forme reconnaissable.
+// cache=true → silhouette mystère « ? » (pas encore trouvé)
 export default function PastilleCollectible({
-  id, taille = 64, cache = false, maitrise = 'bronze', prestige = false, vedette = false,
-}: {
-  id: string; taille?: number; cache?: boolean; maitrise?: RangMaitrise;
-  prestige?: boolean; vedette?: boolean;
-}) {
+  id, taille = 64, cache = false,
+}: { id: string; taille?: number; cache?: boolean }) {
   const c = trouverCollectible(id);
   if (!c) return null;
   const set = SETS[c.set];
@@ -324,31 +320,14 @@ export default function PastilleCollectible({
           borderColor: cache ? '#DED5EC' : rarete.couleur,
         },
         !cache && c.rarete === 'legendaire' && styles.legendaire,
-        !cache && maitrise === 'argent' && styles.argent,
-        !cache && maitrise === 'or' && styles.or,
-        !cache && maitrise === 'holo' && styles.holo,
-        !cache && prestige && styles.prestige,
-        !cache && vedette && styles.vedette,
       ]}
     >
       {cache ? (
-        <>
-          <Svg width={taille * 0.72} height={taille * 0.72} viewBox="0 0 24 24" opacity={0.18}>
-            {GLYPHES[id] || GLYPHES['boba']}
-          </Svg>
-          <Text style={[styles.mystere, { fontSize: taille * 0.34 }]}>?</Text>
-        </>
+        <Text style={[styles.mystere, { fontSize: taille * 0.42 }]}>?</Text>
       ) : (
         <Svg width={taille * 0.72} height={taille * 0.72} viewBox="0 0 24 24">
           {GLYPHES[id] || GLYPHES['boba']}
         </Svg>
-      )}
-      {!cache && maitrise !== 'bronze' && (
-        <View style={[styles.badgeMaitrise, prestige && styles.badgePrestige]}>
-          <Text style={styles.badgeMaitriseTxt}>
-            {prestige ? 'P' : maitrise === 'argent' ? 'II' : maitrise === 'or' ? 'III' : 'V'}
-          </Text>
-        </View>
       )}
     </View>
   );
@@ -362,28 +341,5 @@ const styles = StyleSheet.create({
     shadowColor: '#D2588A', shadowOpacity: 0.55, shadowRadius: 8,
     shadowOffset: { width: 0, height: 0 }, elevation: 4,
   },
-  argent: { borderColor: '#AAB4BF', borderWidth: 3 },
-  or: { borderColor: '#D6A617', borderWidth: 3 },
-  holo: {
-    borderColor: '#55C6C2', borderWidth: 3,
-    shadowColor: '#D2588A', shadowOpacity: 0.65, shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 }, elevation: 5,
-  },
-  prestige: {
-    borderColor: '#D2588A', borderWidth: 4, backgroundColor: '#FFF0F7',
-    shadowColor: '#8A68B8', shadowOpacity: 0.75, shadowRadius: 12,
-    shadowOffset: { width: 0, height: 0 }, elevation: 6,
-  },
-  vedette: {
-    shadowColor: '#A3C724', shadowOpacity: 0.9, shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 }, elevation: 6,
-  },
-  badgeMaitrise: {
-    position: 'absolute', right: -5, bottom: -5, minWidth: 22, height: 22,
-    paddingHorizontal: 4, borderRadius: 11, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#4C2D77', borderWidth: 2, borderColor: '#fff',
-  },
-  badgePrestige: { backgroundColor: '#D2588A' },
-  badgeMaitriseTxt: { fontFamily: F.t800, fontSize: 9, color: '#fff' },
-  mystere: { position: 'absolute', fontFamily: F.t800, color: '#8F7BAC' },
+  mystere: { fontFamily: F.t800, color: '#B9ABD6' },
 });

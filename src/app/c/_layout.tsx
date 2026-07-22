@@ -1,6 +1,7 @@
-import { Stack } from 'expo-router';
+import { Redirect } from 'expo-router';
 
-// Pile dédiée à la réclamation d'une carte fidélité temporaire (lien /c/<jeton>), sans en-tête.
+// Ancienne fonctionnalité de carte retirée le 17/07/2026. Le garde protège les anciens QR,
+// favoris et historiques de navigation sans exposer l'ancien écran.
 export default function CLayout() {
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return <Redirect href="/explore" />;
 }
