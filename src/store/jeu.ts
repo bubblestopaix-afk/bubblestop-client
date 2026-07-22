@@ -1,15 +1,15 @@
 // === Boba Quest — état global du jeu (léger, persisté sur le téléphone) ===
 // Même pattern que le panier : useSyncExternalStore + AsyncStorage.
-// ⚠️ PREVIEW : tout est local. En version finale, les PRIX RÉELS (tampons,
-// réductions, boissons) partiront côté serveur (fidelite_demandes appliquées
-// par la caisse) avec plafonds anti-triche — voir AGENTS.md.
+// La progression, les perles et les capsules restent locales. Les PRIX RÉELS
+// (tampons, réductions, boissons) sont transformés en demandes serveur
+// persistantes puis appliqués une seule fois par la caisse au scan fidélité.
 import { useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   BONUS_DEFIS_CAPSULES, BONUS_PREMIERE_PARTIE, BOUTIQUE, CAPSULES, cleJour, EtapeQueteId,
   EtatQuete, multSerie, queteApresCredit, QUETE_TAMPON, Serie, serieApresTick,
-  cleMois, cleSemaine, Collectible, collectiblesDuSet, Defi, DOUBLON_PERLES,
+  cleMois, cleSemaine, CodeRecompenseReelle, Collectible, collectiblesDuSet, Defi, DOUBLON_PERLES,
   EffetBuddy, effetBuddy, evenementDuJour, Gain, labelPrix, MesureDefi,
   NIVEAU_DIV_ECHEC, NIVEAU_DIV_REJOUER, NIVEAU_DIV_SCORE, NIVEAU_PERLES_PAR_ETOILE,
   ObjetId, OBJETS, PASS_PALIERS, PASS_XP, perlesPourScore, PITY_EPIQUE,
@@ -30,7 +30,7 @@ import {
 
 const CLE_SAUVEGARDE = 'bobaQuest.etat';
 const CLE_SAUVEGARDE_SECOURS = 'bobaQuest.etat.backup';
-const VERSION_SAUVEGARDE = 1;
+const VERSION_SAUVEGARDE = 2;
 
 // Statistiques d'une partie (défis du jour) — fournies par l'écran shooter
 export type StatsPartie = {
@@ -184,6 +184,63 @@ function migrerPortes(brut: unknown): Record<string, Partial<Record<Emplacement,
   return res;
 }
 
+const CODES_RECOMPENSES = new Set<CodeRecompenseReelle>([
+  'quete_premier_tampon',
+  'set_milk', 'set_fruit', 'set_topping', 'set_signature',
+  'collection_complete',
+  'boutique_tampon_1', 'boutique_reduction_10', 'boutique_reduction_20', 'boutique_boisson_l',
+  'roulette_tampon_1', 'roulette_tampon_2', 'roulette_tampon_3',
+  'roulette_reduction_10', 'roulette_boisson_l',
+]);
+
+// Compatibilité avec les prix gagnés avant le flux caisse : leur combinaison
+// origine/type/quantité suffit à retrouver le code canonique. Un ancien bouton
+// « utilisé » sans demande serveur est rouvert, car il ne créditait réellement rien.
+function infererCodeRecompense(g: Partial<Gain>): CodeRecompenseReelle | null {
+  if (g.code && CODES_RECOMPENSES.has(g.code)) return g.code;
+  if (g.origine === 'quete') return 'quete_premier_tampon';
+  if (g.origine === 'collection') return 'collection_complete';
+  if (g.origine === 'set') {
+    if (g.type === 'tampon' && g.qte === 1) return 'set_milk';
+    if (g.type === 'tampon' && g.qte === 2) return 'set_fruit';
+    if (g.type === 'reduction' && g.qte === 10) return 'set_topping';
+    if (g.type === 'boisson' && g.qte === 1) return 'set_signature';
+  }
+  if (g.origine === 'boutique') {
+    if (g.type === 'tampon' && g.qte === 1) return 'boutique_tampon_1';
+    if (g.type === 'reduction' && g.qte === 10) return 'boutique_reduction_10';
+    if (g.type === 'reduction' && g.qte === 20) return 'boutique_reduction_20';
+    if (g.type === 'boisson' && g.qte === 1) return 'boutique_boisson_l';
+  }
+  if (g.origine === 'roulette') {
+    if (g.type === 'tampon' && g.qte === 1) return 'roulette_tampon_1';
+    if (g.type === 'tampon' && g.qte === 2) return 'roulette_tampon_2';
+    if (g.type === 'tampon' && g.qte === 3) return 'roulette_tampon_3';
+    if (g.type === 'reduction' && g.qte === 10) return 'roulette_reduction_10';
+    if (g.type === 'boisson' && g.qte === 1) return 'roulette_boisson_l';
+  }
+  return null;
+}
+
+function migrerGains(brut: unknown): Gain[] {
+  if (!Array.isArray(brut)) return [];
+  return brut.flatMap((valeur) => {
+    if (!valeur || typeof valeur !== 'object') return [];
+    const g = valeur as Partial<Gain>;
+    const code = infererCodeRecompense(g);
+    if (!code || !g.id || !g.type || !g.origine || !g.gagneLe) return [];
+    const demandeId = typeof g.demandeId === 'string' ? g.demandeId : undefined;
+    const statut = demandeId && ['en_attente', 'utilise', 'refuse'].includes(String(g.statut))
+      ? g.statut as Gain['statut']
+      : 'a_reclamer';
+    return [{
+      id: String(g.id), code, type: g.type, qte: Number(g.qte) || 1,
+      label: String(g.label || labelPrix(g.type, Number(g.qte) || 1)),
+      origine: g.origine, gagneLe: String(g.gagneLe), demandeId, statut,
+    }];
+  });
+}
+
 let etat: EtatBobaQuest = JSON.parse(JSON.stringify(DEFAUT));
 const listeners = new Set<() => void>();
 export type EtatHydratationBobaQuest = 'chargement' | 'prete' | 'recuperee' | 'erreur';
@@ -205,6 +262,7 @@ function migrerSauvegarde(brut: string): EtatBobaQuest | null {
       ...JSON.parse(JSON.stringify(DEFAUT)),
       ...sauve,
       versionSauvegarde: VERSION_SAUVEGARDE,
+      gains: migrerGains(sauve.gains),
       powerups: { ...DEFAUT.powerups, ...(sauve.powerups || {}) },
       serie: { ...DEFAUT.serie, ...(sauve.serie || {}) },
       queteTampon: { ...DEFAUT.queteTampon, ...(sauve.queteTampon || {}) },
@@ -387,7 +445,7 @@ export function tickSerie(): { jours: number; perles: number; capsuleDoree: bool
 export function reclamerQueteTampon(): Gain | null {
   if (etat.queteTampon.reclamee || etat.queteTampon.etape < QUETE_TAMPON.length) return null;
   const gain: Gain = {
-    id: `quete-tampon-${Date.now()}`, label: '+1 tampon', origine: 'quete',
+    id: `quete-tampon-${Date.now()}`, code: 'quete_premier_tampon', label: '+1 tampon', origine: 'quete',
     type: 'tampon', qte: 1,
     gagneLe: new Date().toISOString(), statut: 'a_reclamer',
   };
@@ -466,10 +524,13 @@ export function defisDuJour(e: EtatBobaQuest = etat): DefiDuJour[] {
 
 // --- Fins de partie ----------------------------------------------------------------
 
-function nouveauGain(type: Gain['type'], qte: number, origine: Gain['origine'], label?: string): Gain {
+function nouveauGain(
+  type: Gain['type'], qte: number, origine: Gain['origine'],
+  label: string | undefined, code: CodeRecompenseReelle,
+): Gain {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    type, qte,
+    code, type, qte,
     label: label || labelPrix(type, qte),
     origine,
     gagneLe: new Date().toISOString(),
@@ -1093,7 +1154,7 @@ export function ouvrirCapsule(type: TypeCapsule, gratuite: boolean): {
 export function reclamerSet(set: SetId): Gain | null {
   if (etat.setsReclames.includes(set) || !setComplet(set)) return null;
   const r = SETS[set].recompense;
-  const gain = nouveauGain(r.type, r.qte, 'set', r.label);
+  const gain = nouveauGain(r.type, r.qte, 'set', r.label, r.code);
   etat.gains = [gain, ...etat.gains];
   etat.setsReclames = [...etat.setsReclames, set];
   emit();
@@ -1102,7 +1163,10 @@ export function reclamerSet(set: SetId): Gain | null {
 
 export function reclamerCollection(): Gain | null {
   if (etat.collectionReclamee || !collectionComplete()) return null;
-  const gain = nouveauGain(RECOMPENSE_COLLECTION.type, RECOMPENSE_COLLECTION.qte, 'collection', RECOMPENSE_COLLECTION.label);
+  const gain = nouveauGain(
+    RECOMPENSE_COLLECTION.type, RECOMPENSE_COLLECTION.qte, 'collection',
+    RECOMPENSE_COLLECTION.label, RECOMPENSE_COLLECTION.code,
+  );
   etat.gains = [gain, ...etat.gains];
   etat.collectionReclamee = true;
   emit();
@@ -1131,7 +1195,7 @@ export function acheterBoutique(palierId: string): Gain | null {
   if (pris >= palier.parMois) return null;
   etat.prixMois.achats = { ...etat.prixMois.achats, [palierId]: pris + 1 };
   etat.perles -= palier.cout;
-  const gain = nouveauGain(palier.type, palier.qte, 'boutique');
+  const gain = nouveauGain(palier.type, palier.qte, 'boutique', palier.label, palier.code);
   etat.gains = [gain, ...etat.gains];
   emit();
   return gain;
@@ -1152,13 +1216,40 @@ export function appliquerRoulette(seg: SegmentRoulette) {
   } else if (seg.type === 'capsule_doree') {
     etat.capsulesDoreesGratuites += seg.qte;
   } else {
-    etat.gains = [nouveauGain(seg.type, seg.qte, 'roulette'), ...etat.gains];
+    if (!seg.code) return;
+    etat.gains = [nouveauGain(seg.type, seg.qte, 'roulette', seg.label, seg.code), ...etat.gains];
   }
   emit();
 }
 
-export function utiliserGain(id: string) {
-  etat.gains = etat.gains.map((g) => (g.id === id ? { ...g, statut: 'utilise' as const } : g));
+export function mettreGainEnAttente(id: string, demandeId: string) {
+  etat.gains = etat.gains.map((g) => (
+    g.id === id ? { ...g, demandeId, statut: 'en_attente' as const } : g
+  ));
+  emit();
+}
+
+export type StatutDemandeRecompense = {
+  id: string;
+  gain_local_id: string;
+  statut: 'en_attente' | 'appliquee' | 'refusee';
+};
+
+export function synchroniserGainsServeur(demandes: StatutDemandeRecompense[]) {
+  const parGain = new Map(demandes.map((d) => [d.gain_local_id, d]));
+  let change = false;
+  const gains = etat.gains.map((g) => {
+    const d = parGain.get(g.id);
+    if (!d) return g;
+    const statut: Gain['statut'] = d.statut === 'appliquee'
+      ? 'utilise'
+      : d.statut === 'refusee' ? 'refuse' : 'en_attente';
+    if (g.demandeId === d.id && g.statut === statut) return g;
+    change = true;
+    return { ...g, demandeId: d.id, statut };
+  });
+  if (!change) return;
+  etat.gains = gains;
   emit();
 }
 

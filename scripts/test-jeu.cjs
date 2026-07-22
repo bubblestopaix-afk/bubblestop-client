@@ -25,6 +25,35 @@ try {
   const arene = require(path.join(sortie, 'arene.js'));
   const economie = require(path.join(sortie, 'economie.js'));
 
+  // Tous les prix qui ont une valeur réelle en boutique possèdent un code
+  // canonique unique. Les gains purement internes (perles/capsule) n'en ont pas.
+  const codesReels = [
+    'quete_premier_tampon',
+    ...Object.values(economie.SETS).map((set) => set.recompense.code),
+    economie.RECOMPENSE_COLLECTION.code,
+    ...economie.BOUTIQUE.map((prix) => prix.code),
+    ...economie.ROULETTE.filter((prix) => ['tampon', 'reduction', 'boisson'].includes(prix.type))
+      .map((prix) => prix.code),
+  ];
+  const codesAttendus = [
+    'quete_premier_tampon',
+    'set_milk', 'set_fruit', 'set_topping', 'set_signature', 'collection_complete',
+    'boutique_tampon_1', 'boutique_reduction_10', 'boutique_reduction_20', 'boutique_boisson_l',
+    'roulette_tampon_1', 'roulette_tampon_2', 'roulette_tampon_3',
+    'roulette_reduction_10', 'roulette_boisson_l',
+  ];
+  assert.deepEqual([...new Set(codesReels)].sort(), codesAttendus.sort(),
+    'le catalogue client doit couvrir exactement tous les prix réels');
+  assert.equal(codesReels.length, new Set(codesReels).size,
+    'un code canonique ne doit pas représenter deux prix client différents');
+  for (const segment of economie.ROULETTE) {
+    if (['tampon', 'reduction', 'boisson'].includes(segment.type)) {
+      assert.ok(segment.code, `roulette ${segment.id}: code serveur manquant`);
+    } else {
+      assert.equal(segment.code, undefined, `roulette ${segment.id}: gain interne envoyé à tort à la caisse`);
+    }
+  }
+
   // Les 12 premiers niveaux ont bien 12 silhouettes distinctes et jouables.
   const silhouettes = new Set();
   for (let n = 1; n <= 12; n++) {

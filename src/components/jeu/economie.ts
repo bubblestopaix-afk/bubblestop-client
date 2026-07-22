@@ -16,43 +16,57 @@ export type Collectible = {
 
 export type TypePrix = 'tampon' | 'reduction' | 'boisson' | 'perles' | 'capsule_doree';
 
+// Identifiants CANONIQUES partagés avec le catalogue serveur. Le téléphone ne
+// transmet jamais une quantité libre : le serveur retrouve type, valeur et quota
+// depuis ce code avant de créer une demande pour la caisse.
+export type CodeRecompenseReelle =
+  | 'quete_premier_tampon'
+  | 'set_milk' | 'set_fruit' | 'set_topping' | 'set_signature'
+  | 'collection_complete'
+  | 'boutique_tampon_1' | 'boutique_reduction_10' | 'boutique_reduction_20' | 'boutique_boisson_l'
+  | 'roulette_tampon_1' | 'roulette_tampon_2' | 'roulette_tampon_3'
+  | 'roulette_reduction_10' | 'roulette_boisson_l';
+
 // Un PRIX RÉEL gagné (à réclamer en caisse dans la version finale)
 export type Gain = {
   id: string;
+  code: CodeRecompenseReelle;
   type: TypePrix;
   qte: number;          // nb tampons, % de réduction, nb boissons…
   label: string;
   origine: 'set' | 'collection' | 'boutique' | 'roulette' | 'quete';
   gagneLe: string;      // ISO
-  statut: 'a_reclamer' | 'utilise';
+  demandeId?: string;
+  statut: 'a_reclamer' | 'en_attente' | 'utilise' | 'refuse';
 };
 
 // --- Les 4 sets ---------------------------------------------------------------
 
 export const SETS: Record<SetId, {
   nom: string; rarete: Rarete; couleur: string; fond: string; emoji: string;
-  recompense: { type: TypePrix; qte: number; label: string };
+  recompense: { code: CodeRecompenseReelle; type: TypePrix; qte: number; label: string };
 }> = {
   milk: {
     nom: 'La Bande Milk Tea', rarete: 'commun', couleur: '#8A68B8', fond: '#f1ecfa', emoji: '🧋',
-    recompense: { type: 'tampon', qte: 1, label: '+1 tampon de fidélité' },
+    recompense: { code: 'set_milk', type: 'tampon', qte: 1, label: '+1 tampon de fidélité' },
   },
   fruit: {
     nom: 'Le Gang des Fruités', rarete: 'rare', couleur: '#7E9B12', fond: '#eef4d8', emoji: '🍓',
-    recompense: { type: 'tampon', qte: 2, label: '+2 tampons de fidélité' },
+    recompense: { code: 'set_fruit', type: 'tampon', qte: 2, label: '+2 tampons de fidélité' },
   },
   topping: {
     nom: 'L\'Équipe Toppings', rarete: 'epique', couleur: '#C99012', fond: '#fdf3c2', emoji: '✨',
-    recompense: { type: 'reduction', qte: 10, label: '−10 % sur ta prochaine commande' },
+    recompense: { code: 'set_topping', type: 'reduction', qte: 10, label: '−10 % sur ta prochaine commande' },
   },
   signature: {
     nom: 'Les Signatures Royales', rarete: 'legendaire', couleur: '#D2588A', fond: '#fbe4ee', emoji: '👑',
-    recompense: { type: 'boisson', qte: 1, label: 'Grande boisson offerte (L, M pour Signature)' },
+    recompense: { code: 'set_signature', type: 'boisson', qte: 1, label: 'Grande boisson offerte (L, M pour Signature)' },
   },
 };
 
 // Récompense quand TOUTE la collection (24/24) est complète
 export const RECOMPENSE_COLLECTION = {
+  code: 'collection_complete' as CodeRecompenseReelle,
   type: 'boisson' as TypePrix, qte: 1,
   label: 'Bubble Legend : grande boisson offerte + 3 tampons',
   tamponsBonus: 3,
@@ -372,28 +386,28 @@ export function effetBuddy(set: SetId, rarete: Rarete): EffetBuddy {
 // La roulette (1 tour/mois, boisson à ~1 %) reste hors plafonds : jackpot auto-limité.
 // NB : le plafond mensuel s'affiche via `parMois` directement dans la carte de l'article
 // (pastille dédiée dans boutique.tsx) — ne PAS le répéter dans `detail`.
-export const BOUTIQUE: { id: string; cout: number; type: TypePrix; qte: number; parMois: number; label: string; detail: string }[] = [
-  { id: 'tampon-1', cout: 8000, type: 'tampon', qte: 1, parMois: 1, label: '+1 tampon', detail: 'Un tampon direct sur ta carte de fidélité' },
-  { id: 'reduc-10', cout: 20000, type: 'reduction', qte: 10, parMois: 3, label: '−10 %', detail: 'Sur ta prochaine commande en boutique' },
-  { id: 'reduc-20', cout: 40000, type: 'reduction', qte: 20, parMois: 1, label: '−20 %', detail: 'Grosse réduction sur ta prochaine commande' },
-  { id: 'boisson-l', cout: 60000, type: 'boisson', qte: 1, parMois: 1, label: 'Grande boisson offerte', detail: 'Taille L (M pour les Signatures)' },
+export const BOUTIQUE: { id: string; code: CodeRecompenseReelle; cout: number; type: TypePrix; qte: number; parMois: number; label: string; detail: string }[] = [
+  { id: 'tampon-1', code: 'boutique_tampon_1', cout: 8000, type: 'tampon', qte: 1, parMois: 1, label: '+1 tampon', detail: 'Un tampon direct sur ta carte de fidélité' },
+  { id: 'reduc-10', code: 'boutique_reduction_10', cout: 20000, type: 'reduction', qte: 10, parMois: 3, label: '−10 %', detail: 'Sur ta prochaine commande en boutique' },
+  { id: 'reduc-20', code: 'boutique_reduction_20', cout: 40000, type: 'reduction', qte: 20, parMois: 1, label: '−20 %', detail: 'Grosse réduction sur ta prochaine commande' },
+  { id: 'boisson-l', code: 'boutique_boisson_l', cout: 60000, type: 'boisson', qte: 1, parMois: 1, label: 'Grande boisson offerte', detail: 'Taille L (M pour les Signatures)' },
 ];
 
 // --- Roulette mensuelle (toujours gagnante, 1 tour par mois) -----------------------
 
 export type SegmentRoulette = {
-  id: string; label: string; type: TypePrix; qte: number; poids: number; couleur: string;
+  id: string; code?: CodeRecompenseReelle; label: string; type: TypePrix; qte: number; poids: number; couleur: string;
 };
 
 export const ROULETTE: SegmentRoulette[] = [
-  { id: 'tampon-1', label: '+1 tampon', type: 'tampon', qte: 1, poids: 28, couleur: '#A3C724' },
+  { id: 'tampon-1', code: 'roulette_tampon_1', label: '+1 tampon', type: 'tampon', qte: 1, poids: 28, couleur: '#A3C724' },
   { id: 'perles-300', label: '+300 perles', type: 'perles', qte: 300, poids: 22, couleur: '#8A68B8' },
-  { id: 'tampon-2', label: '+2 tampons', type: 'tampon', qte: 2, poids: 14, couleur: '#7EC8E3' },
-  { id: 'reduc-10', label: '−10 %', type: 'reduction', qte: 10, poids: 12, couleur: '#FFD166' },
+  { id: 'tampon-2', code: 'roulette_tampon_2', label: '+2 tampons', type: 'tampon', qte: 2, poids: 14, couleur: '#7EC8E3' },
+  { id: 'reduc-10', code: 'roulette_reduction_10', label: '−10 %', type: 'reduction', qte: 10, poids: 12, couleur: '#FFD166' },
   { id: 'perles-800', label: '+800 perles', type: 'perles', qte: 800, poids: 10, couleur: '#54418A' },
   { id: 'capsule-doree', label: 'Capsule dorée', type: 'capsule_doree', qte: 1, poids: 8, couleur: '#F3A0BD' },
-  { id: 'tampon-3', label: '+3 tampons', type: 'tampon', qte: 3, poids: 5, couleur: '#7E9B12' },
-  { id: 'boisson-l', label: 'Boisson offerte', type: 'boisson', qte: 1, poids: 1, couleur: '#D2588A' },
+  { id: 'tampon-3', code: 'roulette_tampon_3', label: '+3 tampons', type: 'tampon', qte: 3, poids: 5, couleur: '#7E9B12' },
+  { id: 'boisson-l', code: 'roulette_boisson_l', label: 'Boisson offerte', type: 'boisson', qte: 1, poids: 1, couleur: '#D2588A' },
 ];
 
 export function tirerRoulette(rng: () => number = Math.random): SegmentRoulette {
