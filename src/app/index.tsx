@@ -9,6 +9,7 @@ import { SvgXml } from 'react-native-svg';
 import { supabase } from '@/lib/supabase';
 import { useJeuVisible, useRoueDuMoisVisible, useTowerVisible } from '@/lib/app-config';
 import { useFonctionnalite } from '@/lib/fonctionnalites';
+import { useEstConnecte } from '@/components/garde-jeu';
 import { offreEnCours, offreVisiblePour } from '@/lib/offres';
 import { constaterFidelite } from '@/lib/visites';
 import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
@@ -64,13 +65,14 @@ export default function AccueilScreen() {
   const [prenom, setPrenom] = useState('');
   const [carte, setCarte] = useState<{ tampons: number; cadeaux: number } | null>(null);
   const [carteLiee, setCarteLiee] = useState<boolean | null>(null);
-  // Session connue explicitement. `null` = pas encore su : les cartes de jeu restent
-  // alors masquées, comme sous un flag serveur éteint (fail-closed). Les trois jeux —
-  // Quest, Tower, Roue — se jouent avec un compte et leurs lots se retirent en
-  // boutique : on ne propose jamais un jeu qu'on ne pourra pas honorer.
+  // Session RÉACTIVE (abonnée à onAuthStateChange) : une déconnexion retire les cartes
+  // de jeu à l'instant. Un état posé dans `charger()` ne l'aurait fait qu'au prochain
+  // poll — 15 s de carte fantôme — et jamais du tout si `charger()` échouait avant la
+  // lecture de session. `null` = pas encore su → cartes masquées (fail-closed, comme
+  // sous un flag serveur éteint).
   // (`carteLiee` ne pouvait pas servir : il vaut false aussi bien pour « pas connecté »
   //  que pour « connecté sans carte de fidélité ».)
-  const [estConnecte, setEstConnecte] = useState<boolean | null>(null);
+  const estConnecte = useEstConnecte();
   // null = chargement initial (ou module désactivé). On évite ainsi d'afficher
   // "Pas d'offre" avant que Supabase ait réellement répondu.
   const [offres, setOffres] = useState<any[] | null>(null);
@@ -117,7 +119,6 @@ export default function AccueilScreen() {
 
       const { data: { session }, error: erreurSession } = await supabase.auth.getSession();
       if (erreurSession) throw erreurSession;
-      setEstConnecte(!!session);
       if (!session) { setCarteLiee(false); setErreurReseau(echec); return; }
 
       // Profil : prénom + carte. La ville n'est plus demandée depuis le retrait
