@@ -174,8 +174,20 @@ function eurosPourSaisie(centimes: number): string {
   return (Number.isInteger(euros) ? String(euros) : String(euros)).replace('.', ',');
 }
 
-// Confirmation destructive qui marche aussi sur web (Alert y est muet)
-function confirmer(titre: string, texte: string, onOk: () => void) {
+// Confirmation qui marche aussi sur web (Alert y est muet).
+// ⚠️ Le libellé du bouton d'action est PARAMÉTRABLE depuis le 05/08/2026. Il était
+// figé sur « Supprimer » + style destructif : la confirmation de la date de
+// naissance affichait donc « Annuler / Supprimer » en rouge, sans aucun
+// « Confirmer » à l'écran (signalé par Yoann sur iPhone). Le défaut reste
+// « Supprimer » pour ne rien changer à la suppression de compte.
+function confirmer(
+  titre: string,
+  texte: string,
+  onOk: () => void,
+  options: { libelleOk?: string; destructif?: boolean } = {},
+) {
+  const libelleOk = options.libelleOk ?? 'Supprimer';
+  const destructif = options.destructif ?? true;
   if (Platform.OS === 'web') {
     // eslint-disable-next-line no-alert
     if (typeof window !== 'undefined' && window.confirm(`${titre}\n\n${texte}`)) onOk();
@@ -183,7 +195,7 @@ function confirmer(titre: string, texte: string, onOk: () => void) {
   }
   Alert.alert(titre, texte, [
     { text: 'Annuler', style: 'cancel' },
-    { text: 'Supprimer', style: 'destructive', onPress: onOk },
+    { text: libelleOk, style: destructif ? 'destructive' : 'default', onPress: onOk },
   ]);
 }
 
@@ -630,6 +642,7 @@ export default function CompteScreen() {
         'Date de naissance définitive',
         `Confirme ta date de naissance : ${dateNaissance.trim()}.\n\n⚠️ Une fois enregistrée, elle ne pourra PLUS être modifiée.`,
         appliquer,
+        { libelleOk: 'Confirmer', destructif: false }, // rien n'est supprimé ici : on ENREGISTRE
       );
       return;
     }
