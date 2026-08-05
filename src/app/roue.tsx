@@ -33,6 +33,7 @@ import {
   instantsDeCrans, joursAvantMoisSuivant, pourcentagesHonnetes, rotationCibleVers,
   segmentSousPointeur, tirageComplet,
 } from '@/components/roue/roue';
+import { MotifRoueMono, type IdSegmentRoue } from '@/components/roue/icones-roue';
 
 // --- Verrou mensuel local -------------------------------------------------------------
 const CLE_TIRAGE = 'roueDuMois.v1.tirage';
@@ -404,22 +405,29 @@ function RoueContenu() {
                 <Path d="M17 26 L4 4 Q17 -2 30 4 Z" fill="#fff" stroke="#fff" strokeWidth={2.4} />
               </Svg>
             </View>
-            <Animated.View
-              style={[
-                dejaJoue && !enCours && !revele ? { opacity: 0.92 } : null,
-                { transform: [{ rotate: rotation.interpolate({ inputRange: [0, 360], outputRange: ['0deg', '360deg'] }) }] },
-              ]}
-            >
-              <RoueSvg misEnAvantId={segmentMisEnAvant} />
-            </Animated.View>
+            {/* Le rotor et la mascotte partagent un conteneur de la taille EXACTE de la
+                roue. Le repère du centrage devient donc le moyeu lui-même.
+                Avant, la superposition s'étalait sur `roueZone`, qui contient AUSSI la
+                flèche (26 px de haut, remontée de 13) et un paddingTop de 2 : son milieu
+                tombait 7,5 px au-dessus du moyeu, et la mascotte avec. */}
+            <View style={{ width: TAILLE, height: TAILLE }}>
+              <Animated.View
+                style={[
+                  dejaJoue && !enCours && !revele ? { opacity: 0.92 } : null,
+                  { transform: [{ rotate: rotation.interpolate({ inputRange: [0, 360], outputRange: ['0deg', '360deg'] }) }] },
+                ]}
+              >
+                <RoueSvg misEnAvantId={segmentMisEnAvant} />
+              </Animated.View>
 
-            {/* 🧋 La mascotte perle trône au moyeu et reste DROITE pendant que la roue
-                tourne : elle vit HORS du rotor, par-dessus, sur l'assiette blanche
-                dessinée dans le SVG. C'est elle qui fait « Bubble Stop » d'un coup d'œil. */}
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                {/* couronnée : c'est l'événement du mois, elle préside */}
-                <MascottePerle taille={38} couronne />
+              {/* 🧋 La mascotte perle trône au moyeu et reste DROITE pendant que la roue
+                  tourne : elle vit HORS du rotor, par-dessus, sur l'assiette blanche
+                  dessinée dans le SVG. C'est elle qui fait « Bubble Stop » d'un coup d'œil. */}
+              <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  {/* couronnée : c'est l'événement du mois, elle préside */}
+                  <MascottePerle taille={38} couronne />
+                </View>
               </View>
             </View>
 
@@ -579,6 +587,10 @@ const SECTEURS = SEGMENTS_ROUE.map((seg, i) => ({
 }));
 
 const POLICE_ROUE = 11;
+// Côté de l'icône dans une part. Mesuré au rendu : 26 px se perd dans les 45°,
+// 32 px tient sa place sans mordre le libellé. Les icônes sont dessinées dans une
+// boîte de 96 — d'où le scale(32/96) au point d'appel.
+const TAILLE_ICONE = 32;
 // Largeur moyenne d'un caractère GRAS (fraction de la police), mesurée au rendu sur
 // l'ancienne roue : 0,55 (texte normal) sous-estimait et laissait le texte mordre
 // les séparateurs blancs.
@@ -659,14 +671,16 @@ function RoueSvg({ misEnAvantId }: { misEnAvantId: string | null }) {
               stroke="#fff"
               strokeWidth={misEnAvantId === seg.id ? 3.4 : 2}
             />
-            <SvgText
-              x={pTxt.x} y={yEmoji}
-              fontSize={15}
-              textAnchor="middle" alignmentBaseline="middle"
-              transform={`rotate(${rot} ${pTxt.x} ${pTxt.y})`}
+            {/* Icône dessinée à la place de l'emoji : même point d'ancrage, même
+                rotation. Elle prend la couleur du libellé de sa part — pas la sienne —
+                pour ne rien imposer à la palette pastel des secteurs. */}
+            <G
+              transform={`rotate(${rot} ${pTxt.x} ${pTxt.y}) `
+                + `translate(${pTxt.x - TAILLE_ICONE / 2} ${yEmoji - TAILLE_ICONE / 2}) `
+                + `scale(${TAILLE_ICONE / 96})`}
             >
-              {seg.emoji}
-            </SvgText>
+              <MotifRoueMono id={seg.id as IdSegmentRoue} couleur={sombre ? '#2A1D46' : '#fff'} />
+            </G>
             {lignes.map((ligne, n) => (
               <SvgText
                 key={ligne}
