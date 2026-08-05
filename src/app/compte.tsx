@@ -24,6 +24,7 @@ import {
   lireFonctionnalites, REGISTRE_FONCTIONNALITES,
 } from '@/lib/fonctionnalites';
 import { offreEnCours, offreProgrammee, resumeRecurrence } from '@/lib/offres';
+import { AGE_MINIMUM, analyserNaissance, messageNaissance } from '@/lib/naissance';
 import { useCatalogueCloud } from '@/data/catalogue-cloud';
 import { GoogleLogo } from '@/components/google-logo';
 import { LogoBubbleStop } from '@/components/logo-bubblestop';
@@ -609,12 +610,12 @@ export default function CompteScreen() {
     if (dateNaissance.trim()) {
       const m = dateNaissance.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
       const [, j, mo, a] = m ?? [];
-      const valide = m && +mo >= 1 && +mo <= 12 && +j >= 1 && +j <= 31 && +a >= 1900 && +a <= new Date().getFullYear();
-      if (!valide) {
-        setInfoMsg('Date de naissance : format JJ/MM/AAAA.');
+      const rProfil = analyserNaissance(dateNaissance);
+      if (!rProfil.ok) {
+        setInfoMsg(messageNaissance(rProfil.motif));
         return;
       }
-      naissanceIso = `${a}-${mo}-${j}`;
+      naissanceIso = rProfil.iso;
     }
     setInfoMsg(null);
     const maj: Record<string, any> = {
@@ -825,18 +826,6 @@ export default function CompteScreen() {
     }
   };
 
-  // JJ/MM/AAAA → YYYY-MM-DD (null si invalide, dans le futur, ou improbable)
-  const naissanceVersIso = (saisie: string): string | null => {
-    const m = saisie.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if (!m) return null;
-    const jour = +m[1], mois = +m[2], annee = +m[3];
-    if (mois < 1 || mois > 12 || jour < 1 || jour > 31 || annee < 1900) return null;
-    const d = new Date(annee, mois - 1, jour);
-    if (d.getFullYear() !== annee || d.getMonth() !== mois - 1 || d.getDate() !== jour) return null;
-    if (d.getTime() > Date.now()) return null;
-    return `${m[3]}-${m[2]}-${m[1]}`;
-  };
-
   const valider = async () => {
     setMessage(null);
     const mail = email.trim().toLowerCase();
@@ -856,15 +845,20 @@ export default function CompteScreen() {
     // Date de naissance OBLIGATOIRE à l'inscription (définitive ensuite)
     let naissanceIso: string | null = null;
     if (mode === 'inscription') {
-      naissanceIso = naissanceVersIso(dateNaissance);
       if (nom.trim().length < 2) {
         setMessage('Entre ton prénom : il s’affiche sur ton gobelet en boutique.');
         return;
       }
-      if (!naissanceIso) {
+      if (!dateNaissance.trim()) {
         setMessage('Renseigne ta date de naissance (JJ/MM/AAAA).');
         return;
       }
+      const rNaiss = analyserNaissance(dateNaissance);
+      if (!rNaiss.ok) {
+        setMessage(messageNaissance(rNaiss.motif));
+        return;
+      }
+      naissanceIso = rNaiss.iso;
       const parrain = codeParrain.replace(/\D/g, '');
       if (parrain && parrain.length !== 8) {
         setMessage('Le numéro fidélité de ton parrain doit contenir exactement 8 chiffres. Laisse le champ vide si tu n’en as pas.');
@@ -947,7 +941,9 @@ export default function CompteScreen() {
           id: data.user.id,
           nom: nom.trim() || null,
           email: mail,
-          date_naissance: naissanceVersIso(dateNaissance),
+          // Autre portée que valider() : on rejoue le contrôle sur la saisie courante
+          // plutôt que d'emprunter une variable qui n'existe pas ici.
+          date_naissance: (() => { const r = analyserNaissance(dateNaissance); return r.ok ? r.iso : null; })(),
           prenom_sur_ticket: true,
         });
       }
@@ -1839,7 +1835,7 @@ export default function CompteScreen() {
                   returnKeyType="done"
                   onSubmitEditing={() => Keyboard.dismiss()}
                 />
-                <Text style={styles.reglesMdp}>🎂 Une grande boisson (taille L) offerte le jour de ton anniversaire. Non modifiable une fois enregistrée.</Text>
+                <Text style={styles.reglesMdp}>🎂 Une grande boisson (taille L) offerte le jour de ton anniversaire. Non modifiable une fois enregistrée · {AGE_MINIMUM} ans minimum.</Text>
                 <ChampTexte
                   label="Numéro fidélité de ton parrain (optionnel)"
                   value={codeParrain}

@@ -14,18 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { C, F } from '@/constants/charte';
 import { Carte, ChampTexte, Message, BoutonPrimaire } from '@/components/ui-kit';
 import { IconeApp } from '@/components/icones-app';
-
-// JJ/MM/AAAA → YYYY-MM-DD (null si invalide, dans le futur, ou improbable)
-function naissanceVersIso(saisie: string): string | null {
-  const m = saisie.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!m) return null;
-  const jour = +m[1], mois = +m[2], annee = +m[3];
-  if (mois < 1 || mois > 12 || jour < 1 || jour > 31 || annee < 1900) return null;
-  const d = new Date(annee, mois - 1, jour);
-  if (d.getFullYear() !== annee || d.getMonth() !== mois - 1 || d.getDate() !== jour) return null;
-  if (d.getTime() > Date.now()) return null;
-  return `${m[3]}-${m[2]}-${m[1]}`;
-}
+import { AGE_MINIMUM, analyserNaissance, messageNaissance } from '@/lib/naissance';
 
 export function GateNaissance({ userId, onDone }: { userId: string; onDone: () => void }) {
   const insets = useSafeAreaInsets();
@@ -34,8 +23,9 @@ export function GateNaissance({ userId, onDone }: { userId: string; onDone: () =
   const [enCours, setEnCours] = useState(false);
 
   const enregistrer = async () => {
-    const iso = naissanceVersIso(valeur);
-    if (!iso) { setMsg('Entre une date de naissance valide (JJ/MM/AAAA).'); return; }
+    const r = analyserNaissance(valeur);
+    if (!r.ok) { setMsg(messageNaissance(r.motif)); return; }
+    const iso = r.iso;
     setEnCours(true);
     setMsg(null);
     try {
@@ -86,7 +76,7 @@ export function GateNaissance({ userId, onDone }: { userId: string; onDone: () =
                 />
                 <View style={styles.aideRang}>
                   <IconeApp nom="cadenas" taille={13} />
-                  <Text style={styles.aide}>Non modifiable une fois enregistrée.</Text>
+                  <Text style={styles.aide}>Non modifiable une fois enregistrée · {AGE_MINIMUM} ans minimum.</Text>
                 </View>
                 {msg && <Message texte={msg} />}
                 <BoutonPrimaire titre="Valider" onPress={enregistrer} loading={enCours} />
