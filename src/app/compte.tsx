@@ -857,6 +857,10 @@ export default function CompteScreen() {
     let naissanceIso: string | null = null;
     if (mode === 'inscription') {
       naissanceIso = naissanceVersIso(dateNaissance);
+      if (nom.trim().length < 2) {
+        setMessage('Entre ton prénom : il s’affiche sur ton gobelet en boutique.');
+        return;
+      }
       if (!naissanceIso) {
         setMessage('Renseigne ta date de naissance (JJ/MM/AAAA).');
         return;
@@ -1803,7 +1807,19 @@ export default function CompteScreen() {
 
             {mode === 'inscription' && (
               <>
-                <ChampTexte value={nom} onChangeText={setNom} placeholder="Prénom" autoCapitalize="words" />
+                <ChampTexte
+                  label="Prénom"
+                  value={nom}
+                  onChangeText={setNom}
+                  placeholder="Ton prénom"
+                  autoCapitalize="words"
+                  autoComplete="given-name"
+                  textContentType="givenName"
+                  maxLength={40}
+                />
+                <Text style={styles.aideChamp}>
+                  🧋 Ton prénom s'affiche sur ton gobelet en boutique.
+                </Text>
                 <Text style={styles.aideChamp}>
                   📵 Aucun téléphone requis. Ta carte de fidélité est un QR — active-la dans l'onglet Fidélité.
                 </Text>
