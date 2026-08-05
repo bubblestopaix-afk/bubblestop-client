@@ -12,7 +12,7 @@
 //     honnêtes qu'accompagnées de cette liste (doctrine de la roulette Quest).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View,
+  Animated, Easing, Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -564,6 +564,17 @@ function RoueContenu() {
             les parts sont dessinées égales pour rester lisibles. « Nouveau tour » relance
             la roue : le lot final est toujours un vrai lot.
           </Text>
+          {/* Jeu à lots réels : le règlement doit être atteignable depuis l'écran, comme
+              pour Boba Quest. La Roue a le sien — tirage au sort, probabilités, validité
+              de 30 jours, retrait en boutique. */}
+          <Pressable
+            onPress={() => Linking.openURL('https://commande.bubblestop.fr/reglement-roue-du-mois')}
+            hitSlop={6}
+            accessibilityRole="link"
+            accessibilityLabel="Lire le règlement de La Roue du Mois"
+          >
+            <Text style={styles.reglement}>Règlement La Roue du Mois · Données personnelles</Text>
+          </Pressable>
         </View>
       </ScrollView>
 
@@ -809,6 +820,10 @@ const styles = StyleSheet.create({
   chanceEmoji: { fontSize: 13 },
   chanceLabel: { flex: 1, fontFamily: F.t600, fontSize: 12.5, color: C.texte2 },
   chancePct: { fontFamily: F.t800, fontSize: 12.5, color: C.violetClair },
+  reglement: {
+    fontFamily: F.t600, fontSize: 11.5, color: C.violetClair,
+    textAlign: 'center', marginTop: 10, textDecorationLine: 'underline',
+  },
   chancesNote: { fontFamily: F.t600, fontSize: 11.5, color: C.texte3, marginTop: 4, textAlign: 'center', lineHeight: 16 },
 
   voile: {

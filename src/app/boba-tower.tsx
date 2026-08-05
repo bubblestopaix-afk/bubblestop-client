@@ -24,7 +24,7 @@
 // Pas de Skia (inutile ici), pas de son (module audio absent du binaire — OTA).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View,
+  Animated, Easing, Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Redirect, router, Tabs } from 'expo-router';
@@ -930,6 +930,17 @@ export default function BobaTowerScreen() {
               style={styles.btnRetourFin} hitSlop={6}>
               <Text style={styles.btnRetourFinTxt}>Retour à l’accueil</Text>
             </Pressable>
+
+            {/* Boba Tower ne distribue AUCUN lot — son règlement le dit explicitement,
+                pour qu'aucun joueur ne s'attende à une contrepartie en boutique. */}
+            <Pressable
+              onPress={() => Linking.openURL('https://commande.bubblestop.fr/reglement-boba-tower')}
+              hitSlop={6}
+              accessibilityRole="link"
+              accessibilityLabel="Lire le règlement Boba Tower"
+            >
+              <Text style={styles.reglement}>Règlement Boba Tower · Données personnelles</Text>
+            </Pressable>
           </ScrollView>
         </View>
       )}
@@ -1093,5 +1104,9 @@ const styles = StyleSheet.create({
   chipDefiTxt: { fontFamily: F.t800, fontSize: 14, color: '#fff' },
   chipDefiSous: { fontFamily: F.t500, fontSize: 11.5, color: C.surViolet, textAlign: 'center' },
   btnRetourFin: { alignItems: 'center', paddingVertical: 8 },
+  reglement: {
+    fontFamily: F.t600, fontSize: 11.5, color: C.violetClair,
+    textAlign: 'center', marginTop: 14, textDecorationLine: 'underline',
+  },
   btnRetourFinTxt: { fontFamily: F.t700, fontSize: 14, color: C.surViolet },
 });
