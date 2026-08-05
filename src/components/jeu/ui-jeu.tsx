@@ -264,6 +264,14 @@ const PICTOS_TUILE: Record<string, ReactElement> = {
       <Circle cx={19.5} cy={5.5} r={1.4} fill="#f2da33" />
     </>
   ),
+  // 🗺️ Tournée des Maîtres — épingle de carte blanche + étincelle (tuile orange)
+  tournee: (
+    <>
+      <Path d="M12 3.2C8.7 3.2 6 5.9 6 9.2C6 13.7 12 20.4 12 20.4C12 20.4 18 13.7 18 9.2C18 5.9 15.3 3.2 12 3.2Z" fill="#fff" />
+      <Circle cx={12} cy={9.2} r={2.7} fill="#e08a5a" />
+      <Path d="M19.3 3.6l.5 1.2 1.2.5-1.2.5-.5 1.2-.5-1.2-1.2-.5 1.2-.5Z" fill="#f2da33" />
+    </>
+  ),
 };
 
 // Couleurs candy des tuiles (maquette 2c) : fond + socle
@@ -275,6 +283,7 @@ export const TUILES_CANDY: Record<string, { fond: string; socle: string }> = {
   boutique: { fond: '#2bb4a9', socle: '#1c8d84' },
   infini: { fond: '#3d9ab8', socle: '#2d7691' },
   troc: { fond: '#b98fe0', socle: '#9668c9' },
+  tournee: { fond: '#e08a5a', socle: '#b96a3e' },
 };
 
 // Tuile candy du hub (56 px, socle plein, picto blanc, badge, label dessous).

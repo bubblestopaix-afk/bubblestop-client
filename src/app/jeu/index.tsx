@@ -1,8 +1,14 @@
 // === Boba Quest — hub du jeu ===
 // Solde de perles, Aventure (niveaux), défis du jour, Infini, Capsules,
-// Collection, Roulette du mois, Boutique des prix, Troc (bientôt).
+// Collection, Boutique des prix, Comptoir de Troc.
+// ⚠️ La Roue du Mois n'habite PLUS ici (03/08/2026) : c'est un jeu autonome sur
+// /roue (flag serveur `roue_du_mois`), carte dédiée sur l'accueil. L'ancienne
+// route /jeu/roulette redirige. Le code roulette du store reste pour la compat
+// des sauvegardes, mais aucune tuile ne pointe plus dessus.
 import { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, Pressable, Modal } from 'react-native';
+import {
+  Alert, DevSettings, StyleSheet, View, Text, ScrollView, Pressable, Modal, Linking,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
@@ -10,22 +16,29 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
 import { TitreKawaii, BoutonRetour, Etincelle, MascottePerle, Vague } from '@/components/ui-kit';
-import { COLLECTIBLES, evenementDuJour, multSerie, PASS_PALIERS, QUETE_TAMPON } from '@/components/jeu/economie';
+import {
+  COLLECTIBLES, evenementDuJour, GORGEE_FRAICHE, gorgeePourBoissons, multSerie,
+  PASS_PALIERS, QUETE_TAMPON,
+} from '@/components/jeu/economie';
 import { Icone } from '@/components/jeu/icones';
 import {
   BandeauPreview, BoutonJeu, Confettis, formatNb, IconePerle, PictoHub, TuileMode,
 } from '@/components/jeu/ui-jeu';
 import { hapticMoyen, hapticSucces } from '@/lib/juice';
+import { consommerVisitesEnAttente, visitesEnAttente } from '@/lib/visites';
+import { programmerSauvegarde } from '@/lib/sauvegarde-jeu';
+import type { GainGorgee } from '@/components/jeu/economie';
 import {
-  bonusJourDispo, defisDuJour, etatPass, nbUniques, paliersAReclamer,
-  reclamerBonusDefis, reclamerDefi, reclamerQueteTampon, resetBobaQuest, rouletteDispo,
-  tickSerie, useBobaQuest,
+  bonusJourDispo, boostVisite, crediterGorgee, defisDuJour, etatPass,
+  nbUniques, offresTrocAujourdhui, paliersAReclamer,
+  paliersTourneeReclamables, reclamerBonusDefis, reclamerDefi, reclamerQueteTampon,
+  effacerSauvegardeLocalePourTestRestauration, resetBobaQuest, tickSerie,
+  tourneeActuelle, useBobaQuest,
 } from '@/store/jeu';
 
 export default function HubBobaQuest() {
   const insets = useSafeAreaInsets();
   const etat = useBobaQuest();
-  const [trocVisible, setTrocVisible] = useState(false);
   // 🔥 Série quotidienne : pointée à l'arrivée sur le hub (une fois par jour)
   const [serieJour, setSerieJour] = useState<{ jours: number; perles: number; capsuleDoree: boolean } | null>(null);
   useEffect(() => {
@@ -37,9 +50,37 @@ export default function HubBobaQuest() {
   }, []);
   const [resetVisible, setResetVisible] = useState(false);
 
+  // 🧋 LA GORGÉE FRAÎCHE — une VRAIE visite en boutique récompense le joueur.
+  // `lib/visites` a détecté l'achat depuis la hausse du compteur de fidélité (hors store,
+  // pour ne pas importer @/store/jeu dans l'accueil de l'app) ; on la consomme ici et on
+  // crédite. Le tir est unique par visite : `consommerVisitesEnAttente` remet à zéro.
+  const [gorgee, setGorgee] = useState<GainGorgee | null>(null);
+  useEffect(() => {
+    let vivant = true;
+    (async () => {
+      try {
+        // ORDRE VOLONTAIRE : on LIT d'abord, on crédite, et on ne consomme QUE si le
+        // crédit a réussi. L'inverse (consommer puis créditer) perdrait la récompense si
+        // le store refusait le crédit — par exemple sur une sauvegarde illisible.
+        const boissons = await visitesEnAttente();
+        if (!vivant || boissons <= 0) return;
+        const gain = crediterGorgee(boissons);
+        if (!gain) return;                       // on retentera à la prochaine ouverture
+        await consommerVisitesEnAttente();
+        if (vivant) { setGorgee(gain); hapticSucces(); }
+      } catch { /* rien à créditer, ou lecture impossible : silencieux */ }
+    })();
+    return () => { vivant = false; };
+  }, []);
+  const visite = boostVisite(etat);
+
+  // 💾 Le hub est le point de passage de toute session de jeu : revenir ici après avoir
+  // joué programme une sauvegarde serveur différée (anti-rafale). Le passage en
+  // arrière-plan en déclenche une immédiate, c'est là que l'on risque de perdre l'app.
+  useEffect(() => { programmerSauvegarde(); }, [etat.revision]);
+
   const uniques = nbUniques(etat);
   const bonus = bonusJourDispo(etat);
-  const roulette = rouletteDispo(etat);
   const aReclamer = etat.gains.filter((g) => g.statut === 'a_reclamer').length;
   const capsulesGratuites = etat.capsulesGratuites + etat.capsulesDoreesGratuites;
   const defis = defisDuJour(etat);
@@ -53,6 +94,13 @@ export default function HubBobaQuest() {
   const pctPass = Math.min(100, (pass.xp / dernierPalier.xp) * 100);
   // indice « encore X avant la capsule du rang 5/10… »
   const versCapsuleArene = 5 - ((etat.arene.rang - 1) % 5);
+  // 🗺️ Tournée : badge = n° du prochain duel (ou « ! » si un draft / palier attend)
+  const suiviTournee = tourneeActuelle(etat);
+  const badgeTournee = suiviTournee.run
+    ? (suiviTournee.run.draftEnAttente ? '!' : String(suiviTournee.run.etape))
+    : paliersTourneeReclamables(etat) > 0 ? '!' : undefined;
+  // 🤝 Troc : badge « ! » quand au moins une offre du jour est faisable et pas encore faite
+  const trocDispo = offresTrocAujourdhui(etat).some((o) => !o.fait && o.faisable.ok);
   // Guide dérivé : tant que la collection n'a pas commencé, le hub pointe soit
   // vers l'Aventure, soit vers la capsule gratuite déjà gagnée. Zéro nouveau champ.
   const debutSansCollection = etat.capsulesOuvertes === 0 && uniques === 0;
@@ -271,6 +319,14 @@ export default function HubBobaQuest() {
               onPress={() => router.push('/jeu/arene' as any)}
             />
             <TuileMode
+              id="tournee" label="Tournée"
+              badge={badgeTournee}
+              accessibilityLabel={suiviTournee.run
+                ? `Tournée des Maîtres, run en cours au duel ${suiviTournee.run.etape}${suiviTournee.run.draftEnAttente ? ', un bonus de run attend ton choix' : ''}`
+                : `Tournée des Maîtres, record ${suiviTournee.record} victoires`}
+              onPress={() => router.push('/jeu/tournee' as any)}
+            />
+            <TuileMode
               id="infini" label="Infini"
               accessibilityLabel={`Infini, record ${formatNb(etat.meilleurScore)}`}
               onPress={() => router.push('/jeu/infini' as any)}
@@ -286,12 +342,8 @@ export default function HubBobaQuest() {
               accessibilityLabel={`Collection, ${uniques} sur ${COLLECTIBLES.length}`}
               onPress={() => router.push('/jeu/collection' as any)}
             />
-            <TuileMode
-              id="roulette" label="Roulette"
-              badge={roulette ? '1' : undefined}
-              accessibilityLabel={roulette ? 'Roulette du mois, ton tour gratuit t’attend' : 'Roulette du mois, déjà jouée'}
-              onPress={() => router.push('/jeu/roulette' as any)}
-            />
+            {/* La tuile Roulette a déménagé : la roue est un jeu autonome (/roue),
+                avec sa carte sur l'accueil — plus de doublon dans le hub Quest. */}
             <TuileMode
               id="boutique" label="Boutique"
               badge={aReclamer > 0 ? String(aReclamer) : undefined}
@@ -300,10 +352,17 @@ export default function HubBobaQuest() {
             />
             <TuileMode
               id="troc" label="Troc"
-              accessibilityLabel="Troc entre amis"
+              badge={trocDispo ? '!' : undefined}
+              accessibilityLabel={trocDispo ? 'Comptoir de Troc, une offre du jour est faisable' : 'Comptoir de Troc'}
               onPress={() => router.push('/jeu/troc' as any)}
             />
           </View>
+
+          {/* === 🧋 La Gorgée Fraîche : la promesse, AVANT la visite ===
+              Placée JUSTE APRÈS les modes de jeu, à dessein : c'est le premier bloc que
+              l'on rencontre en quittant la grille des modes, donc vu sans rien pousser
+              vers le bas — aucun pixel n'est ajouté au-dessus des tuiles. */}
+          <CarteGorgeeFraiche visite={visite} />
 
           {/* === 🎫 Boba Pass (progression hebdo) === */}
           <Pressable
@@ -337,33 +396,100 @@ export default function HubBobaQuest() {
             {formatNb(etat.partiesJouees)} partie{etat.partiesJouees > 1 ? 's' : ''} · {formatNb(etat.capsulesOuvertes)} capsule{etat.capsulesOuvertes > 1 ? 's' : ''} ouverte{etat.capsulesOuvertes > 1 ? 's' : ''}
           </Text>
           <BandeauPreview />
+          <Pressable
+            onPress={() => Linking.openURL('https://commande.bubblestop.fr/reglement-boba-quest')}
+            hitSlop={6}
+            accessibilityRole="link"
+            accessibilityLabel="Lire le règlement Boba Quest"
+          >
+            <Text style={styles.reglement}>Règlement Boba Quest · Données personnelles</Text>
+          </Pressable>
           {__DEV__ && (
-            <Pressable
-              onPress={() => setResetVisible(true)}
-              hitSlop={6}
-              accessibilityRole="button"
-              accessibilityLabel="Remettre la progression de test à zéro"
-            >
-              <Text style={styles.reset}>Tout remettre à zéro</Text>
-            </Pressable>
+            <>
+              <Pressable
+                onPress={() => setResetVisible(true)}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel="Remettre la progression de test à zéro"
+              >
+                <Text style={styles.reset}>Tout remettre à zéro</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Alert.alert(
+                    'Tester la restauration cloud ?',
+                    'La copie locale Boba Quest sera effacée, puis l’app se rechargera. Ton compte et la sauvegarde cloud ne seront pas touchés.',
+                    [
+                      { text: 'Annuler', style: 'cancel' },
+                      {
+                        text: 'Lancer le test',
+                        onPress: async () => {
+                          try {
+                            const effacee = await effacerSauvegardeLocalePourTestRestauration();
+                            if (effacee) DevSettings.reload();
+                          } catch {
+                            Alert.alert('Test impossible', 'La copie locale n’a pas pu être effacée.');
+                          }
+                        },
+                      },
+                    ],
+                  );
+                }}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel="Tester la restauration de la progression depuis le cloud"
+              >
+                <Text style={styles.reset}>Tester la restauration cloud</Text>
+              </Pressable>
+            </>
           )}
         </View>
       </ScrollView>
 
-      {/* Modal teaser troc */}
-      <Modal visible={trocVisible} transparent animationType="fade" onRequestClose={() => setTrocVisible(false)}>
-        <View style={styles.modalFond}>
-          <View style={styles.modalCarte}>
-            <PictoHub id="troc" fond="#CBE4F4" taille={56} />
-            <Text style={styles.modalTitre}>Le troc arrive bientôt !</Text>
-            <Text style={styles.modalTexte}>
-              Tu pourras proposer tes collectibles en double à tes amis et récupérer
-              ceux qui te manquent — un simple QR à scanner entre deux comptes,
-              comme pour le parrainage.
-            </Text>
-            <BoutonJeu titre="J'ai hâte !" onPress={() => setTrocVisible(false)} style={{ alignSelf: 'stretch' }} />
+      {/* === 🧋 Célébration de la Gorgée Fraîche === */}
+      <Modal visible={!!gorgee} transparent animationType="fade" onRequestClose={() => setGorgee(null)}>
+        {gorgee && (
+          <View style={styles.modalFond}>
+            <View style={styles.gorgeeCarte}>
+              <Confettis hauteur={200} />
+              <Text style={{ fontSize: 46 }}>🧋</Text>
+              <Text style={styles.gorgeeTitre}>Merci pour ta visite !</Text>
+              <Text style={styles.gorgeeSous}>
+                {gorgee.boissons > 1
+                  ? `${gorgee.boissons} boissons en boutique, ça se fête.`
+                  : 'Ta boisson en boutique, ça se fête.'}
+              </Text>
+              <View style={styles.gorgeeLots}>
+                {gorgee.capsulesDorees > 0 && (
+                  <Text style={styles.gorgeeLot}>
+                    👑 {gorgee.capsulesDorees} capsule{gorgee.capsulesDorees > 1 ? 's' : ''} DORÉE{gorgee.capsulesDorees > 1 ? 'S' : ''}
+                  </Text>
+                )}
+                {gorgee.capsulesClassiques > 0 && (
+                  <Text style={styles.gorgeeLot}>
+                    🎁 {gorgee.capsulesClassiques} capsule{gorgee.capsulesClassiques > 1 ? 's' : ''} classique{gorgee.capsulesClassiques > 1 ? 's' : ''}
+                  </Text>
+                )}
+                <Text style={styles.gorgeeLot}>🫧 +{formatNb(gorgee.perles)} perles</Text>
+                {gorgee.tournees > 0 && (
+                  <Text style={styles.gorgeeLot}>
+                    🗺️ {gorgee.tournees} Tournée offerte{gorgee.tournees > 1 ? 's' : ''}
+                  </Text>
+                )}
+                {/* dérivé, comme la carte de promesse : la célébration ne doit jamais
+                    annoncer une durée que l'économie ne tient plus */}
+                <Text style={styles.gorgeeLot}>
+                  ⚡ Perles ×{GORGEE_FRAICHE.multiplicateur} pendant {GORGEE_FRAICHE.heuresX2} h
+                </Text>
+              </View>
+              <BoutonJeu
+                titre="Trop bien !"
+                onPress={() => setGorgee(null)}
+                style={{ alignSelf: 'stretch' }}
+              />
+            </View>
           </View>
-        </View>
+        )}
       </Modal>
 
       {/* Modal reset preview */}
@@ -440,6 +566,93 @@ function CarteAventure({ niveau, etoiles, cta }: { niveau: number; etoiles: numb
       <Text style={styles.aventureSous}>Niveau {niveau} · {etoiles} étoile{etoiles > 1 ? 's' : ''} — libère les capsules en tirs limités</Text>
       <View style={styles.aventureCta}><Text style={styles.aventureCtaTxt}>{cta}</Text></View>
     </Pressable>
+  );
+}
+
+// 🧋 LA GORGÉE FRAÎCHE — la PROMESSE, affichée en permanence, AVANT toute visite.
+//
+// POURQUOI cette carte existe : la mécanique fonctionnait déjà, mais elle n'apparaissait
+// qu'APRÈS coup, en modale surprise, doublée d'une pastille qui ne s'allume que quand le
+// ×2 tourne DÉJÀ. Un joueur qui n'est jamais venu ne pouvait donc pas découvrir que venir
+// paie. Une récompense que le joueur ignore ne change aucun comportement : elle se
+// contente de remercier ceux qui seraient venus de toute façon — exactement la subvention
+// que le projet cherche à supprimer. La carte répond à trois questions d'un coup d'œil :
+// qu'est-ce que je gagne, comment, et où j'en suis.
+//
+// TON : un MENU, jamais un cadenas. On donne envie de passer, on ne reproche pas de ne
+// pas être passé. Aucun compte à rebours anxiogène : le seul temps affiché est celui d'un
+// bonus DÉJÀ acquis.
+//
+// ⚠️ AUCUN CHIFFRE EN DUR. Les lots viennent de `gorgeePourBoissons()` — la fonction que
+// `crediterGorgee` appelle vraiment pour payer le joueur — et les valeurs qu'elle ne
+// porte pas (plafond, durée, multiplicateur) de `GORGEE_FRAICHE`. Si l'économie bouge
+// dans economie.ts, la promesse bouge avec elle : on ne peut pas promettre autre chose
+// que ce que la caisse et le store tiendront.
+function CarteGorgeeFraiche({ visite }: { visite: { actif: boolean; heures: number } }) {
+  // Le lot d'UNE boisson, calculé par la fonction qui crédite réellement.
+  const lot = gorgeePourBoissons(1);
+  if (!lot) return null; // inatteignable (1 > 0) : garde-fou de typage, pas une règle
+  // Chaque ligne est conditionnée à sa propre valeur : si une récompense passait à 0 dans
+  // economie.ts, on cesserait de la promettre au lieu d'afficher « 0 capsule ».
+  const lots: { picto: string; texte: string }[] = [];
+  if (lot.capsulesDorees > 0) {
+    lots.push({
+      picto: '👑',
+      texte: `${lot.capsulesDorees} capsule${lot.capsulesDorees > 1 ? 's' : ''} dorée${lot.capsulesDorees > 1 ? 's' : ''}`,
+    });
+  }
+  // Le plafond est DIT, pas caché : une grosse commande n'ouvre pas un coffre-fort, et
+  // mieux vaut l'annoncer que laisser le joueur le découvrir en se sentant floué.
+  if (GORGEE_FRAICHE.capsuleParBoissonEnPlus > 0 && GORGEE_FRAICHE.maxCapsulesClassiques > 0) {
+    lots.push({
+      picto: '🎁',
+      texte: `+${GORGEE_FRAICHE.capsuleParBoissonEnPlus} capsule${GORGEE_FRAICHE.capsuleParBoissonEnPlus > 1 ? 's' : ''} classique${GORGEE_FRAICHE.capsuleParBoissonEnPlus > 1 ? 's' : ''} par boisson en plus (jusqu’à ${GORGEE_FRAICHE.maxCapsulesClassiques})`,
+    });
+  }
+  if (lot.perles > 0) lots.push({ picto: '🫧', texte: `+${formatNb(lot.perles)} perles` });
+  if (lot.tournees > 0) {
+    lots.push({
+      picto: '🗺️',
+      texte: `${lot.tournees} Tournée${lot.tournees > 1 ? 's' : ''} offerte${lot.tournees > 1 ? 's' : ''}`,
+    });
+  }
+  lots.push({
+    picto: '⚡',
+    texte: `Perles ×${GORGEE_FRAICHE.multiplicateur} pendant ${GORGEE_FRAICHE.heuresX2} h`,
+  });
+
+  // « Où en suis-je ? » — le ×2 en cours remplace l'invitation : inutile d'inviter
+  // quelqu'un qui vient de passer, on le remercie.
+  const etat = visite.actif
+    ? `Merci pour ta visite — perles ×${GORGEE_FRAICHE.multiplicateur} encore ${visite.heures} h`
+    : 'Ta prochaine boisson en boutique, et tout ça t’attend ici.';
+  // Condition RÉELLE du déclenchement : c'est la carte de fidélité présentée en caisse qui
+  // fait foi, pas le fait d'entrer. Le dire évite la déception « je suis venu, j'ai rien eu ».
+  const comment = 'Une boisson prise en boutique, ta carte de fidélité scannée en caisse :';
+
+  return (
+    <View
+      style={styles.visiteCarte}
+      accessibilityRole="summary"
+      accessibilityLabel={`La Gorgée Fraîche. ${comment} ${lots.map((l) => l.texte).join('. ')}. ${etat}`}
+    >
+      <View style={styles.visiteHaut}>
+        <PictoHub id="boutique" fond={C.rosePale} taille={40} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.visiteTitre}>La Gorgée Fraîche</Text>
+          <Text style={styles.visiteSous}>Ta visite en boutique paie — à chaque fois.</Text>
+        </View>
+      </View>
+      <Text style={styles.visiteComment}>{comment}</Text>
+      <View style={styles.visiteLots}>
+        {lots.map((l) => (
+          <Text key={l.texte} style={styles.visiteLot}>{l.picto} {l.texte}</Text>
+        ))}
+      </View>
+      <Text style={[styles.visiteEtat, visite.actif && styles.visiteEtatActif]}>
+        {visite.actif ? `🧋 ${etat}` : etat}
+      </Text>
+    </View>
   );
 }
 
@@ -630,6 +843,10 @@ const styles = StyleSheet.create({
   bientotTxt: { fontFamily: F.t800, fontSize: 9.5, color: '#9A6B00' },
 
   stats: { fontFamily: F.t600, fontSize: 12, color: C.texte3, textAlign: 'center' },
+  reglement: {
+    fontFamily: F.t600, fontSize: 11.5, color: C.texte3, textAlign: 'center',
+    textDecorationLine: 'underline', paddingVertical: 5,
+  },
   reset: { fontFamily: F.t600, fontSize: 12, color: C.texte3, textAlign: 'center', textDecorationLine: 'underline', padding: 4 },
   resetAnnuler: { fontFamily: F.t700, fontSize: 14, color: C.texte2, padding: 6 },
 
@@ -643,5 +860,39 @@ const styles = StyleSheet.create({
     borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
   modalTitre: { fontFamily: F.titre, fontSize: 18, color: C.violet, textAlign: 'center' },
+
+  // 🧋 Gorgée Fraîche — carte de promesse permanente. Bordure rose : même identité que
+  // la modale de célébration, pour que la promesse et le cadeau se ressemblent.
+  visiteCarte: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 15, gap: 10,
+    borderWidth: BORD.largeur, borderColor: C.rose, ...OMBRE,
+  },
+  visiteHaut: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  visiteTitre: { fontFamily: F.titre, fontSize: 16, color: C.violet },
+  visiteSous: { fontFamily: F.t600, fontSize: 12, color: C.texte2, marginTop: 1 },
+  visiteComment: { fontFamily: F.t600, fontSize: 12.5, color: C.texte, lineHeight: 17 },
+  visiteLots: { gap: 6 },
+  visiteLot: {
+    fontFamily: F.t700, fontSize: 12.5, color: C.violetProfond,
+    backgroundColor: C.fond, borderRadius: 11, paddingVertical: 8, paddingHorizontal: 12,
+  },
+  visiteEtat: { fontFamily: F.t600, fontSize: 12, color: C.texte2, textAlign: 'center' },
+  visiteEtatActif: {
+    fontFamily: F.t700, color: C.roseFonce, alignSelf: 'center', overflow: 'hidden',
+    backgroundColor: C.rosePale, borderRadius: R.pill, paddingVertical: 7, paddingHorizontal: 13,
+    borderWidth: 1.5, borderColor: C.rose,
+  },
+  gorgeeCarte: {
+    backgroundColor: C.carte, borderRadius: R.carte, padding: 24,
+    alignItems: 'center', gap: 10, alignSelf: 'stretch', overflow: 'hidden',
+    borderWidth: BORD.largeur, borderColor: C.rose, ...OMBRE,
+  },
+  gorgeeTitre: { fontFamily: F.titre, fontSize: 22, color: C.violet, textAlign: 'center' },
+  gorgeeSous: { fontFamily: F.t600, fontSize: 13.5, color: C.texte2, textAlign: 'center', lineHeight: 19 },
+  gorgeeLots: { alignSelf: 'stretch', gap: 7, marginVertical: 6 },
+  gorgeeLot: {
+    fontFamily: F.t700, fontSize: 14, color: C.violetProfond,
+    backgroundColor: C.fond, borderRadius: 11, paddingVertical: 9, paddingHorizontal: 13,
+  },
   modalTexte: { fontFamily: F.t400, fontSize: 14, color: C.texte2, textAlign: 'center', lineHeight: 20 },
 });

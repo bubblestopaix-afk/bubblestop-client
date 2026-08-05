@@ -19,6 +19,7 @@
   ],
   "exclude": [
     "node_modules",
-    "_a_supprimer"
+    "_a_supprimer",
+    "_sauvegardes-supabase"
   ]
 }

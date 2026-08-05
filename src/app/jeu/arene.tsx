@@ -13,23 +13,47 @@ import PastilleCollectible from '@/components/jeu/collectibles';
 import { Icone, IconeEmoji, IconeType } from '@/components/jeu/icones';
 import { Etincelle } from '@/components/ui-kit';
 import {
-  agregerEffets, CAPSULE_OBJET, cleJour, COLLECTIBLES, ECLATS_FORGE, EffetObjet,
+  agregerEffets, CAPSULE_OBJET, cleJour, ECLATS_FORGE, EffetObjet,
   Emplacement, EMPLACEMENTS, OBJET_IDS, OBJETS, ObjetId, panopliesActives, PANOPLIES,
   PITY_OBJET_EPIQUE, objetsDeSlot, RARETES, TOURNOI_ETAPES, trouverCollectible,
   TIERS, recompenseSaison, mutateurDuJour, bossDeLaSemaine, BOSS_RECOMPENSE, cleSemaine,
   passifDe, coutCarte, coutEquipe, BUDGET_EQUIPE, multOutsider, equipeAutoSousBudget,
-  CONSOMMABLES, CONSOMMABLE_IDS, multSerieVictoires,
+  CONSOMMABLES, CONSOMMABLE_IDS, multSerieVictoires, SAC_MAX_CONSO,
 } from '@/components/jeu/economie';
 import { BandeauPreview, BoutonJeu, EnTeteJeu, formatNb, IconePerle } from '@/components/jeu/ui-jeu';
 import {
   acheterConsommable, acheterObjet, bossBattuCetteSemaine, classementActuel, definirEquipe,
   enregistrerMiseDuel, equiperObjet, etatTournoi, forgerObjet, idsDoublons, idsPossedes,
   misesRestantesAujourdhui, niveauCarte, objetsDe, ouvrirCapsuleObjet, reclamerRecompenseSaison,
-  useBobaQuest, defisEnAttente,
+  useBobaQuest, defisEnAttente, gainDuelAmiDuJour,
 } from '@/store/jeu';
 
 const ORDRE_RARETE = { legendaire: 0, epique: 1, rare: 2, commun: 3 } as const;
 const SLOTS: Emplacement[] = ['paille', 'couvercle', 'breloque'];
+
+// --- 👹 REVANCHE DU BOSS HEBDO (27/07/2026) --------------------------------------------
+// Avant : battre le boss — le contenu le plus intéressant du jeu — refermait la carte en
+// gris pour sept jours. La récompense d'une victoire était une porte close.
+// Maintenant : le boss RESTE affrontable, sans la moindre récompense, à une difficulté
+// qui monte d'un cran CHAQUE JOUR de la semaine. C'est la réponse littérale à « il faut
+// une raison de revenir mardi » : mardi, le boss est au palier 2.
+//
+// ⚠️ AUCUN CHAMP PERSISTÉ n'a été créé (store/jeu.ts est figé par un autre lot) : le
+// palier se DÉRIVE du jour de la semaine. C'est même préférable à un champ — un palier
+// déductible ne peut pas se désynchroniser d'une sauvegarde, et il se remet à zéro tout
+// seul au reset hebdomadaire, en même temps que le boss.
+// Le palier est ensuite passé par la ROUTE à `duel.tsx`, comme l'étape de Tournoi ou le
+// n° de duel de Tournée — pas de seconde source de vérité.
+// 7 n'est pas un réglage, c'est le nombre de jours d'une semaine : le palier ne peut pas
+// dépasser 7 par construction. `duel.tsx` porte la MÊME borne, mais pour une autre raison
+// (une URL est une entrée utilisateur, il faut la brider) — ce n'est donc pas un réglage
+// dupliqué à tenir synchronisé, c'est deux fois le calendrier.
+const JOURS_SEMAINE = 7;
+function palierRevanche(d: Date = new Date()): number {
+  // `cleSemaine` est une semaine ISO : elle commence le LUNDI. On aligne dessus, sinon le
+  // palier chuterait le dimanche soir au lieu de retomber avec le nouveau boss.
+  return ((d.getDay() + 6) % JOURS_SEMAINE) + 1;   // lundi = 1 … dimanche = 7
+}
 
 // Résumé texte de l'effet agrégé (pour l'aperçu d'équipement)
 function resumeEffet(e: EffetObjet): string {
@@ -107,12 +131,12 @@ export default function AreneScreen() {
   const sam = useMemo(() => equipeSam(cleJour()), []);
 
   const ouvrirMise = () => {
-    // Sam mise en priorité un collectible que tu N'AS PAS (c'est ça, le sel du duel)
-    const manquants = COLLECTIBLES.filter((c) => !(etat.collection[c.id] > 0));
-    const cible = manquants.length
-      ? manquants[Math.floor(Math.random() * manquants.length)]
-      : COLLECTIBLES[Math.floor(Math.random() * COLLECTIBLES.length)];
-    setSamMise(cible.id);
+    // 🔒 Sam ne met en jeu qu'une carte de SON équipe du jour (l'adversaire réel), dérivée
+    // par le store de façon DÉTERMINISTE (`gainDuelAmiDuJour`, qui privilégie une carte que
+    // tu n'as pas — le sel du duel). Le store RE-VALIDE ce même gain à la résolution, donc
+    // ce que cette modale promet est EXACTEMENT ce qui sera crédité : plus aucun id de
+    // confiance ne transite par l'URL (cf. fuite deep-link fermée dans store/jeu.ts).
+    setSamMise(gainDuelAmiDuJour(etat));
     setMaMise(doublons[0] ?? null);
     setMiseVisible(true);
   };
@@ -288,14 +312,50 @@ export default function AreneScreen() {
             </View>
           </View>
           <Text style={styles.bossIndice}>{boss.indice} Il change de phase à 70 % puis 35 % de PV.</Text>
-          <View style={styles.bossRecompRang}>
-            <Icone nom="trophee" taille={14} />
-            <Text style={styles.bossRecomp}>{formatNb(BOSS_RECOMPENSE.perles)} perles · {BOSS_RECOMPENSE.capsules} capsule ·</Text>
-            <Icone nom="eclat" taille={13} />
-            <Text style={styles.bossRecomp}>{BOSS_RECOMPENSE.eclats} éclats</Text>
-          </View>
+          {/* La ligne de récompense DISPARAÎT une fois le boss battu : elle n'annonce que
+              ce qui est réellement versable. L'afficher au-dessus d'un bouton de revanche
+              — qui ne paie rien — serait exactement la promesse non tenue qu'on corrige. */}
+          {!bossBattu && (
+            <View style={styles.bossRecompRang}>
+              <Icone nom="trophee" taille={14} />
+              <Text style={styles.bossRecomp}>{formatNb(BOSS_RECOMPENSE.perles)} perles · {BOSS_RECOMPENSE.capsules} capsule ·</Text>
+              <Icone nom="eclat" taille={13} />
+              <Text style={styles.bossRecomp}>{BOSS_RECOMPENSE.eclats} éclats</Text>
+            </View>
+          )}
           {bossBattu ? (
-            <View style={styles.bossBattuBadge}><Icone nom="check" taille={16} /><Text style={styles.bossBattuTxt}>Vaincu cette semaine — reviens lundi !</Text></View>
+            <>
+              <View style={styles.bossBattuBadge}>
+                <Icone nom="check" taille={16} />
+                <Text style={styles.bossBattuTxt}>Vaincu cette semaine — récompense encaissée !</Text>
+              </View>
+              {/* 👹 La porte reste OUVERTE : revanche rejouable, sans récompense, de plus
+                  en plus dure au fil de la semaine. Le palier est dérivé du jour et
+                  transmis par la route — `duel.tsx` ne le recalcule pas. */}
+              <View style={styles.revancheBoite}>
+                <View style={styles.revancheHaut}>
+                  <View style={styles.revancheBadge}><Text style={styles.revancheBadgeTxt}>×{palierRevanche()}</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.revancheTitre}>Revanche · palier {palierRevanche()}</Text>
+                    <Text style={styles.revancheSous}>
+                      Il revient plus fort chaque jour{palierRevanche() < JOURS_SEMAINE
+                        ? ` — palier ${palierRevanche() + 1} demain`
+                        : ' — et lundi, un nouveau boss'}.
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.revancheAide}>
+                  Combat d'entraînement : aucune perle, aucune capsule, aucun éclat.
+                  Seuls comptent le palier que tu tiens et le palmarès de tes cartes.
+                </Text>
+                <BoutonJeu
+                  titre={`Défier la revanche — palier ${palierRevanche()}`}
+                  onPress={() => router.push(`/jeu/duel?mode=boss&revanche=${palierRevanche()}` as any)}
+                  variante="danger"
+                  style={{ alignSelf: 'stretch' }}
+                />
+              </View>
+            </>
           ) : (
             <BoutonJeu titre="Combattre le boss" onPress={() => router.push('/jeu/duel?mode=boss' as any)} variante="danger" style={{ alignSelf: 'stretch' }} />
           )}
@@ -630,17 +690,22 @@ export default function AreneScreen() {
                   {CONSOMMABLE_IDS.map((id) => {
                     const d = CONSOMMABLES[id];
                     const stock = etat.consommables[id] ?? 0;
+                    const plein = stock >= SAC_MAX_CONSO;
                     const cher = etat.perles < d.cout;
                     return (
-                      <View key={id} style={styles.boutiqueLigne}>
+                      <View key={id} style={[styles.boutiqueLigne, plein && { opacity: 0.55 }]}>
                         <View style={[styles.objBadge, { borderColor: C.bord }]}><IconeEmoji emoji={d.emoji} taille={24} /></View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.objNom}>{d.nom} {stock > 0 && <Text style={{ color: C.vert, fontSize: 11 }}>×{stock}</Text>}</Text>
+                          <Text style={styles.objNom}>{d.nom} <Text style={{ color: plein ? C.texte3 : C.vert, fontSize: 11 }}>×{stock}/{SAC_MAX_CONSO}</Text></Text>
                           <Text style={styles.objDetail}>{d.desc}</Text>
                         </View>
-                        <Pressable style={[styles.objAchat, cher && { opacity: 0.4 }]} disabled={cher} onPress={() => acheterConsommable(id)}>
-                          <IconePerle taille={12} /><Text style={styles.objAchatTxt}>{formatNb(d.cout)}</Text>
-                        </Pressable>
+                        {plein ? (
+                          <View style={styles.sacPlein}><Text style={styles.sacPleinTxt}>Sac plein</Text></View>
+                        ) : (
+                          <Pressable style={[styles.objAchat, cher && { opacity: 0.4 }]} disabled={cher} onPress={() => acheterConsommable(id)}>
+                            <IconePerle taille={12} /><Text style={styles.objAchatTxt}>{formatNb(d.cout)}</Text>
+                          </Pressable>
+                        )}
                       </View>
                     );
                   })}
@@ -851,6 +916,8 @@ const styles = StyleSheet.create({
   possede: { fontFamily: F.t800, fontSize: 15, color: C.vert },
   objAchat: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.jaune, borderRadius: R.pill, paddingVertical: 7, paddingHorizontal: 12 },
   objAchatTxt: { fontFamily: F.t800, fontSize: 12.5, color: C.violetProfond },
+  sacPlein: { backgroundColor: C.lavande, borderRadius: R.pill, paddingVertical: 7, paddingHorizontal: 12 },
+  sacPleinTxt: { fontFamily: F.t800, fontSize: 12.5, color: C.texte3 },
   capsuleDesc: { fontFamily: F.t600, fontSize: 12.5, color: C.texte2, lineHeight: 18, textAlign: 'center' },
   pityTxt: { fontFamily: F.t800, fontSize: 12, color: '#3E7C97', backgroundColor: '#EAF4FA', borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 12, overflow: 'hidden' },
   reveleBoite: { alignItems: 'center', gap: 3, backgroundColor: C.fond, borderRadius: 18, padding: 16, borderWidth: 2.5, alignSelf: 'stretch' },
@@ -893,6 +960,20 @@ const styles = StyleSheet.create({
   bossBattuBadge: { flexDirection: 'row', gap: 6, backgroundColor: C.vertPale, borderRadius: 10, paddingVertical: 9, alignItems: 'center', justifyContent: 'center' },
   bossRecompRang: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
   bossBattuTxt: { fontFamily: F.t800, fontSize: 12.5, color: '#2E7D32' },
+  // 👹 Bloc REVANCHE : la porte qui remplace le « reviens lundi ».
+  revancheBoite: {
+    backgroundColor: C.dangerPale, borderRadius: 16, padding: 13, gap: 9,
+    borderWidth: 2, borderColor: C.danger,
+  },
+  revancheHaut: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  revancheBadge: {
+    width: 38, height: 38, borderRadius: 19, backgroundColor: C.danger,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  revancheBadgeTxt: { fontFamily: F.titre, fontSize: 15, color: '#fff' },
+  revancheTitre: { fontFamily: F.t800, fontSize: 14.5, color: C.roseFonce },
+  revancheSous: { fontFamily: F.t600, fontSize: 11.5, color: C.texte2, lineHeight: 16 },
+  revancheAide: { fontFamily: F.t600, fontSize: 11.5, color: C.texte2, lineHeight: 16, textAlign: 'center' },
 
   // === ligue (modal) ===
   ligueSous: { fontFamily: F.t600, fontSize: 12.5, color: C.texte2, lineHeight: 18, textAlign: 'center' },

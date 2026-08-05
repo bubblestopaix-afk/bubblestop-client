@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import {
   Animated, Easing, GestureResponderEvent, Modal, PanResponder, Pressable,
-  StyleSheet, Text, View,
+  ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -17,21 +17,23 @@ import Svg, { Circle, Line, Path } from 'react-native-svg';
 
 import { BORD, C, F, OMBRE } from '@/constants/charte';
 import {
-  activerFever, alerteObjectif, ApercuTir, BONUS_POINTS, Bulle, Case, creerNiveau, creerPartieInfini,
+  activerFever, alerteObjectif, ApercuTir, BONUS_POINTS, bossPersonnage, Bulle, Case,
+  centreCase, creerNiveau, creerPartieInfini, EFFETS_PERLE,
   echangerMunitions, EtatShooter, etoilesNiveau, FEVER_MAX, GROS_LACHER,
   labelBossActionTir, LARGEUR_TERRAIN, LIGNE_H, LIGNE_LIMITE, Ligne, nbCapsules,
-  objectifCible, objectifLabel, paramsNiveau, Point, previsualiserTir, simulerVol,
-  Special, tirer, TIR_PARFAIT_SEUIL,
+  objectifAtteint, objectifCible, objectifLabel, paramsNiveau, Point, previsualiserTir,
+  simulerVolPlateau, Special, SpecialBulle, tirer, TIR_PARFAIT_SEUIL, voisins,
 } from '@/components/jeu/moteur-shooter';
-import { perlesPourScore, POWERUPS, PowerupId, trouverCollectible } from '@/components/jeu/economie';
+import { perlesPourScore, POWERUPS, PowerupId, prochaineCapsuleNiveau, trouverCollectible, CONSOMMABLES, ConsommableId } from '@/components/jeu/economie';
 import { Icone } from '@/components/jeu/icones';
 import { BilleSkia, BullePx, PlateauSkia } from '@/components/jeu/plateau-skia';
+import { BossShooter, BuddyLanceur } from '@/components/jeu/shooter-juice';
 import { BoutonJeu, Confettis, formatNb, IconePerle, useCountUp } from '@/components/jeu/ui-jeu';
 import { hapticLeger, hapticLourd, hapticMoyen, hapticSucces } from '@/lib/juice';
 import {
   acheterPowerup, bonusJourDispo, consommerPowerup, coutPowerupActuel,
-  echecNiveau, effetBuddyActuel, finPartieInfini, StatsPartie, terminerNiveau,
-  useBobaQuest,
+  echecNiveau, effetBuddyActuel, estimerGainPartie, finPartieInfini, StatsPartie,
+  terminerNiveau, useBobaQuest,
 } from '@/store/jeu';
 
 // Les 6 familles de perles (les niveaux difficiles utilisent la 6e, orange)
@@ -41,6 +43,16 @@ const COULEURS = ['#b98fe0', '#9fc038', '#f2da33', '#ec647b', '#89cfe3', '#f7a14
 const NOMS_COULEUR = ['violettes', 'vertes', 'jaunes', 'roses', 'bleues', 'orange'];
 const ANGLE_MIN = -Math.PI + 0.2;
 const ANGLE_MAX = -0.2;
+// 🩹 26/07 — période mini entre deux aperçus tactiques (≈ 11 Hz) — cf. majGuide.
+const APERCU_MS = 90;
+// 🆕 LOT D — ordre de présentation des perles dans l'aide de jeu : celui du REGISTRE du
+// moteur (les 7 historiques d'abord, les 6 nouvelles ensuite). Calculé une fois au
+// chargement du module, jamais dans le rendu.
+const ORDRE_PERLES = Object.keys(EFFETS_PERLE) as SpecialBulle[];
+
+// Trajectoire montrée au joueur. `ruptures` = indices i où le segment i → i+1 est un
+// SAUT de portail : ni le pointillé ni la bille ne doivent le PARCOURIR.
+type Guide = { points: Point[]; ruptures: number[] };
 
 type Volee = {
   av: Animated.Value;
@@ -48,12 +60,19 @@ type Volee = {
   eclats: { cle: string; x: number; y: number; couleur: string }[];
   chutes: { cle: string; x: number; y: number; couleur: string; capsule?: boolean; dist: number }[];
   textes: { cle: string; y: number; txt: string; gros?: boolean }[];
+  // 💥 débris balistiques (4-6 par perle éclatée, plafonnés) — purement visuels
+  debris: { cle: string; x: number; y: number; couleur: string; dx: number; dy: number; taille: number }[];
+  // 🫧 voisines du pop : masquées du plateau puis rendues en squash & stretch
+  squashs: { cle: string; x: number; y: number; couleur: string }[];
 };
 
+// 🎁 Butin de fin de partie : un consommable gagné (ou converti en perles si sac plein)
+type ButinConso = { id: ConsommableId; ajoute: number; convertisPerles: number };
+
 type Fin =
-  | { type: 'victoire'; etoiles: number; perles: number; bonusJour: boolean; premiere: boolean; capsule: 'classique' | 'doree' | null }
+  | { type: 'victoire'; etoiles: number; perles: number; bonusJour: boolean; premiere: boolean; capsule: 'classique' | 'doree' | null; butin: ButinConso | null }
   | { type: 'defaite'; raison: 'tirs' | 'limite' }
-  | { type: 'infini'; perles: number; bonusJour: boolean; record: boolean };
+  | { type: 'infini'; perles: number; bonusJour: boolean; record: boolean; butin: ButinConso | null };
 
 const STATS_VIERGES = (): StatsPartie => ({
   score: 0, eclatees: 0, orphelines: 0, capsulesLiberees: 0, meilleurGroupe: 0, chaineMax: 0,
@@ -74,7 +93,14 @@ export default function ShooterScreen() {
   const creerEtat = useCallback((): EtatShooter => {
     const e = aventure ? creerNiveau(niveau) : creerPartieInfini();
     const buddy = effetBuddyActuel();
-    if (aventure && e.tirsRestants !== null) e.tirsRestants += buddy.tirsBonus;
+    // 🩹 26/07 : les tirs offerts par le copain Milk gonflaient `tirsRestants` sans
+    // toucher `tirsMax` — or les étoiles se calculent sur `tirsRestants / tirsMax`.
+    // Un joueur équipé d'un Milk légendaire décrochait 3★ en jouant moins bien qu'un
+    // joueur nu qui n'en obtenait que 2. Le budget de référence suit désormais le don.
+    if (aventure && e.tirsRestants !== null) {
+      e.tirsRestants += buddy.tirsBonus;
+      if (e.tirsMax !== null) e.tirsMax += buddy.tirsBonus;
+    }
     e.graceChaine = buddy.graceChaine;
     return e;
   }, [aventure, niveau]);
@@ -97,8 +123,11 @@ export default function ShooterScreen() {
   // Pendant le vol, on FIGE la grille d'avant-tir (sinon la bille posée apparaît
   // instantanément à destination → effet de téléportation).
   const [grilleFigee, setGrilleFigee] = useState<Ligne[] | null>(null);
-  const [guide, setGuide] = useState<Point[] | null>(null);
+  const [guide, setGuide] = useState<Guide | null>(null);
   const [apercu, setApercu] = useState<ApercuTir | null>(null);
+  // 📖 Aide de jeu : la liste des perles spéciales posées sur CE plateau. Nom, emoji et
+  // phrase viennent intégralement d'`EFFETS_PERLE` — aucun libellé n'est réécrit ici.
+  const [aidePerles, setAidePerles] = useState(false);
   // 🏹 effet lance-pierre : pendant la visée, la bille RECULE à l'opposé du tir comme un
   // élastique tendu (plus le doigt est loin, plus ça tire), puis CLAQUE en avant au lâcher.
   // `recul` anime la bille (Animated) ; `visee` (état) dessine l'élastique en SVG.
@@ -120,7 +149,42 @@ export default function ShooterScreen() {
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
   const bonusDispo = bonusJourDispo();
 
-  useEffect(() => () => { animRef.current?.stop(); }, []);
+  // 🧃 juice Pack 4 : flash de la pastille chaîne, pulsation DANGER, signaux du copain
+  const chaineFlash = useRef(new Animated.Value(1)).current; // 1 = repos
+  const dangerAv = useRef(new Animated.Value(0)).current;
+  const dangerRef = useRef(false);
+  const critiqueRef = useRef(false);
+  const matchSigRef = useRef(0); // 🎉 copain : incrémenté à chaque tir avec éclats
+  const rateSigRef = useRef(0);  // 😬 copain : incrémenté à chaque tir sans effet
+
+  // 🩹 26/07 — REGISTRE DE TIMEOUTS. Le fichier posait 5 `setTimeout` nus et ne
+  // contenait AUCUN `clearTimeout` : le seul cleanup couvrait l'animation du
+  // projectile. Conséquences réelles : un `terminerNiveau` / `finPartieInfini`
+  // programmé à +650 ms s'exécutait après le démontage de l'écran (crédit fantôme +
+  // setState sur composant démonté), et `reinit()` ne les annulait pas non plus — un
+  // `setVolee(null)` en retard effaçait l'animation du NOUVEAU niveau. Tous les
+  // timeouts passent désormais par `programmer`, qui les enregistre ; `annulerTimers`
+  // purge le registre au démontage ET à chaque réinitialisation.
+  const timersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const apercuTsRef = useRef(0);                                            // dernier aperçu calculé (ms)
+  const apercuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); // rafraîchissement de traîne
+  const programmer = useCallback((fn: () => void, ms: number) => {
+    const id = setTimeout(() => { timersRef.current.delete(id); fn(); }, ms);
+    timersRef.current.add(id);
+    return id;
+  }, []);
+  const annulerTimer = useCallback((id: ReturnType<typeof setTimeout> | null) => {
+    if (id === null) return;
+    clearTimeout(id);
+    timersRef.current.delete(id);
+  }, []);
+  const annulerTimers = useCallback(() => {
+    for (const id of timersRef.current) clearTimeout(id);
+    timersRef.current.clear();
+    apercuTimerRef.current = null; // l'id purgé ne doit plus être annulé (les ids sont recyclés)
+  }, []);
+
+  useEffect(() => () => { animRef.current?.stop(); annulerTimers(); }, [annulerTimers]);
 
   const secouer = useCallback((force = 1) => {
     Animated.sequence([
@@ -142,6 +206,7 @@ export default function ShooterScreen() {
     statsRef.current = STATS_VIERGES();
     crediteRef.current = false;
     animRef.current?.stop();
+    annulerTimers(); // 🩹 26/07 — sinon un timeout du niveau précédent frappe le nouveau
     setFin(null);
     setArmee(null);
     setFeverArmee(false);
@@ -152,7 +217,7 @@ export default function ShooterScreen() {
     setVolee(null);
     setPhase('pret');
     forcer();
-  }, [creerEtat]);
+  }, [creerEtat, annulerTimers]);
   const premierRendu = useRef(true);
   useEffect(() => {
     if (premierRendu.current) { premierRendu.current = false; return; }
@@ -185,19 +250,58 @@ export default function ShooterScreen() {
 
   // 🏹 détend l'élastique en douceur (visée annulée / doigt trop près)
   const relacherElastique = useCallback(() => {
+    annulerTimer(apercuTimerRef.current); apercuTimerRef.current = null;
     setVisee(null);
     tensionRef.current = 0;
     Animated.spring(recul, { toValue: { x: 0, y: 0 }, friction: 5, useNativeDriver: true }).start();
     Animated.timing(etirement, { toValue: 0, duration: 110, useNativeDriver: true }).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [annulerTimer]);
 
   const majGuide = useCallback((tx: number, ty: number) => {
     const a = calculerAngle(tx, ty);
     if (a === null) { setGuide(null); setApercu(null); relacherElastique(); return; }
-    const { points } = simulerVol(etatRef.current!.grille, lanceur, a, 0.16);
-    setGuide(points);
-    setApercu(previsualiserTir(etatRef.current!, lanceur, a, armee));
+    // 🩹 26/07 — MÊME PAS D'INTÉGRATION QUE LE TIR RÉEL : le guide passait 0.16 alors que
+    // `tirer()` et `previsualiserTir` utilisent le défaut 0.08. Mesuré sur 12 832 angles ×
+    // 32 niveaux : 212 arrivées sur une AUTRE case (1,7 % ; 198 à l'audit, avant la refonte
+    // des niveaux du jour), jusqu'à 1,5 perle d'écart à l'impact. La bille fantôme était
+    // juste, la ligne pointillée non → « tir volé » pile quand on vise fin. Remesuré à 0
+    // divergence. Le pas fin coûte ~2× le pas grossier (0,007 vs 0,003 ms en V8), financé
+    // par le throttle ci-dessous : le poste lourd, c'est l'aperçu (2 à 4× ce vol).
+    // 🔴 26/07 — `simulerVolPlateau`, PAS `simulerVol`. Le guide appelait la variante
+    // SANS portails alors que `tirer()` et `previsualiserTir` passent tous deux par
+    // `simulerVolPlateau` : dès le niveau 13, la ligne pointillée traçait une trajectoire
+    // droite là où la bille entrait dans le portail et ressortait ailleurs. L'écran
+    // MENTAIT au joueur sur la seule information dont il se sert pour viser — la faute la
+    // plus grave possible dans ce moteur (« aucune logique parallèle », §0.2 du cahier).
+    // Ce point d'entrée lit les portails DANS le plateau : les trois appelants ne peuvent
+    // donc plus diverger, même si un quatrième apparaît un jour.
+    const { points, ruptures } = simulerVolPlateau(etatRef.current!.grille, lanceur, a);
+    setGuide({ points, ruptures });
+    // 🩹 26/07 — APERÇU THROTTLÉ à ~11 Hz (bords d'attaque ET de traîne). `previsualiserTir`
+    // deep-copie la grille puis rejoue un `tirer()` complet (vol, groupes, chaînes de bombes,
+    // supernova, orphelines, RUSH, IA du boss) : 0,014 à 0,113 ms/frame en V8 selon la
+    // machine, ×10 à ×30 sous Hermes sur un mobile d'entrée de gamme — et ce AVANT React et
+    // ses setState sur un composant de ~1 500 lignes. Sur 2 s de visée à 60 Hz : 120 aperçus
+    // → 23 (−81 %). Ligne pointillée et élastique restent à 60 Hz : retours DIRECTS du geste.
+    // La TRAÎNE est indispensable : sans elle, le joueur qui immobilise son doigt (dernier
+    // ajustement fin, puis lâcher) ne reçoit plus d'événement et garderait un fantôme périmé
+    // jusqu'au tir ; avec elle l'aperçu converge vers l'angle final en moins de 90 ms. Le tir
+    // est de toute façon TOUJOURS résolu depuis l'angle du lâcher, jamais depuis l'aperçu.
+    annulerTimer(apercuTimerRef.current); apercuTimerRef.current = null;
+    const attente = APERCU_MS - (Date.now() - apercuTsRef.current);
+    const calculerApercu = () => {
+      apercuTsRef.current = Date.now();
+      setApercu(previsualiserTir(etatRef.current!, lanceur, a, armee));
+    };
+    if (attente <= 0) calculerApercu();
+    else {
+      apercuTimerRef.current = programmer(() => {
+        apercuTimerRef.current = null;
+        if (phaseRef.current !== 'pret') return; // tir déjà parti : pas de fantôme en vol
+        calculerApercu();
+      }, attente);
+    }
     // 🏹 la bille SUIT le doigt (étirement 1:1, plafonné à ~1,5 bille et au bord d'écran)
     const dist = Math.hypot(tx - lanceurPx.x, ty - lanceurPx.y);
     const rMax = Math.max(d * 0.6, Math.min(d * 1.5, (dims ? dims.h : 700) - lanceurPx.y - d * 0.55));
@@ -207,10 +311,14 @@ export default function ShooterScreen() {
     tensionRef.current = Math.min(1, r / rMax);
     setVisee({ a, r });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calculerAngle, d, lanceurPx.x, lanceurPx.y, dims, armee]);
+  }, [calculerAngle, d, lanceurPx.x, lanceurPx.y, dims, armee, annulerTimer, programmer]);
 
   // — tir —
   const feu = useCallback((angle: number) => {
+    // 🩹 26/07 — doigt levé : la traîne de l'aperçu n'a plus d'objet et ne doit pas
+    // ressusciter un fantôme (pendant le vol, ou après un tir refusé faute de munition).
+    // Annulée AVANT toute sortie anticipée.
+    annulerTimer(apercuTimerRef.current); apercuTimerRef.current = null;
     const etat = etatRef.current!;
     if (phaseRef.current !== 'pret' || etat.perdu || !dims) return;
     const special = armee;
@@ -258,24 +366,48 @@ export default function ShooterScreen() {
     const vitesse = (11 + 21 * tension) * d; // px/s : ~16·d relâché doux → ~32·d à pleine tension
     projPos.setValue(tl(pts[0]));
     setProj({ couleur: couleurTiree, special });
+    // 🌀 Le segment de SAUT de portail (entrée → sortie) est parcouru en 0 ms : la bille
+    // doit se TÉLÉPORTER, pas glisser en diagonale à travers tout le plateau. Le plancher
+    // de 45 ms, indispensable aux segments courts (rebonds), produirait ici exactement
+    // l'inverse de l'effet voulu — il est donc contourné pour ces seuls segments.
+    // `res.ruptures` vient du moteur : l'écran ne redécouvre pas le saut de son côté.
+    const sauts = res.ruptures.length ? new Set(res.ruptures) : null;
+    let msAvantSaut = 0;   // instant du saut dans la séquence, pour l'haptique
+    let sautVu = false;
     const segments = [];
     for (let i = 1; i < pts.length; i++) {
       const L = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+      const saut = sauts?.has(i - 1) ?? false;
+      const duree = saut ? 0 : Math.max(45, (L / vitesse) * 1000);
+      if (!saut && !sautVu) msAvantSaut += duree;
+      if (saut) sautVu = true;
       segments.push(Animated.timing(projPos, {
         toValue: tl(pts[i]),
-        duration: Math.max(45, (L / vitesse) * 1000),
+        duration: duree,
         easing: Easing.linear,
         useNativeDriver: true,
       }));
     }
+    // 📳 Le « vzzt » du portail se sent AU MOMENT du saut, pas à l'atterrissage : c'est
+    // lui qui fait comprendre que la bille a été happée. Programmé via le REGISTRE de
+    // timers (jamais un setTimeout nu) → purgé au démontage et à la réinitialisation.
+    if (sautVu) programmer(hapticLeger, msAvantSaut);
     animRef.current = Animated.sequence(segments);
     animRef.current.start(({ finished }) => {
       if (!finished) return;
       setProj(null);
-      atterrir(res, couleurTiree, figee);
+      // 🩹 26/07 — On passe par un REF, jamais par la closure. `feu` est mémoïsé sur
+      // [dims, d, offX, armee, feverArmee] : aucune de ces valeurs ne change quand
+      // « Niveau suivant → » fait un router.replace (l'écran n'est pas démonté, c'est
+      // le useEffect [niveau] qui réinitialise). `feu` conservait donc l'`atterrir`
+      // du niveau PRÉCÉDENT, avec ses `niveau` et `params` périmés : gagner le niveau
+      // 8 créditait les étoiles du 7, sans capsule, en « déjà réussi », et le niveau 9
+      // ne se déverrouillait jamais. Le ref est toujours à jour, quel que soit le
+      // comportement de remontage d'expo-router.
+      atterrirRef.current(res, couleurTiree, figee);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dims, d, offX, armee, feverArmee]);
+  }, [dims, d, offX, armee, feverArmee, annulerTimer, programmer]);
 
   // — résolution visuelle à l'atterrissage (positions dans la grille FIGÉE) —
   const atterrir = (res: ReturnType<typeof tirer>, couleurTiree: string, figee: Ligne[]) => {
@@ -325,24 +457,128 @@ export default function ShooterScreen() {
     if (res.rushDebut && etat.rush) textes.push({ cle: 'trd', y: yLimite * 0.4, txt: `🔥 RUSH : ${etat.rush.cible} ${NOMS_COULEUR[etat.rush.couleur]} en 3 tirs !`, gros: true });
     if (res.rushFin === 'reussi') textes.push({ cle: 'trf', y: yLimite * 0.4, txt: '🔥 RUSH RÉUSSI ! +2 TIRS', gros: true });
     if (res.rushFin === 'rate') textes.push({ cle: 'trx', y: yLimite * 0.4, txt: 'Rush raté… la prochaine !' });
+    // 🆕 LOT D — les 6 perles du plateau s'annoncent. Emoji et NOM viennent du REGISTRE
+    // (`EFFETS_PERLE`) : l'écran n'invente aucun libellé, et une perle de plus côté moteur
+    // n'obligera pas à revenir rééditer des chaînes ici. Les hauteurs sont réparties pour
+    // ne jamais empiler deux annonces au même endroit (cf. les blocs juste au-dessus).
+    const objSpe = etat.objectif;
+    const nomPerle = (id: SpecialBulle) => `${EFFETS_PERLE[id].emoji} ${EFFETS_PERLE[id].nom.toUpperCase()}`;
+    if (res.meches > 0) {
+      textes.push({ cle: 'tme', y: yLimite * 0.22, txt: `${nomPerle('meche')} — DÉTONATION !`, gros: true });
+    }
+    if (res.lasers > 0) {
+      textes.push({ cle: 'tla', y: yLimite * 0.26, txt: `${nomPerle('laser')} — LIGNE ASPIRÉE !`, gros: true });
+    }
+    if (res.liens > 0) {
+      textes.push({ cle: 'tli', y: yLimite * 0.58, txt: `${nomPerle('lien')} — LES DEUX PARTENT !`, gros: true });
+    }
+    if (res.contagions > 0) {
+      textes.push({ cle: 'tco', y: yLimite * 0.65, txt: `${nomPerle('contagion')} — VOISINES REPEINTES !`, gros: true });
+    }
+    if (res.portails > 0) {
+      textes.push({ cle: 'tpo', y: yLimite * 0.71, txt: `${nomPerle('portail')} — TÉLÉPORTÉE !`, gros: true });
+    }
+    // 🎯 Le TOTAL de spéciales ne s'affiche QUE sur les niveaux qui en font l'objectif :
+    // ailleurs il ferait doublon avec les annonces ci-dessus (une paille déclenchée est
+    // déjà annoncée) et encombrerait l'écran. Là, c'est LA jauge que le joueur suit.
+    if (res.specialesDeclenchees > 0 && objSpe.type === 'speciales') {
+      textes.push({
+        cle: 'tsp', y: yLimite * 0.78,
+        txt: `+${res.specialesDeclenchees} spéciale${res.specialesDeclenchees > 1 ? 's' : ''} · ${Math.min(etat.objProgres, objSpe.cible)}/${objSpe.cible}`,
+      });
+    }
+    // 🌊 cascade : chaîne ×2/×3 → gros titre au centre + flash de la pastille chaîne
+    if (res.multiplicateur >= 2 && res.eclatees.length) {
+      textes.push({
+        cle: 'tcascade', y: yLimite * 0.33,
+        txt: res.multiplicateur >= 3 ? `CASCADE ×${res.multiplicateur} !!` : `CHAÎNE ×${res.multiplicateur} !`,
+        gros: true,
+      });
+      chaineFlash.setValue(0);
+      Animated.timing(chaineFlash, {
+        toValue: 1, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: true,
+      }).start();
+    }
 
-    // 📳 l'impact se SENT : haptiques proportionnelles à l'action
-    if (res.etoiles > 0 || res.tirEnOr || res.explosions > 0 || res.grosLacher >= GROS_LACHER) hapticLourd();
-    else if (res.multiplicateur >= 2 || res.groupe >= 5 || res.capsules > 0) hapticMoyen();
+    // 📳 l'impact se SENT : haptiques proportionnelles à l'action. 🆕 LOT D : la paille
+    // et la mèche rasent une ligne / une croix entière — même poids qu'une explosion ; les
+    // jumelles et le sirop sont des coups « tactiques » → moyen. Le portail, lui, se sent
+    // PENDANT le vol (cf. `feu`) et pas ici : à l'atterrissage il arriverait trop tard.
+    const grosChoc = res.etoiles > 0 || res.tirEnOr || res.explosions > 0
+      || res.grosLacher >= GROS_LACHER || res.lasers > 0 || res.meches > 0;
+    const moyenChoc = res.multiplicateur >= 2 || res.groupe >= 5 || res.capsules > 0
+      || res.liens > 0 || res.contagions > 0;
+    if (grosChoc) hapticLourd();
+    else if (moyenChoc) hapticMoyen();
     else if (res.eclatees.length) hapticLeger();
     if (res.rushFin === 'reussi' || res.plateauNettoye) hapticSucces();
+    // 🎯 Progression de l'objectif « déclenche N spéciales » : un retour dédié, sinon le
+    // joueur ne sent rien quand il avance. Le garde `!res.objectifAtteint` évite de
+    // doubler l'haptique de victoire, jouée 650 ms plus tard par le crédit de fin.
+    if (res.specialesDeclenchees > 0 && objSpe.type === 'speciales' && !res.objectifAtteint) {
+      hapticMoyen();
+    }
 
     // secousse d'écran : explosions, gros lâcher, ou gros groupe
-    if (res.explosions > 0 || res.grosLacher >= GROS_LACHER || res.etoiles > 0) secouer(1.4);
-    else if (res.groupe >= 6 || res.tombees.length >= 4) secouer(0.8);
+    // 🆕 LOT D : une ligne rasée ou une croix qui détone secouent autant qu'une bombe.
+    if (res.explosions > 0 || res.grosLacher >= GROS_LACHER || res.etoiles > 0
+      || res.lasers > 0 || res.meches > 0) secouer(1.4);
+    else if (res.groupe >= 6 || res.tombees.length >= 4 || res.liens > 0) secouer(0.8);
 
-    if (eclats.length || chutes.length || textes.length) {
+    // 🧋 signaux du copain : joie sur match, grimace sur tir sans rien
+    if (res.eclatees.length > 0) matchSigRef.current += 1;
+    else if (res.points === 0 && !res.bossAction) rateSigRef.current += 1;
+
+    // 💥 débris balistiques : 6/4/3 éclats par perle éclatée (plafond 24, sobriété)
+    const debris: Volee['debris'] = [];
+    if (eclats.length) {
+      const parEclat = eclats.length <= 4 ? 6 : eclats.length <= 6 ? 4 : 3;
+      eclats.forEach((e, i) => {
+        const nb = Math.min(parEclat, 24 - debris.length);
+        for (let k = 0; k < nb; k++) {
+          const a = (k / Math.max(1, nb)) * Math.PI + i * 0.7; // éventail vers le haut
+          debris.push({
+            cle: `db${i}-${k}`, x: e.x, y: e.y, couleur: e.couleur,
+            dx: Math.cos(a) * d * (0.7 + (k % 3) * 0.35),
+            dy: -Math.abs(Math.sin(a)) * d * (1.1 + (k % 2) * 0.7) - d * 0.3,
+            taille: d * (0.16 + (k % 3) * 0.05),
+          });
+        }
+      });
+    }
+    // 🫧 squash & stretch : les voisines RESTANTES du pop se compressent puis
+    // rebondissent. Repérées dans la grille FIGÉE, re-projetées dans la grille
+    // RÉSOLUE (+1 ligne si descente) — perles pleines seulement, plafond 8.
+    const squashs: Volee['squashs'] = [];
+    if (res.eclatees.length) {
+      const gApres = etat.grille;
+      const decalR = res.nouvelleLigne ? 1 : 0;
+      const parties = new Set(res.eclatees.map((e) => `${e.pos.r},${e.pos.c}`));
+      res.tombees.forEach((t) => parties.add(`${t.pos.r},${t.pos.c}`));
+      const vus = new Set<string>();
+      for (const e of res.eclatees) {
+        if (squashs.length >= 8) break;
+        for (const v of voisins(figee, e.pos.r, e.pos.c)) {
+          const b = figee[v.r]?.cases[v.c];
+          const cleV = `${v.r + decalR},${v.c}`;
+          if (!b || b.capsule || b.special || parties.has(`${v.r},${v.c}`) || vus.has(cleV)) continue;
+          const ligneApres = gApres[v.r + decalR];
+          if (!ligneApres || !ligneApres.cases[v.c]) continue; // disparue entre-temps
+          vus.add(cleV);
+          const p = enPx(centreCase(v.r + decalR, v.c, ligneApres.decalee));
+          squashs.push({ cle: cleV, x: p.x, y: p.y, couleur: COULEURS[b.couleur] });
+          if (squashs.length >= 8) break;
+        }
+      }
+    }
+
+    if (eclats.length || chutes.length || textes.length || debris.length) {
       const av = new Animated.Value(0);
       const avChute = new Animated.Value(0);
-      setVolee({ av, avChute, eclats, chutes, textes });
+      setVolee({ av, avChute, eclats, chutes, textes, debris, squashs });
       Animated.timing(av, { toValue: 1, duration: 420, useNativeDriver: true }).start();
       Animated.timing(avChute, { toValue: 1, duration: 520, easing: Easing.in(Easing.quad), useNativeDriver: true }).start();
-      setTimeout(() => setVolee(null), 800);
+      programmer(() => setVolee(null), 800); // 🩹 26/07 — enregistré : `reinit()` le purge
     }
 
     if (res.nouvelleLigne) {
@@ -357,19 +593,23 @@ export default function ShooterScreen() {
     if (aventure) {
       if (res.objectifAtteint) {
         // victoire (prioritaire sur tout le reste) — objectif du niveau accompli
-        setTimeout(() => {
+        // 🩹 26/07 — `programmer` : ce crédit ne doit PLUS s'exécuter après un démontage
+        // de l'écran ni après un passage au niveau suivant (cf. registre de timeouts).
+        programmer(() => {
           if (crediteRef.current) return;
           crediteRef.current = true;
-          const etoiles = etoilesNiveau(etat.tirsRestants ?? 0, params!.tirsMax);
+          // budget de référence = celui de l'état (inclut le don du copain), pas
+          // celui de params (qui l'ignore) — cf. correctif dans creerEtat.
+          const etoiles = etoilesNiveau(etat.tirsRestants ?? 0, etat.tirsMax ?? params!.tirsMax);
           const r = terminerNiveau(niveau, etoiles, params!.boss, stats);
           hapticSucces();
-          setFin({ type: 'victoire', etoiles: r.etoiles, perles: r.perlesGagnees, bonusJour: r.bonusJour, premiere: r.premiere, capsule: r.capsule });
+          setFin({ type: 'victoire', etoiles: r.etoiles, perles: r.perlesGagnees, bonusJour: r.bonusJour, premiere: r.premiere, capsule: r.capsule, butin: r.butin });
           setPhase('fini');
         }, 650);
         return;
       }
       if (etat.perdu || (etat.tirsRestants ?? 1) <= 0) {
-        setTimeout(() => {
+        programmer(() => { // 🩹 26/07 — idem : annulable au démontage / à la réinitialisation
           if (crediteRef.current) return;
           crediteRef.current = true;
           echecNiveau(stats);
@@ -379,11 +619,11 @@ export default function ShooterScreen() {
         return;
       }
     } else if (etat.perdu) {
-      setTimeout(() => {
+      programmer(() => { // 🩹 26/07 — idem : `finPartieInfini` ne doit pas créditer un écran quitté
         if (crediteRef.current) return;
         crediteRef.current = true;
         const r = finPartieInfini(stats);
-        setFin({ type: 'infini', perles: r.perlesGagnees, bonusJour: r.bonusJour, record: r.record });
+        setFin({ type: 'infini', perles: r.perlesGagnees, bonusJour: r.bonusJour, record: r.record, butin: r.butin });
         setPhase('fini');
       }, 650);
       return;
@@ -392,6 +632,9 @@ export default function ShooterScreen() {
   };
 
   // — gestes (PanResponder créé UNE fois, fonctions à jour via refs) —
+  // ⚠️ `atterrirRef` doit rester ici : c'est lui qui protège la fin de niveau de la
+  // closure périmée de `feu` (voir le commentaire dans animRef.current.start).
+  const atterrirRef = useRef(atterrir); atterrirRef.current = atterrir;
   const majGuideRef = useRef(majGuide); majGuideRef.current = majGuide;
   const feuRef = useRef(feu); feuRef.current = feu;
   const relacherRef = useRef(relacherElastique); relacherRef.current = relacherElastique;
@@ -429,6 +672,18 @@ export default function ShooterScreen() {
   // — sorties —
   const quitter = () => {
     const etat = etatRef.current!;
+    // 🩹 26/07 : la victoire n'est créditée qu'après 650 ms d'animation. Taper la croix
+    // pendant ce délai posait `crediteRef`, annulait le setTimeout de victoire et
+    // enregistrait une DÉFAITE sur un niveau gagné (ni étoiles, ni capsule, ni
+    // déverrouillage). On crédite la victoire si l'objectif est rempli.
+    if (!crediteRef.current && aventure && objectifAtteint(etat)) {
+      crediteRef.current = true;
+      const stats = { ...statsRef.current, score: etat.score };
+      const etoiles = etoilesNiveau(etat.tirsRestants ?? 0, etat.tirsMax ?? params!.tirsMax);
+      terminerNiveau(niveau, etoiles, params!.boss, stats);
+      router.back();
+      return;
+    }
     if (!crediteRef.current && etat.score > 0) {
       crediteRef.current = true;
       const stats = { ...statsRef.current, score: etat.score };
@@ -458,7 +713,7 @@ export default function ShooterScreen() {
       setFeverArmee(true);
     }
     setMessageFever(r.label);
-    setTimeout(() => setMessageFever(null), 1800);
+    programmer(() => setMessageFever(null), 1800); // 🩹 26/07 — enregistré (setState après démontage)
     forcer();
   };
 
@@ -466,7 +721,12 @@ export default function ShooterScreen() {
   const etat = etatRef.current!;
   const grille = grilleFigee ?? etat.grille; // figée pendant le vol
   const capsulesRestantes = aventure ? nbCapsules(grille) : 0;
-  const perlesSiFin = perlesPourScore(etat.score) * (bonusDispo && !crediteRef.current ? 2 : 1);
+  // 🩹 26/07 — le HUD ne comptait que le ×2 du jour : il ignorait le % du copain Fruité,
+  // le ×2 du week-end et le ×1,3 de série, donc sous-estimait le gain d'un facteur 2 à 5
+  // (et `crediteRef.current` dans l'expression est un ref : aucun re-rendu à son
+  // changement). `estimerGainPartie` rejoue EXACTEMENT la chaîne du crédit réel,
+  // plafond final PERLES_MAX_FINAL.infini inclus.
+  const perlesSiFin = estimerGainPartie(perlesPourScore(etat.score), 'infini');
   const multChaine = Math.min(etat.chaine, 3);
   const bossSeuil = etat.bossPhase === 3 ? 2 : 3;
   const bossDans = Math.max(1, bossSeuil - etat.bossCompteur);
@@ -476,9 +736,15 @@ export default function ShooterScreen() {
 
   const pointsGuide: Point[] = [];
   if (guide && d > 0) {
+    // 🌀 Un saut de portail n'est PAS un trajet : la bille disparaît d'un point et
+    // reparaît à l'autre. Sans ce filtre, le pointillé tendait une corde en travers du
+    // plateau entre les deux portails, et le joueur croyait pouvoir tirer à travers.
+    // (Le `Set` n'est construit que s'il y a un saut : la visée tourne à 60 Hz.)
+    const sauts = guide.ruptures.length ? new Set(guide.ruptures) : null;
     let reste = 0;
-    for (let i = 1; i < guide.length; i++) {
-      const a = guide[i - 1], b = guide[i];
+    for (let i = 1; i < guide.points.length; i++) {
+      if (sauts?.has(i - 1)) { reste = 0; continue; } // la cadence repart à la sortie
+      const a = guide.points[i - 1], b = guide.points[i];
       const seg = Math.hypot(b.x - a.x, b.y - a.y);
       let t = reste;
       while (t < seg) {
@@ -490,14 +756,42 @@ export default function ShooterScreen() {
   }
 
   // perles du plateau en px, pour le rendu Skia (figées pendant le vol)
+  // 🫧 pendant la volée, les voisines « squashées » sont retirées du plateau :
+  // le calque animé squash & stretch les rend à la même place (mêmes repères,
+  // car la grille figée d'un tir enchaîné = grille résolue du tir précédent).
+  const masquees = new Set((volee?.squashs ?? []).map((s) => s.cle));
   const bullesPx: BullePx[] = [];
   if (d > 0) {
     grille.forEach((ligne, r) => ligne.cases.forEach((b, c) => {
       if (!b) return;
+      if (masquees.size && masquees.has(`${r},${c}`)) return;
       const p = enPx({ x: c + 0.5 + (ligne.decalee ? 0.5 : 0), y: r * LIGNE_H + 0.5 });
       bullesPx.push({ x: p.x, y: p.y, couleur: b.couleur, capsule: b.capsule, special: b.special, pv: b.pv });
     }));
   }
+
+  // ⚠️ tension : le plateau s'approche de la ligne (2,6 perles) ou la frôle (1,4)
+  const danger = phase !== 'fini' && bullesPx.some((b) => b.y > yLimite - d * 2.6);
+  const critique = phase !== 'fini' && bullesPx.some((b) => b.y > yLimite - d * 1.4);
+
+  // ⚠️ pulsation rouge tant que le danger dure (native, stoppée dès qu'il se calme)
+  useEffect(() => {
+    if (!danger) { dangerAv.setValue(0); return undefined; }
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(dangerAv, { toValue: 1, duration: 430, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(dangerAv, { toValue: 0, duration: 430, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => { loop.stop(); dangerAv.setValue(0); };
+  }, [danger, dangerAv]);
+
+  // 📳 haptique UNIQUEMENT à l'entrée en zone danger (moyenne) puis critique (lourde)
+  useEffect(() => {
+    if (danger && !dangerRef.current) hapticMoyen();
+    dangerRef.current = danger;
+    if (critique && !critiqueRef.current) hapticLourd();
+    critiqueRef.current = critique;
+  }, [danger, critique]);
 
   return (
     <View style={[styles.fond, { paddingTop: insets.top + 8 }]}>
@@ -571,7 +865,16 @@ export default function ShooterScreen() {
           const pct = Math.round((restant / pv) * 100);
           return (
             <View style={styles.bossPill}>
-              <Icone nom="boss" taille={26} />
+              {/* 👑 boss INCARNÉ : le légendaire du niveau prête son visage —
+                  respiration, choc aux dégâts, 3 attitudes, badge de l'attaque */}
+              <BossShooter
+                perso={bossPersonnage(niveau)}
+                phase={etat.bossPhase}
+                pvRatio={etat.objProgres / Math.max(1, pv)}
+                action={etat.bossProchaineAction}
+                imminent={bossDans <= 1}
+                taille={46}
+              />
               <View style={{ flex: 1, gap: 3 }}>
                 <View style={styles.bossHpFond}>
                   <View style={[styles.bossHpPlein, { width: `${pct}%` }]} />
@@ -590,7 +893,13 @@ export default function ShooterScreen() {
             <Text style={styles.objectifTxt} numberOfLines={1}>
               {objectifLabel(etat.objectif, (c) => NOMS_COULEUR[c])}
             </Text>
-            {(etat.objectif.type === 'tomber' || etat.objectif.type === 'couleur') && (
+            {/* 🩹 26/07 — la barre était câblée en dur sur `tomber`/`couleur` : les 4
+                nouveaux objectifs chiffrés (chaîne, lâcher, parfaits, spéciales)
+                affichaient leur libellé SANS aucune progression. Le test est désormais le
+                MÊME que celui d'`objectifCible` côté moteur (« l'objectif porte-t-il une
+                cible ? ») : un objectif chiffré de plus s'affichera sans rééditer cette
+                ligne. `nettoyer` n'a pas de cible → il reste sans barre, comme avant. */}
+            {'cible' in etat.objectif && (
               <>
                 <View style={styles.objBarreFond}>
                   <View
@@ -608,10 +917,22 @@ export default function ShooterScreen() {
           </View>
         )}
         {multChaine >= 2 && (
-          <View style={styles.chainePill}>
+          <Animated.View
+            style={[styles.chainePill, {
+              transform: [{ scale: chaineFlash.interpolate({ inputRange: [0, 0.35, 1], outputRange: [1, 1.22, 1] }) }],
+            }]}
+          >
+            {/* 🔥 flash de cascade : voile jaune qui s'éteint sur la pastille */}
+            <Animated.View
+              pointerEvents="none"
+              style={[StyleSheet.absoluteFill, {
+                borderRadius: 999, backgroundColor: C.jaune,
+                opacity: chaineFlash.interpolate({ inputRange: [0, 1], outputRange: [0.65, 0] }),
+              }]}
+            />
             <Icone nom="flamme" taille={13} />
             <Text style={styles.chainePillTxt}>Chaîne ×{multChaine}</Text>
-          </View>
+          </Animated.View>
         )}
         {/* 🔥 RUSH actif : progression du défi éclair */}
         {etat.rush?.statut === 'active' && (
@@ -639,6 +960,14 @@ export default function ShooterScreen() {
           <Text style={[styles.feverTxt, etat.fever >= FEVER_MAX && styles.feverTxtPret]}>
             {etat.fever >= FEVER_MAX ? 'SHAKER !' : `Shaker ${etat.fever}/${FEVER_MAX}`}
           </Text>
+        </Pressable>
+        {/* 📖 Aide de jeu : 13 perles spéciales existent désormais, dont 6 inédites qui
+            dévient la bille ou transforment le plateau. Sans une phrase pour les
+            expliquer, le joueur SUBIT la mèche et le portail au lieu de les jouer. Le
+            bouton est toujours là (aucun scan du plateau dans le rendu) ; la liste des
+            perles réellement posées n'est calculée qu'à l'OUVERTURE de la fenêtre. */}
+        <Pressable style={styles.aidePill} onPress={() => setAidePerles(true)} hitSlop={6}>
+          <Text style={styles.aidePillTxt}>Perles ?</Text>
         </Pressable>
         {etat.tirsParDescente > 0 && (
           <View style={{ flexDirection: 'row', gap: 3 }}>
@@ -686,14 +1015,50 @@ export default function ShooterScreen() {
               style={{ position: 'absolute', left: 0, top: 0, transform: [{ translateY: gridShift }] }}
             >
               <PlateauSkia w={dims.w} h={dims.h} r={d * 0.47} bulles={bullesPx} />
+              {/* 🫧 squash & stretch : les voisines du pop (masquées du plateau
+                  Skia) sont rendues ici à l'identique — compressées puis rebondies.
+                  Même transform gridShift → suivi parfait pendant la descente. */}
+              {volee?.squashs.map((s) => (
+                <Animated.View
+                  key={`sq-${s.cle}`}
+                  style={{
+                    position: 'absolute', left: s.x - d * 0.47, top: s.y - d * 0.47,
+                    transform: [{
+                      scale: volee.av.interpolate({
+                        inputRange: [0, 0.28, 0.6, 1],
+                        outputRange: [1, 0.84, 1.07, 1],
+                      }),
+                    }],
+                  }}
+                >
+                  <BilleSkia taille={d * 0.94} hex={s.couleur} />
+                </Animated.View>
+              ))}
             </Animated.View>
 
             {/* ⚠️ ligne de DÉFAITE : invisible tant que le plateau est loin, elle
-                n'apparaît (avec son libellé) que quand les perles s'en approchent */}
-            {bullesPx.some((b) => b.y > yLimite - d * 2.6) && (
+                n'apparaît (avec son libellé) que quand les perles s'en approchent —
+                désormais PULSÉE, avec vignette rougeoyante sur les bords du terrain */}
+            {danger && (
               <>
-                <View style={[styles.limite, { top: yLimite, left: offX, width: LARGEUR_TERRAIN * d }]} />
-                <Text style={[styles.limiteTxt, { top: yLimite + 4 }]}>DANGER — ne laisse pas les perles toucher la ligne !</Text>
+                <Animated.View
+                  pointerEvents="none"
+                  style={[styles.vignette, {
+                    borderWidth: d * 0.55,
+                    borderColor: critique ? 'rgba(194,40,74,0.5)' : 'rgba(150,34,64,0.32)',
+                    opacity: dangerAv.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }),
+                  }]}
+                />
+                <Animated.View style={[styles.limite, {
+                  top: yLimite, left: offX, width: LARGEUR_TERRAIN * d,
+                  opacity: dangerAv.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }),
+                  transform: [{ scaleY: dangerAv.interpolate({ inputRange: [0, 1], outputRange: [1, 1.9] }) }],
+                }]} />
+                <Text style={[styles.limiteTxt, { top: yLimite + 4 }]}>
+                  {critique
+                    ? 'DANGER — la prochaine descente peut être fatale !'
+                    : 'DANGER — ne laisse pas les perles toucher la ligne !'}
+                </Text>
               </>
             )}
 
@@ -755,6 +1120,24 @@ export default function ShooterScreen() {
                   opacity: volee.av.interpolate({ inputRange: [0, 1], outputRange: [0.95, 0] }),
                   transform: [{ scale: volee.av.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.55] }) }],
                 }]}
+              />
+            ))}
+            {/* 💥 débris balistiques : propulsés vers le haut en éventail,
+                retombent avec la gravité en fondant (≤ 24, pilotés par volee.av) */}
+            {volee && volee.debris.map((db) => (
+              <Animated.View
+                key={db.cle} pointerEvents="none"
+                style={{
+                  position: 'absolute',
+                  left: db.x - db.taille / 2, top: db.y - db.taille / 2,
+                  width: db.taille, height: db.taille, borderRadius: db.taille / 2,
+                  backgroundColor: db.couleur,
+                  opacity: volee.av.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 0.9, 0] }),
+                  transform: [
+                    { translateX: volee.av.interpolate({ inputRange: [0, 1], outputRange: [0, db.dx] }) },
+                    { translateY: volee.av.interpolate({ inputRange: [0, 0.38, 1], outputRange: [0, db.dy, db.dy + d * 3.2] }) },
+                  ],
+                }}
               />
             ))}
             {volee && volee.chutes.map((ch) => (
@@ -857,6 +1240,23 @@ export default function ShooterScreen() {
               </Svg>
             </Pressable>
 
+            {/* 🧋 copain de tir : le compagnon équipé s'anime près du lanceur —
+                flottement, joie sur match, grimace sur raté, excitation Shaker */}
+            {jeu.buddyId && (
+              <View
+                pointerEvents="none"
+                style={{ position: 'absolute', left: lanceurPx.x + d * 1.62, top: lanceurPx.y + d * 0.3 }}
+              >
+                <BuddyLanceur
+                  buddyId={jeu.buddyId}
+                  taille={d * 1.2}
+                  fever={etat.fever >= FEVER_MAX}
+                  matchSignal={matchSigRef.current}
+                  rateSignal={rateSigRef.current}
+                />
+              </View>
+            )}
+
             <Text style={[styles.astuce, { top: lanceurPx.y + d * 1.1 }]}>
               {messageFever
                 ? messageFever
@@ -895,12 +1295,23 @@ export default function ShooterScreen() {
                       +{formatNb(perlesComptees)} perles{fin.bonusJour ? ' (×2 ✨)' : ''}
                     </Text>
                   </View>
+                  {fin.butin && (fin.butin.ajoute > 0 || fin.butin.convertisPerles > 0) && (
+                    <Text style={styles.finButin}>
+                      🎁 Butin : {CONSOMMABLES[fin.butin.id].emoji} {CONSOMMABLES[fin.butin.id].nom}
+                      {fin.butin.convertisPerles > 0 ? ` (sac plein → +${fin.butin.convertisPerles} perles)` : ''}
+                    </Text>
+                  )}
                   {fin.capsule && (
                     <View style={styles.finCapsulesRang}>
                       <Icone nom="cadeau" taille={15} />
                       <Text style={styles.finCapsules}>+1 capsule {fin.capsule === 'doree' ? 'DORÉE' : 'classique'} — ouvre-la vite !</Text>
                       {fin.capsule === 'doree' && <Icone nom="couronne" taille={15} />}
                     </View>
+                  )}
+                  {fin.premiere && !fin.capsule && (
+                    <Text style={styles.finNote}>
+                      🎁 Prochaine capsule garantie : niveau {prochaineCapsuleNiveau(niveau)} — plus que {prochaineCapsuleNiveau(niveau) - niveau} !
+                    </Text>
                   )}
                   {!fin.premiere && <Text style={styles.finNote}>Niveau déjà réussi : perles réduites, pas de capsule.</Text>}
                   <BoutonJeu titre="Niveau suivant →" onPress={niveauSuivant} style={{ alignSelf: 'stretch' }} />
@@ -939,6 +1350,12 @@ export default function ShooterScreen() {
                       +{formatNb(perlesComptees)} perles{fin.bonusJour ? ' (bonus du jour ×2 ✨)' : ''}
                     </Text>
                   </View>
+                  {fin.butin && (fin.butin.ajoute > 0 || fin.butin.convertisPerles > 0) && (
+                    <Text style={styles.finButin}>
+                      🎁 Butin : {CONSOMMABLES[fin.butin.id].emoji} {CONSOMMABLES[fin.butin.id].nom}
+                      {fin.butin.convertisPerles > 0 ? ` (sac plein → +${fin.butin.convertisPerles} perles)` : ''}
+                    </Text>
+                  )}
                   <BoutonJeu titre="Rejouer" onPress={reinit} style={{ alignSelf: 'stretch' }} />
                   <Pressable onPress={() => router.back()} hitSlop={6}>
                     <Text style={styles.finRetour}>Retour au QG ›</Text>
@@ -979,6 +1396,43 @@ export default function ShooterScreen() {
             </Pressable>
           </Pressable>
         )}
+      </Modal>
+
+      {/* === 📖 Les perles spéciales de ce plateau === */}
+      <Modal visible={aidePerles} transparent animationType="fade" onRequestClose={() => setAidePerles(false)}>
+        {aidePerles && (() => {
+          // Le scan du plateau vit ICI, dans le corps du `&&` : il ne s'exécute qu'à
+          // l'ouverture de la fenêtre, jamais pendant la partie. Le chemin de rendu de la
+          // visée (60 Hz) ne doit rien gagner de neuf — c'est la règle de perf du lot.
+          const vues = new Set<SpecialBulle>();
+          for (const l of etat.grille) for (const b of l.cases) if (b?.special) vues.add(b.special);
+          const presentes = ORDRE_PERLES.filter((id) => vues.has(id));
+          return (
+            <Pressable style={styles.modalFond} onPress={() => setAidePerles(false)}>
+              <Pressable style={styles.modalCarte} onPress={() => {}}>
+                <Text style={styles.modalTitre}>Les perles de ce plateau</Text>
+                {presentes.length === 0 ? (
+                  <Text style={styles.modalTexte}>
+                    Aucune perle spéciale sur ce plateau — que des perles à assortir par 3 !
+                  </Text>
+                ) : (
+                  <ScrollView style={styles.aideListe} showsVerticalScrollIndicator={false}>
+                    {presentes.map((id) => (
+                      <View key={id} style={styles.aideLigne}>
+                        <Text style={styles.aideEmoji}>{EFFETS_PERLE[id].emoji}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.aideNom}>{EFFETS_PERLE[id].nom}</Text>
+                          <Text style={styles.aideTexte}>{EFFETS_PERLE[id].aide}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+                <BoutonJeu titre="Compris !" onPress={() => setAidePerles(false)} style={{ alignSelf: 'stretch' }} />
+              </Pressable>
+            </Pressable>
+          );
+        })()}
       </Modal>
     </View>
   );
@@ -1159,6 +1613,17 @@ const styles = StyleSheet.create({
   feverPillPret: { backgroundColor: C.violet, borderColor: C.jaune },
   feverTxt: { fontFamily: F.t800, fontSize: 11, color: C.texte3, fontVariant: ['tabular-nums'] },
   feverTxtPret: { color: '#fff' },
+  // 📖 pastille « Perles ? » et fenêtre d'aide (contenu tiré d'EFFETS_PERLE)
+  aidePill: {
+    borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10,
+    backgroundColor: C.carte, borderWidth: 1, borderColor: C.bord,
+  },
+  aidePillTxt: { fontFamily: F.t800, fontSize: 11, color: C.texte2 },
+  aideListe: { alignSelf: 'stretch', maxHeight: 300 },
+  aideLigne: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 5 },
+  aideEmoji: { fontSize: 21, width: 27, textAlign: 'center' },
+  aideNom: { fontFamily: F.t800, fontSize: 13.5, color: C.violet },
+  aideTexte: { fontFamily: F.t400, fontSize: 12, color: C.texte2, lineHeight: 17 },
   pointTir: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.bord },
   pointTirPlein: { backgroundColor: C.violetClair },
 
@@ -1177,6 +1642,8 @@ const styles = StyleSheet.create({
   terrain: { flex: 1, marginTop: 4, overflow: 'hidden' },
   mur: { position: 'absolute', top: 0, width: 2, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 1 },
   limite: { position: 'absolute', height: 2.5, backgroundColor: 'rgba(236,100,123,0.85)', borderRadius: 1 },
+  // ⚠️ vignette DANGER : liseré rougeoyant sur tout le bord du terrain
+  vignette: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 24 },
   limiteTxt: {
     position: 'absolute', left: 0, right: 0, textAlign: 'center',
     fontFamily: F.t800, fontSize: 10.5, color: '#ec647b',
@@ -1244,6 +1711,7 @@ const styles = StyleSheet.create({
   finCapsules: { fontFamily: F.t700, fontSize: 13.5, color: '#9A6B00', textAlign: 'center' },
   finCapsulesRang: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, flexWrap: 'wrap' },
   finNote: { fontFamily: F.t400, fontSize: 12.5, color: C.texte2, textAlign: 'center', lineHeight: 18 },
+  finButin: { fontFamily: F.t700, fontSize: 13, color: C.vertFonce, textAlign: 'center', lineHeight: 18 },
   finRetour: { fontFamily: F.t700, fontSize: 14, color: C.texte2, padding: 6 },
 
   modalFond: {

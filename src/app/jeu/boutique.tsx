@@ -17,9 +17,36 @@ import { hapticSucces } from '@/lib/juice';
 import { chargerDemandesRecompensesJeu, creerDemandeRecompenseJeu } from '@/lib/recompenses-jeu';
 import { supabase } from '@/lib/supabase';
 import {
-  acheterBoutique, mettreGainEnAttente, restantCeMois,
+  acheterBoutique, mettreGainEnAttente, rembourserAchatBoutique, restantCeMois,
   synchroniserGainsServeur, useBobaQuest,
 } from '@/store/jeu';
+
+// 🩹 26/07 — REPÈRE DE TEMPS DE JEU. L'écran n'affichait que « Encore N perles » : à
+// 59 000 perles d'écart, ce nombre ne veut plus rien dire. economie.ts calibre les
+// paliers « à ~1 000-1 500 perles/jour de jeu actif » — on retient le milieu, nommé
+// ici, et on ANNONCE l'hypothèse plutôt que de faire semblant de savoir.
+const PERLES_JOUR_ESTIME = 1250;
+
+// Formulation volontairement grossière : au-delà de deux semaines, parler en jours
+// (« ≈ 47 jours ») serait une fausse précision sur une hypothèse de rythme.
+function delaiEstime(perles: number): string {
+  const jours = Math.max(1, Math.ceil(perles / PERLES_JOUR_ESTIME));
+  if (jours <= 13) return `≈ ${jours} jour${jours > 1 ? 's' : ''}`;
+  const semaines = Math.max(2, Math.round(jours / 7));
+  return `≈ ${semaines} semaines`;
+}
+
+// 🩹 26/07 — La RPC `creer_demande_recompense_jeu` refuse un dépassement de quota avec
+// « plafond de ce prix deja atteint » (sans accents), relayé tel quel par l'edge
+// function `jeu-recompenses` dans `erreur`. On normalise avant de tester, et on
+// n'accepte QUE ce motif : sur une coupure réseau, rembourser rendrait les perles ET
+// laisserait le prix au joueur.
+function estRefusPlafond(message: string): boolean {
+  return message
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .includes('plafond');
+}
 
 const ORIGINES: Record<Gain['origine'], string> = {
   set: 'Set complété',
@@ -36,6 +63,10 @@ export default function BoutiqueScreen() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [envoiId, setEnvoiId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'ok' | 'erreur'; texte: string } | null>(null);
+  // 🩹 26/07 — achat refusé par la caisse pour cause de plafond : perles rendues, et le
+  // joueur doit le SAVOIR (jusqu'à 60 000 perles en jeu). Hors modale de détail, qui se
+  // referme dès que le gain remboursé quitte la liste.
+  const [remboursement, setRemboursement] = useState<{ label: string; perles: number } | null>(null);
   const detail = detailId ? etat.gains.find((g) => g.id === detailId) || null : null;
 
   const synchroniser = useCallback(async () => {
@@ -71,10 +102,26 @@ export default function BoutiqueScreen() {
       });
       await synchroniser();
     } catch (e) {
-      setMessage({
-        type: 'erreur',
-        texte: e instanceof Error ? e.message : 'Impossible de préparer ce prix pour le moment.',
-      });
+      const brut = e instanceof Error ? e.message : '';
+      // 🩹 26/07 — REMBOURSEMENT sur refus de PLAFOND, et sur ce refus SEULEMENT.
+      // Le client compte le mois d'ACHAT, le serveur le mois de CRÉATION DE LA DEMANDE :
+      // un achat de janvier préparé en février peut donc saturer le quota de février.
+      // Avant, le gain restait `a_reclamer` pour toujours et jusqu'à 60 000 perles
+      // s'évaporaient. Le refus de plafond est DÉFINITIF (rien ne changera avant le mois
+      // suivant) : on rend les perles et on libère le quota client. Une erreur réseau,
+      // elle, n'est PAS remboursée — sinon le joueur récupère ses perles ET garde son prix.
+      const palier = BOUTIQUE.find((b) => b.code === gain.code);
+      if (estRefusPlafond(brut) && rembourserAchatBoutique(gain.id)) {
+        // le gain vient de disparaître de l'état : la modale de détail se referme, donc
+        // le message doit vivre AILLEURS qu'à l'intérieur de cette modale.
+        setDetailId(null);
+        setRemboursement({ label: gain.label, perles: palier?.cout ?? 0 });
+      } else {
+        setMessage({
+          type: 'erreur',
+          texte: brut || 'Impossible de préparer ce prix pour le moment.',
+        });
+      }
     } finally {
       setEnvoiId(null);
     }
@@ -96,6 +143,7 @@ export default function BoutiqueScreen() {
           const plafonne = restant <= 0;
           const possible = etat.perles >= p.cout && !plafonne;
           const progression = Math.min(1, etat.perles / p.cout);
+          const restePerles = Math.max(0, p.cout - etat.perles);
           return (
             <View key={p.id} style={[styles.palier, plafonne && { opacity: 0.6 }]}>
               <View style={styles.palierHaut}>
@@ -103,9 +151,14 @@ export default function BoutiqueScreen() {
                   <Text style={styles.palierLabel}>{p.label}</Text>
                   <Text style={styles.palierDetail}>{p.detail}</Text>
                 </View>
-                <View style={styles.cout}>
-                  <IconePerle taille={15} />
-                  <Text style={styles.coutTxt}>{formatNb(p.cout)}</Text>
+                {/* 🩹 26/07 — le prix ET ce qu'il représente en temps de jeu : sans ce
+                    repère, 8 000 et 60 000 perles se ressemblent. */}
+                <View style={styles.coutCol}>
+                  <View style={styles.cout}>
+                    <IconePerle taille={15} />
+                    <Text style={styles.coutTxt}>{formatNb(p.cout)}</Text>
+                  </View>
+                  <Text style={styles.rythme}>{delaiEstime(p.cout)} de jeu</Text>
                 </View>
               </View>
               {/* 🗓️ Plafond mensuel : la règle ET où j'en suis, directement dans la carte */}
@@ -117,9 +170,21 @@ export default function BoutiqueScreen() {
                     : (plafonne ? `${p.parMois} par mois — plafond atteint, de retour le 1er` : `${p.parMois} par mois — encore ${restant} ce mois-ci`)}
                 </Text>
               </View>
+              {/* 🩹 26/07 — BARRE NEUTRALISÉE quand l'article est plafonné. Elle continuait
+                  de se remplir sur un article déjà pris ce mois-ci, sous une simple
+                  opacity : le signal visuel dominant disait « tu y es presque » pendant
+                  que le bouton disait « Reviens le mois prochain ». Figée, grisée, dite. */}
               <View style={styles.barre}>
-                <View style={[styles.barreRemplie, { width: `${progression * 100}%` }]} />
+                <View style={[
+                  styles.barreRemplie,
+                  plafonne ? styles.barreRemplieFigee : { width: `${progression * 100}%` },
+                ]} />
               </View>
+              {plafonne && (
+                <Text style={styles.barrePlafond} accessibilityRole="text">
+                  Plafond du mois atteint — cette barre reprendra le 1er du mois
+                </Text>
+              )}
               {possible ? (
                 <BoutonJeu
                   titre="Échanger"
@@ -127,9 +192,14 @@ export default function BoutiqueScreen() {
                 />
               ) : (
                 <View style={styles.indispo} accessibilityRole="text">
+                  {/* 🩹 26/07 — « Encore 59 000 perles » seul est illisible : on l'ancre
+                      dans une durée, formulée comme une hypothèse. */}
                   <Text style={styles.indispoTxt}>
-                    {plafonne ? 'Reviens le mois prochain' : `Encore ${formatNb(p.cout - etat.perles)} perles`}
+                    {plafonne ? 'Reviens le mois prochain' : `Encore ${formatNb(restePerles)} perles`}
                   </Text>
+                  {!plafonne && (
+                    <Text style={styles.indispoRythme}>à ce rythme, {delaiEstime(restePerles)}</Text>
+                  )}
                 </View>
               )}
             </View>
@@ -188,6 +258,29 @@ export default function BoutiqueScreen() {
                 Il est maintenant disponible dans « Mes prix » juste en dessous.
               </Text>
               <BoutonJeu titre="Parfait !" onPress={() => setCelebration(null)} style={{ alignSelf: 'stretch' }} />
+            </View>
+          </View>
+        )}
+      </Modal>
+
+      {/* 🩹 26/07 — Remboursement d'un achat refusé par la caisse (plafond du mois) */}
+      <Modal visible={!!remboursement} transparent animationType="fade" onRequestClose={() => setRemboursement(null)}>
+        {remboursement && (
+          <View style={styles.modalFond}>
+            <View style={styles.modalCarte}>
+              <Icone nom="sablier" taille={42} />
+              <Text style={styles.modalTitre}>Prix indisponible</Text>
+              <Text style={styles.modalLabel}>{remboursement.label}</Text>
+              <Text style={styles.modalTexte}>
+                La caisse a refusé cette demande : le plafond du mois de cet article est déjà
+                atteint côté boutique.
+                {remboursement.perles > 0
+                  ? ` Tes ${formatNb(remboursement.perles)} perles t'ont été rendues`
+                  : ' Tes perles t\'ont été rendues'}
+                , rien n'est perdu. La caisse ne pourra l'accepter qu'au mois prochain —
+                inutile de réessayer tout de suite.
+              </Text>
+              <BoutonJeu titre="Compris" onPress={() => setRemboursement(null)} style={{ alignSelf: 'stretch' }} />
             </View>
           </View>
         )}
@@ -267,10 +360,17 @@ const styles = StyleSheet.create({
     backgroundColor: C.lavande, borderRadius: R.pill, paddingVertical: 6, paddingHorizontal: 11,
   },
   coutTxt: { fontFamily: F.t800, fontSize: 13.5, color: C.violetProfond },
+  // 🩹 26/07 : colonne « prix + temps de jeu estimé »
+  coutCol: { alignItems: 'flex-end', gap: 3 },
+  rythme: { fontFamily: F.t600, fontSize: 10.5, color: C.texte3 },
   barre: { height: 8, borderRadius: 4, backgroundColor: C.lavande, overflow: 'hidden' },
-  indispo: { backgroundColor: C.lavande, borderRadius: 14, padding: 12, alignItems: 'center' },
+  indispo: { backgroundColor: C.lavande, borderRadius: 14, padding: 12, alignItems: 'center', gap: 2 },
   indispoTxt: { fontFamily: F.t800, fontSize: 13.5, color: C.texte3 },
+  indispoRythme: { fontFamily: F.t600, fontSize: 11.5, color: C.texte3 },
   barreRemplie: { height: 8, borderRadius: 4, backgroundColor: C.vert },
+  // 🩹 26/07 : barre figée et grisée quand le plafond mensuel est atteint
+  barreRemplieFigee: { width: '100%', backgroundColor: C.bord },
+  barrePlafond: { fontFamily: F.t700, fontSize: 11.5, color: C.texte3, textAlign: 'center', marginTop: -6 },
 
   sectionTitre: { fontFamily: F.titre, fontSize: 18, color: C.violet },
   sectionTitreRang: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },

@@ -275,11 +275,8 @@ const GLYPHES: Record<string, ReactElement> = {
   ),
   'oreo-star': (
     <>
-      <GobeletPerso fill="#efe9f6" />
-      {[[8.3, 10.3], [15.7, 10.6], [10, 16.3], [14.3, 16.6]].map(([x, y]) => (
-        <Circle key={`${x}${y}`} cx={x} cy={y} r={0.8} fill="#3b3147" />
-      ))}
-      <Path d="M18.6 3.2 L19.3 4.9 L21.1 5.6 L19.3 6.3 L18.6 8 L17.9 6.3 L16.1 5.6 L17.9 4.9 Z" fill="#f2da33" stroke={VIOLET} strokeWidth={0.9} strokeLinejoin="round" />
+      <GobeletPerso fill="#f0dcb8" />
+      <Path d="M7.5 7.2 Q8.6 10.2 7.9 13.6 M11 6.6 Q12.1 9.6 11.4 13.2 M14.5 7.2 Q15.6 10.2 14.9 13.6" stroke="#8a5a2a" strokeWidth={1.6} strokeLinecap="round" fill="none" opacity={0.9} />
     </>
   ),
   'caramel-chef': (

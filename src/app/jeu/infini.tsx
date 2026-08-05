@@ -9,7 +9,7 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
 import { Etincelle } from '@/components/ui-kit';
-import { PERLES_MAX_PARTIE, POWERUPS, PowerupId, trouverCollectible } from '@/components/jeu/economie';
+import { PERLES_MAX_FINAL, POWERUPS, PowerupId, trouverCollectible } from '@/components/jeu/economie';
 import { Icone } from '@/components/jeu/icones';
 import { BandeauPreview, EnTeteJeu, formatNb, IconePerle } from '@/components/jeu/ui-jeu';
 import {
@@ -117,9 +117,13 @@ export default function InfiniLobby() {
             <Text style={styles.statLib}>Meilleure chaîne</Text>
             <Text style={styles.statVal}>×{formatNb(etat.statsJour.chaineMax)}</Text>
           </View>
+          {/* 🩹 26/07 : annonçait « ≤ 450 » (PERLES_MAX_PARTIE), qui ne plafonne que la
+              conversion score → perles, donc AVANT le ×2 du jour, le ×2 du week-end,
+              le ×1,3 de série et le % du copain Fruité. Le vrai plafond du montant
+              CRÉDITÉ est PERLES_MAX_FINAL.infini — dérivé de la constante, jamais en dur. */}
           <View style={styles.stat}>
             <Text style={styles.statLib}>Perles / partie</Text>
-            <Text style={styles.statVal}>≤ {PERLES_MAX_PARTIE}</Text>
+            <Text style={styles.statVal}>≤ {formatNb(PERLES_MAX_FINAL.infini)}</Text>
           </View>
         </View>
 

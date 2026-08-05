@@ -1,10 +1,12 @@
 // === Boba Quest — juice Skia des combats (burst d'impact / critique, GPU) ===
 // Effet ponctuel joué à chaque coup : anneau de choc + étincelles + flash.
 // Piloté par requestAnimationFrame (autonome du replay), remonté par `cle`.
+// `couleur` (optionnel, Pack 3) = couleur de l'attaque qui vient de toucher ;
+// un critique reste doré quoi qu'il arrive.
 import { Canvas, Circle, Group } from '@shopify/react-native-skia';
 import { useEffect, useState } from 'react';
 
-export function BurstSkia({ taille, crit, cle }: { taille: number; crit: boolean; cle: number }) {
+export function BurstSkia({ taille, crit, cle, couleur }: { taille: number; crit: boolean; cle: number; couleur?: string }) {
   const [t, setT] = useState(0);
   useEffect(() => {
     let raf = 0;
@@ -23,7 +25,7 @@ export function BurstSkia({ taille, crit, cle }: { taille: number; crit: boolean
   if (t >= 1) return null;
   const c = taille / 2;
   const n = crit ? 10 : 7;
-  const coul = crit ? '#FFD166' : '#F3A0BD';
+  const coul = crit ? '#FFD166' : (couleur ?? '#F3A0BD');
   const op = 1 - t;
   const ringR = c * (0.3 + t * 0.95);
 

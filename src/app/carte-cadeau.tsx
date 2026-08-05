@@ -139,31 +139,41 @@ function CarteCadeauContenu() {
       return;
     }
     setEnvoi(true);
-    const { data, error } = await supabase.functions.invoke('solde-api', {
-      body: { action: 'demander-recharge', montant_centimes: montantCentimes },
-    });
-    if (error || !data?.ok || !data?.demande) {
-      setEtat({ type: 'erreur', texte: data?.erreur || error?.message || 'La demande n’a pas pu être envoyée.' });
-    } else {
-      setDemande(data.demande as DemandeRecharge);
-      setEtat({ type: 'ok', texte: 'C’est prêt : ta demande apparaîtra à la caisse au prochain scan de ton QR fidélité.' });
+    try {
+      const { data, error } = await supabase.functions.invoke('solde-api', {
+        body: { action: 'demander-recharge', montant_centimes: montantCentimes },
+      });
+      if (error || !data?.ok || !data?.demande) {
+        setEtat({ type: 'erreur', texte: data?.erreur || error?.message || 'La demande n’a pas pu être envoyée.' });
+      } else {
+        setDemande(data.demande as DemandeRecharge);
+        setEtat({ type: 'ok', texte: 'C’est prêt : ta demande apparaîtra à la caisse au prochain scan de ton QR fidélité.' });
+      }
+    } catch {
+      setEtat({ type: 'erreur', texte: 'Réponse réseau incertaine. Actualise avant de recommencer : la demande a peut-être déjà été créée.' });
+    } finally {
+      setEnvoi(false);
     }
-    setEnvoi(false);
   };
 
   const annuler = async () => {
     if (!demande) return;
     setEnvoi(true);
-    const { data, error } = await supabase.functions.invoke('solde-api', {
-      body: { action: 'annuler-demande', id: demande.id },
-    });
-    if (error || !data?.ok) {
-      setEtat({ type: 'erreur', texte: data?.erreur || error?.message || 'Annulation impossible.' });
-    } else {
-      setDemande(null);
-      setEtat({ type: 'info', texte: 'Demande annulée. Aucun montant n’a été crédité.' });
+    try {
+      const { data, error } = await supabase.functions.invoke('solde-api', {
+        body: { action: 'annuler-demande', id: demande.id },
+      });
+      if (error || !data?.ok) {
+        setEtat({ type: 'erreur', texte: data?.erreur || error?.message || 'Annulation impossible.' });
+      } else {
+        setDemande(null);
+        setEtat({ type: 'info', texte: 'Demande annulée. Aucun montant n’a été crédité.' });
+      }
+    } catch {
+      setEtat({ type: 'erreur', texte: 'Réponse réseau incertaine. Actualise pour vérifier si la demande est encore active.' });
+    } finally {
+      setEnvoi(false);
     }
-    setEnvoi(false);
   };
 
   return (

@@ -11,24 +11,43 @@
 //   - clients Android par empreinte (signature Play + cle upload EAS) : rien a
 //     mettre dans le code, Google matche package + SHA-1 automatiquement.
 // + Dashboard Supabase > Auth > Google : iosClientId AJOUTE aux Client IDs autorises.
-import {
-  GoogleSignin,
-  statusCodes,
-} from '@react-native-google-signin/google-signin';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { supabase } from '@/lib/supabase';
 
 export const GOOGLE_WEB_CLIENT_ID = '172372207006-jhovojkoq1da9m0f3h897v4fe2hvfr47.apps.googleusercontent.com';
 export const GOOGLE_IOS_CLIENT_ID = '172372207006-q6ggib11aoud3ldkau5p686u4m49ndbq.apps.googleusercontent.com';
 
 let configure = false;
-function configurer() {
-  if (configure) return;
+type ModuleGoogleNatif = typeof import('@react-native-google-signin/google-signin');
+
+let moduleGoogleNatif: ModuleGoogleNatif | null = null;
+
+async function chargerModuleGoogleNatif(): Promise<ModuleGoogleNatif | null> {
+  // Expo Go ne contient pas RNGoogleSignin. Surtout ne pas importer le module
+  // natif au chargement de l'écran Compte : cela ferait planter toute l'app
+  // avant même que le client puisse utiliser la connexion e-mail.
+  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) return null;
+  if (moduleGoogleNatif) return moduleGoogleNatif;
+  try {
+    moduleGoogleNatif = await import('@react-native-google-signin/google-signin');
+    return moduleGoogleNatif;
+  } catch {
+    return null;
+  }
+}
+
+async function configurer(): Promise<ModuleGoogleNatif | null> {
+  const google = await chargerModuleGoogleNatif();
+  if (!google) return null;
+  if (configure) return google;
+  const { GoogleSignin } = google;
   GoogleSignin.configure({
     webClientId: GOOGLE_WEB_CLIENT_ID, // OBLIGATOIRE pour recevoir un idToken sur Android
     iosClientId: GOOGLE_IOS_CLIENT_ID,
     offlineAccess: false, // pas de refresh token Google cote serveur : Supabase gere la session
   });
   configure = true;
+  return google;
 }
 
 export type ResultatGoogleNatif =
@@ -41,7 +60,15 @@ export type ResultatGoogleNatif =
 // il ferait choisir le compte une seconde fois et exposerait le domaine technique
 // Supabase. Une erreur native reste donc une erreur visible et retentable.
 export async function connexionGoogleNative(): Promise<ResultatGoogleNatif> {
-  configurer();
+  const google = await configurer();
+  if (!google) {
+    return {
+      ok: false,
+      annule: false,
+      message: 'Connexion Google indisponible dans Expo Go. Utilise la connexion e-mail pour ce test.',
+    };
+  }
+  const { GoogleSignin, statusCodes } = google;
   try {
     // Android : verifie Google Play Services (iOS : no-op)
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });

@@ -36,6 +36,7 @@ import {
 import PictoOffre, { FOND_PICTO } from '@/components/pictos-offres';
 
 const URL_CONFIDENTIALITE = 'https://commande.bubblestop.fr/confidentialite';
+const URL_REGLEMENT_BOBA_QUEST = 'https://commande.bubblestop.fr/reglement-boba-quest';
 const EMAIL_CONTACT = 'contact@bubblestop.fr';
 type CibleMessageCaisse = MagasinId | 'toutes';
 
@@ -264,7 +265,7 @@ export default function CompteScreen() {
   const [offrePushAuto, setOffrePushAuto] = useState(false);
   // Contenu STRUCTURÉ (remise appliquée AUTOMATIQUEMENT par la caisse, ≥ POS 0.28.138) :
   // type −% (sur les lignes ciblées) ou −€ (par boisson ciblée) + catégories cibles.
-  const [offreRemiseType, setOffreRemiseType] = useState<'' | 'pourcent' | 'montant' | 'tampons'>('');
+  const [offreRemiseType, setOffreRemiseType] = useState<'' | 'pourcent' | 'montant' | 'tampons' | 'duo'>('');
   const [offreRemiseValeur, setOffreRemiseValeur] = useState('');
   const [offreCibleCats, setOffreCibleCats] = useState<string[]>([]);
   const { categories: catsCatalogue } = useCatalogueCloud(); // catégories du catalogue POS (fruit-tea…)
@@ -470,13 +471,28 @@ export default function CompteScreen() {
     if (dDebut && dFin && dFin < dDebut) { setOffreEtat('La date de fin doit être après le début.'); return; }
     // Remise structurée (appliquée auto par la caisse)
     let remiseValeur: number | null = null;
-    if (offreRemiseType) {
+    if (offreRemiseType && offreRemiseType !== 'duo') {
       remiseValeur = Number(String(offreRemiseValeur).trim().replace(',', '.'));
       if (!(remiseValeur > 0)) { setOffreEtat('Valeur de remise invalide (ex : 30 ou 1,50).'); return; }
       if (offreRemiseType === 'pourcent' && remiseValeur > 100) { setOffreEtat('Un pourcentage ne peut pas dépasser 100.'); return; }
       if (offreRemiseType === 'tampons') {
         remiseValeur = Math.round(remiseValeur);
         if (remiseValeur < 2 || remiseValeur > 5) { setOffreEtat('Tampons : multiplicateur entre 2 et 5 (ex : 2 = tampons ×2).'); return; }
+      }
+    }
+    // 👯 Duo (04/08) : le taux est porté par la caisse (−50 % sur la moins chère, dès
+    // 2 boissons, une fois par ticket) — AUCUNE valeur à saisir. Cible par défaut :
+    // toutes les catégories BOISSONS du catalogue. Jamais les mochis : un mochi ne
+    // doit ni compter comme « 2ᵉ boisson » ni devenir la « moins chère » à −50 %.
+    const NON_BOISSONS = ['mochi-glace'];
+    let cibleFinale = offreCibleCats;
+    if (offreRemiseType === 'duo' && cibleFinale.length === 0) {
+      cibleFinale = (catsCatalogue as any[]).filter((c) => !NON_BOISSONS.includes(c.id)).map((c) => c.id);
+      if (cibleFinale.length === 0) {
+        // Catalogue cloud pas encore chargé : publier un duo « toute la carte »
+        // ferait entrer les mochis dans le décompte — on refuse plutôt que deviner.
+        setOffreEtat('Catalogue pas encore chargé — réessaie dans quelques secondes.');
+        return;
       }
     }
     setOffreEtat('Publication…');
@@ -492,7 +508,7 @@ export default function CompteScreen() {
           remise_type: offreRemiseType || null,
           remise_valeur: remiseValeur,
           // 'tampons' s'applique à TOUTE la commande → jamais de catégories ciblées
-          cible_categories: offreRemiseType && offreRemiseType !== 'tampons' && offreCibleCats.length ? offreCibleCats : null,
+          cible_categories: offreRemiseType && offreRemiseType !== 'tampons' && cibleFinale.length ? cibleFinale : null,
         })
         .select('id').maybeSingle();
       if (error) throw error;
@@ -1148,6 +1164,11 @@ export default function CompteScreen() {
               onPress={() => Linking.openURL(`mailto:${EMAIL_CONTACT}`)}
             />
             <LigneMenu
+              titre="Règlement Boba Quest"
+              sousTitre="Jeu, récompenses et validation en boutique"
+              onPress={() => Linking.openURL(URL_REGLEMENT_BOBA_QUEST)}
+            />
+            <LigneMenu
               titre="Politique de confidentialité"
               onPress={() => Linking.openURL(URL_CONFIDENTIALITE)}
               separateur={false}
@@ -1420,7 +1441,7 @@ export default function CompteScreen() {
                     Sans scan : aucun avantage. Sans réglage : annonce purement informative.
                   </Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                    {([['', 'Aucune'], ['pourcent', '− %'], ['montant', '− € / boisson'], ['tampons', '🎟️ Tampons ×N']] as ['' | 'pourcent' | 'montant' | 'tampons', string][]).map(([t, nom]) => (
+                    {([['', 'Aucune'], ['pourcent', '− %'], ['montant', '− € / boisson'], ['duo', '👯 Duo −50 %'], ['tampons', '🎟️ Tampons ×N']] as ['' | 'pourcent' | 'montant' | 'tampons' | 'duo', string][]).map(([t, nom]) => (
                       <Pressable
                         key={t || 'aucune'}
                         style={[styles.progJour, offreRemiseType === t && styles.progJourActif]}
@@ -1437,18 +1458,32 @@ export default function CompteScreen() {
                       offertes n'en gagnent pas.
                     </Text>
                   )}
+                  {offreRemiseType === 'duo' && (
+                    <Text style={styles.progAide}>
+                      👯 Dès 2 boissons sur le ticket, la moins chère passe à −50 % — une
+                      seule fois par passage, après scan du QR fidélité. Rien à régler : le
+                      taux est fixe. Sans catégorie cochée, toutes les boissons comptent
+                      (jamais les mochis).
+                    </Text>
+                  )}
                   {offreRemiseType !== '' && (
                     <>
-                      <ChampTexte
-                        value={offreRemiseValeur}
-                        onChangeText={setOffreRemiseValeur}
-                        placeholder={offreRemiseType === 'pourcent' ? 'Ex : 30 (= −30 %)' : offreRemiseType === 'tampons' ? 'Ex : 2 (= tampons ×2)' : 'Ex : 1,50 (= −1,50 € par boisson)'}
-                        keyboardType={offreRemiseType === 'tampons' ? 'number-pad' : 'decimal-pad'}
-                        maxLength={6}
-                      />
+                      {offreRemiseType !== 'duo' && (
+                        <ChampTexte
+                          value={offreRemiseValeur}
+                          onChangeText={setOffreRemiseValeur}
+                          placeholder={offreRemiseType === 'pourcent' ? 'Ex : 30 (= −30 %)' : offreRemiseType === 'tampons' ? 'Ex : 2 (= tampons ×2)' : 'Ex : 1,50 (= −1,50 € par boisson)'}
+                          keyboardType={offreRemiseType === 'tampons' ? 'number-pad' : 'decimal-pad'}
+                          maxLength={6}
+                        />
+                      )}
                       {offreRemiseType !== 'tampons' && (
                         <>
-                          <Text style={styles.progAide}>Catégories concernées (rien de coché = toute la carte) :</Text>
+                          <Text style={styles.progAide}>
+                            {offreRemiseType === 'duo'
+                              ? 'Catégories concernées (rien de coché = toutes les boissons, mochis exclus) :'
+                              : 'Catégories concernées (rien de coché = toute la carte) :'}
+                          </Text>
                           <View style={styles.msgCaisseMags}>
                             {catsCatalogue.map((c: any) => (
                               <Pressable
@@ -1490,6 +1525,11 @@ export default function CompteScreen() {
                       {o.remise_type === 'tampons' && Number(o.remise_valeur) >= 2 && (
                         <Text style={styles.offreLigneSous} numberOfLines={1}>
                           🎟️ Tampons ×{Math.round(Number(o.remise_valeur))} sur tout le ticket · scan fidélité requis
+                        </Text>
+                      )}
+                      {o.remise_type === 'duo' && (
+                        <Text style={styles.offreLigneSous} numberOfLines={1}>
+                          👯 Duo : −50 % sur la 2ᵉ boisson (la moins chère) · une fois par ticket · scan fidélité requis
                         </Text>
                       )}
                       {(o.remise_type === 'pourcent' || o.remise_type === 'montant') && Number(o.remise_valeur) > 0 && (

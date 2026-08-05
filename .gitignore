@@ -51,3 +51,6 @@ example
 
 # Rangement Claude 18/07/2026 : fichiers deplaces en attente de suppression par Yoann
 _a_supprimer/
+
+# Sauvegardes Supabase (données réelles — ne jamais committer)
+_sauvegardes-supabase/

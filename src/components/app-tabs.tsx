@@ -102,6 +102,32 @@ export default function AppTabs() {
           tabBarButton: () => null, tabBarItemStyle: { display: 'none' },
         }}
       />
+      {/* 🗼 Boba Tower (/boba-tower) — le jeu d'adresse, ouvert depuis l'accueil.
+          Route SANS onglet (même pattern que /jeu : jamais de `href` ici, sinon
+          crash au lancement — piège documenté). Sans cette déclaration, expo-router
+          fabriquerait un onglet par défaut pour la route auto-découverte. */}
+      <Tabs.Screen
+        name="boba-tower"
+        options={{
+          // plein écran : pas d'onglets client dans le jeu
+          tabBarStyle: { display: 'none' },
+          tabBarButton: () => null, tabBarItemStyle: { display: 'none' },
+        }}
+      />
+      {/* 🎡 La Roue du Mois (/roue) — 3e jeu autonome (sorti de Boba Quest, 03/08/2026),
+          ouvert depuis l'accueil. Route SANS onglet (même pattern que /jeu et
+          /boba-tower : jamais de `href` ici, sinon crash au lancement — piège
+          documenté). Sans cette déclaration, expo-router fabriquerait un onglet
+          par défaut pour la route auto-découverte. Toute modification ici doit être
+          REPRODUITE dans app-tabs.web.tsx (miroirs stricts). */}
+      <Tabs.Screen
+        name="roue"
+        options={{
+          // plein écran : pas d'onglets client dans le jeu
+          tabBarStyle: { display: 'none' },
+          tabBarButton: () => null, tabBarItemStyle: { display: 'none' },
+        }}
+      />
     </Tabs>
   );
 }

@@ -98,6 +98,24 @@ export default function AppTabs() {
           tabBarButton: () => null, tabBarItemStyle: { display: 'none' },
         }}
       />
+      {/* 🗼 Boba Tower (/boba-tower) — route sans onglet (miroir du natif) */}
+      <Tabs.Screen
+        name="boba-tower"
+        options={{
+          // plein écran : pas d'onglets client dans le jeu
+          tabBarStyle: { display: 'none' },
+          tabBarButton: () => null, tabBarItemStyle: { display: 'none' },
+        }}
+      />
+      {/* 🎡 La Roue du Mois (/roue) — route sans onglet (miroir du natif) */}
+      <Tabs.Screen
+        name="roue"
+        options={{
+          // plein écran : pas d'onglets client dans le jeu
+          tabBarStyle: { display: 'none' },
+          tabBarButton: () => null, tabBarItemStyle: { display: 'none' },
+        }}
+      />
     </Tabs>
   );
 }

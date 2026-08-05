@@ -7,9 +7,10 @@ import { router } from 'expo-router';
 import { SvgXml } from 'react-native-svg';
 
 import { supabase } from '@/lib/supabase';
-import { useJeuVisible } from '@/lib/app-config';
+import { useJeuVisible, useRoueDuMoisVisible, useTowerVisible } from '@/lib/app-config';
 import { useFonctionnalite } from '@/lib/fonctionnalites';
 import { offreEnCours } from '@/lib/offres';
+import { constaterFidelite } from '@/lib/visites';
 import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
 import {
   BoutonGhost, Chevron, Etincelle, MascottePerle, Message, TitreKawaii,
@@ -57,6 +58,8 @@ function VaguesFidelite() {
 export default function AccueilScreen() {
   const insets = useSafeAreaInsets();
   const jeuFlag = useJeuVisible(); // 🕹️ flag serveur : la carte Boba Quest s'affiche ou pas
+  const towerFlag = useTowerVisible(); // 🗼 flag serveur INDÉPENDANT : la carte Boba Tower
+  const roueFlag = useRoueDuMoisVisible(); // 🎡 flag serveur INDÉPENDANT : la carte Roue du Mois
   const offresFlag = useFonctionnalite('offres');
   const [prenom, setPrenom] = useState('');
   const [carte, setCarte] = useState<{ tampons: number; cadeaux: number } | null>(null);
@@ -107,9 +110,18 @@ export default function AccueilScreen() {
       // Carte de fidélité : tampons / cadeaux en direct
       if (p?.numero_fidelite) {
         const { data: f, error: erreurCarte } = await supabase.from('fidelite_cloud')
-          .select('tampons, cadeaux').eq('numero_fidelite', p.numero_fidelite).maybeSingle();
+          .select('tampons, cadeaux, cartes_completees').eq('numero_fidelite', p.numero_fidelite).maybeSingle();
         if (erreurCarte) echec = true;
-        else setCarte(f ? { tampons: Number(f.tampons) || 0, cadeaux: Number(f.cadeaux) || 0 } : null);
+        else {
+          setCarte(f ? { tampons: Number(f.tampons) || 0, cadeaux: Number(f.cadeaux) || 0 } : null);
+          // 🧋 26/07 — LA GORGÉE FRAÎCHE. `tampons` est le compteur INTRA-carte (« n/9 ») :
+          // il retombe à 0 à chaque carte remplie, d'où `cartes_completees` ajouté au
+          // select pour reconstituer un total MONOTONE. `lib/visites` en déduit les achats
+          // RÉELS (en retirant la part des tampons gagnés dans le jeu, lue côté serveur)
+          // et les met de côté ; c'est Boba Quest qui récompense à l'ouverture.
+          // Volontairement sans await : jamais bloquer le rendu de l'accueil pour ça.
+          if (f) void constaterFidelite(f.tampons, (f as { cartes_completees?: unknown }).cartes_completees);
+        }
       }
 
       setErreurReseau(echec);
@@ -242,6 +254,50 @@ export default function AccueilScreen() {
             </Pressable>
           )}
 
+          {/* === 🗼 Boba Tower : le 2e jeu, INDÉPENDANT de Boba Quest (toggle serveur
+               `boba_tower`, fail-closed). Masqué → aucune carte, aucun lien mort.
+               Les sous-titres différencient les deux jeux : Quest = collection et
+               combats, Tower = parties rapides et records. === */}
+          {towerFlag.visible && (
+            <Pressable
+              style={styles.tower}
+              onPress={() => router.push('/boba-tower' as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Boba Tower, le jeu d'adresse : parties rapides et records">
+              <Text style={{ fontSize: 34 }}>🗼</Text>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={styles.towerTitre}>Boba Tower</Text>
+                  <View style={styles.towerBadge}><Text style={styles.towerBadgeTxt}>PILOTE</Text></View>
+                </View>
+                <Text style={styles.towerSous}>Empile ta boisson en 45 s — adresse, combos, records</Text>
+              </View>
+              <Chevron couleur={C.vertFonce} />
+            </Pressable>
+          )}
+
+          {/* === 🎡 La Roue du Mois : le 3e jeu, INDÉPENDANT de Boba Quest (toggle
+               serveur `roue_du_mois`, fail-closed) — sortie du hub Boba Quest le
+               03/08/2026. Un tour gratuit par mois, lot RÉEL à retirer en boutique.
+               Masqué → aucune carte, aucun lien mort. === */}
+          {roueFlag.visible && (
+            <Pressable
+              style={styles.roue}
+              onPress={() => router.push('/roue' as any)}
+              accessibilityRole="button"
+              accessibilityLabel="La Roue du Mois : un tour gratuit par mois, un vrai lot à gagner en boutique">
+              <Text style={{ fontSize: 34 }}>🎡</Text>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={styles.roueTitre}>La Roue du Mois</Text>
+                  <View style={styles.roueBadge}><Text style={styles.roueBadgeTxt}>1 TOUR/MOIS</Text></View>
+                </View>
+                <Text style={styles.roueSous}>Tourne la roue, repars avec un vrai lot en boutique</Text>
+              </View>
+              <Chevron couleur="#8A6D1D" />
+            </Pressable>
+          )}
+
           {/* === Carte de fidélité (tampons en direct) === */}
           {carteLiee && carte ? (
             <Pressable style={styles.fidelite} onPress={() => router.push('/explore' as any)}>
@@ -317,6 +373,29 @@ const styles = StyleSheet.create({
   jeuBadge: { backgroundColor: '#FFC4DD', borderRadius: R.pill, paddingVertical: 3, paddingHorizontal: 8 },
   jeuBadgeTxt: { fontFamily: F.t800, fontSize: 10, color: C.roseFonce, letterSpacing: 0.4 },
   jeuSous: { fontFamily: F.t500, fontSize: 12.5, color: C.roseFonce, marginTop: 3 },
+
+  // Boba Tower (jeu d'adresse) — carte vert pâle, pendant de la rose Boba Quest
+  tower: {
+    backgroundColor: C.vertPale, borderRadius: R.carte, paddingVertical: 13, paddingHorizontal: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: BORD.largeur, borderColor: BORD.surPastel, ...OMBRE,
+  },
+  towerTitre: { fontFamily: F.titre, fontSize: 17, color: C.violet },
+  towerBadge: { backgroundColor: '#DFF0BC', borderRadius: R.pill, paddingVertical: 3, paddingHorizontal: 8 },
+  towerBadgeTxt: { fontFamily: F.t800, fontSize: 10, color: C.vertFonce, letterSpacing: 0.4 },
+  towerSous: { fontFamily: F.t500, fontSize: 12.5, color: C.vertFonce, marginTop: 3 },
+
+  // La Roue du Mois (3e jeu) — carte jaune pâle « lactées », pendant du rose (Quest)
+  // et du vert (Tower). Textes en brun doré : le seul foncé lisible sur ce pastel.
+  roue: {
+    backgroundColor: C.jaunePale, borderRadius: R.carte, paddingVertical: 13, paddingHorizontal: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: BORD.largeur, borderColor: BORD.surPastel, ...OMBRE,
+  },
+  roueTitre: { fontFamily: F.titre, fontSize: 17, color: C.violet },
+  roueBadge: { backgroundColor: '#F6E5A8', borderRadius: R.pill, paddingVertical: 3, paddingHorizontal: 8 },
+  roueBadgeTxt: { fontFamily: F.t800, fontSize: 10, color: '#8A6D1D', letterSpacing: 0.4 },
+  roueSous: { fontFamily: F.t500, fontSize: 12.5, color: '#8A6D1D', marginTop: 3 },
 
   // Carte fidélité (violette, ombre violette DA)
   fidelite: {

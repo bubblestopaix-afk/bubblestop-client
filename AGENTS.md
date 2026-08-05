@@ -8,14 +8,273 @@
 
 # Expo HAS CHANGED
 
+## 🔄 Codex — synchronisation automatique achats boutique → collectibles (27/07/2026, TERMINÉ LOCAL ✅)
+
+> **Fichiers réservés à ce chantier Codex (liste exhaustive ; `git add -A`
+> interdit)** : `src/lib/achats.ts` · nouveau
+> `src/lib/synchronisation-achats-jeu.ts` · `src/store/jeu.ts` ·
+> `src/components/jeu/economie.ts` · `src/app/jeu/_layout.tsx` ·
+> `src/app/jeu/collection.tsx` · `scripts/test-jeu.cjs` et cette entrée
+> `AGENTS.md`. Aucun autre écran, module natif, backend, migration, donnée réelle,
+> OTA, build store ou déploiement n'est autorisé dans ce lot.
+
+- **Chaîne métier** : le scan identifie le compte et rattache le panier, mais ne
+  crédite rien. Après encaissement et sauvegarde fiscalisée, le POS publie les
+  lignes catalogue dans `achats_lignes` ; test, vente anonyme ou non fiscalisée
+  ne publient rien. La publication est idempotente et le POS rattrape une coupure
+  réseau. La RLS ne rend au téléphone que les achats de son propre compte.
+- **Synchronisation automatique** : `synchronisation-achats-jeu.ts` fait une
+  lecture complète à la première ouverture du jeu, puis des lectures
+  incrémentales sur `created_at` toutes les **15 s** et à chaque retour au premier
+  plan. `created_at`, plutôt que la date d'encaissement, garantit qu'une vente
+  publiée en retard après une coupure sera quand même reprise. La table n'est pas
+  dans la publication Supabase Realtime live : aucun changement de schéma n'a
+  été ajouté pour ce lot, le polling borné est donc la voie fiable actuelle.
+- **Cumul et anti-doublon** : Passeport et Goût recalculent depuis l'historique
+  fusionné par UUID et ne peuvent que progresser. Un curseur
+  `{ creeLe, ids[] }`, persisté dans la sauvegarde de compte, distingue même
+  plusieurs achats portant exactement le même timestamp et empêche une seconde
+  notification après redémarrage ou changement de téléphone. Les lectures sont
+  paginées par 500 jusqu'à 25 000 lignes ; la garde lève explicitement au lieu de
+  tronquer silencieusement.
+- **Retour client** : une bannière globale dans Boba Quest affiche
+  **« Achat pris en compte ! »**, le nombre de boissons, les collectibles
+  débloqués et/ou la progression de Goût. Elle apparaît immédiatement si le jeu
+  est ouvert (au plus 15 s après l'arrivée serveur), sinon à la prochaine
+  ouverture/activation du jeu. Il s'agit d'une notification dans le jeu, pas
+  d'une notification push iOS/Android lorsque l'app est fermée.
+- **Résilience** : hors ligne ou erreur RLS, aucune carte acquise n'est retirée,
+  le curseur n'avance pas et le prochain contrôle réessaie. Progression et
+  curseur déclenchent la sauvegarde liée au compte.
+- **Validations** : `npm run test:jeu` vert, dont curseur initial, UUID au même
+  timestamp, arrivée plus récente, idempotence et sauvegarde non vierge ;
+  TypeScript strict propre ; export Expo web **1700 modules / 31 routes** vert ;
+  `git diff --check` propre sur le lot. Les tests POS associés restent inclus
+  dans la suite **284/284** verte et couvrent publication après fiscalisation,
+  refus des ventes test/non signées et rattrapage.
+- **Statut** : aucun commit, push, OTA, build store, flag live, migration ou
+  donnée réelle. `PASSEPORT_ACTIF` reste `false`. Avant diffusion : pilote Lyon
+  avec une vraie petite vente, carte scannée, PAX/ticket, puis constater la ligne
+  d'achat et la bannière sur un iPhone connecté au même compte.
+
+## 🧪 Codex — Expo Go ne plante plus sur RNGoogleSignin (26/07/2026, LOCAL, PAS D’OTA)
+
+- **Contexte** : pour tester localement la sauvegarde Boba Quest avec Expo Go, l’app plantait dès le chargement de `Compte` avec `TurboModuleRegistry… RNGoogleSignin could not be found`. C’est normal : `@react-native-google-signin/google-signin` est un module natif intégré aux builds Bubble Stop, mais absent du binaire générique Expo Go.
+- **Correctif minimal** : `src/lib/google-natif.ts` ne charge plus le module Google au niveau global. Il le charge à la demande au premier appui sur « Continuer avec Google ». Quand `Constants.executionEnvironment === ExecutionEnvironment.StoreClient` (Expo Go), aucun import natif n’est tenté et l’action renvoie le message explicite « Connexion Google indisponible dans Expo Go. Utilise la connexion e-mail pour ce test. » au lieu de faire tomber toute l’app.
+- **Builds réelles inchangées** : dans les builds preview/production contenant `RNGoogleSignin`, la configuration, la feuille Google native et l’échange `idToken` avec Supabase restent identiques ; seul le moment du chargement du module devient différé. Le Web continue d’utiliser `signInWithOAuth` depuis `compte.tsx`.
+- **Validations** : `./node_modules/.bin/tsc --noEmit` ✅ · `npm run test:jeu` ✅ · `git diff --check -- src/lib/google-natif.ts` ✅. Correctif local uniquement : aucun commit, push, build EAS, OTA preview/production ni changement Supabase.
+- **Piège** : ne jamais rétablir un import d’exécution global de `@react-native-google-signin/google-signin` dans un module chargé par `compte.tsx`, sinon Expo Go replante avant d’afficher la connexion e-mail. Expo Go sert ici au test JS ; la connexion Google elle-même doit toujours être validée dans une build de développement/preview contenant le module natif.
+- **Diagnostic sauvegarde ajouté** : `src/lib/sauvegarde-jeu.ts` journalise uniquement sous `__DEV__` la présence de session (jamais le jeton ni l’identité), la décision de synchronisation et les codes d’erreur RPC. Zéro log ajouté en production. Ce diagnostic a montré que le premier refus `42501` venait d’Expo Go non connecté (`session presente:false`), pas des ACL : les deux fonctions live avaient bien `EXECUTE` pour `authenticated`.
+- **Preuve réelle du 26/07** : connexion e-mail dans Expo Go → session présente, `revision_jeu_etat` renvoie `null`, décision `pousser-local`, `sauver_jeu_etat` accepte la révision **1**, puis le tour suivant décide `rien` avec serveur=local=1. Contrôle SQL en lecture seule : une ligne `jeu_etat`, révision 1, état de **1 681 octets**. Les RPC ont aussi été exercées dans une transaction SQL intégralement annulée avant ce test. La sauvegarde initiale compte→serveur est donc validée ; la restauration sur installation vierge reste à tester séparément.
+- **Test de restauration RÉUSSI sur iPhone/Expo Go (26/07, compte e-mail réel)** : le hub affiche uniquement sous `__DEV__` « Tester la restauration cloud ». Après confirmation, `effacerSauvegardeLocalePourTestRestauration()` a attendu toute écriture locale en cours, supprimé **uniquement** `bobaQuest.etat` et `bobaQuest.etat.backup`, puis `DevSettings.reload()` a simulé une installation vierge. Preuve Metro au retour dans le jeu : session présente → `localVierge:true`, révision locale **0**, révision serveur **1**, décision **`adopter-serveur`** ; contrôle suivant après 20 s : `localVierge:false`, local **1** = serveur **1**, décision **`rien`**. La progression cloud a donc été réellement téléchargée puis repersistée localement, sans écrasement ni nouvelle révision. La session Supabase et le compte sont restés connectés. Ne jamais remplacer ce test par `resetBobaQuest()` : ce dernier émet une nouvelle révision et ne simule pas une installation vierge.
+
 ## 🧠 Graphify — contexte partagé Claude/Codex (19/07/2026, LOCAL)
 
 - **Installation** : Graphify `0.9.20` est installé pour les skills globaux Claude Code et Codex. Le graphe de ce dépôt vit dans `graphify-out/` et reste volontairement **local, non versionné et sans hook Git de commit/release**.
-- **Usage obligatoire quand le graphe existe** : avant une recherche large sur l'architecture ou les relations entre fichiers, lancer `graphify query "<question>"`; utiliser `graphify path "<A>" "<B>"` pour un chemin précis et `graphify explain "<concept>"` pour un composant. Le graphe aide à cibler la lecture, mais **le code courant et ce fichier restent les sources de vérité**.
+- **Mode d'emploi obligatoire pour Claude/Codex** :
+  1. Se placer dans le vrai dépôt et confirmer sa racine avant toute requête :
+     `cd ~/Desktop/bubblestop-client && git rev-parse --show-toplevel`.
+  2. Vérifier que `graphify-out/graph.json` et `.graphify_root` correspondent bien
+     à ce dépôt/worktree. Un graphe provenant d'une autre copie ou plus ancien que
+     les changements à auditer ne doit jamais être traité comme l'état courant.
+  3. Avant une recherche large, interroger d'abord le graphe avec
+     `cd ~/Desktop/bubblestop-client && graphify query "<question précise>"`.
+     Utiliser ensuite
+     `cd ~/Desktop/bubblestop-client && graphify path "<A>" "<B>"` pour prouver
+     un parcours entre deux nœuds, ou
+     `cd ~/Desktop/bubblestop-client && graphify explain "<nœud ou concept>"`
+     pour comprendre un composant et ses relations.
+  4. Utiliser les résultats uniquement pour cibler les fichiers à ouvrir, puis
+     confirmer chaque affirmation importante dans les **sources du worktree
+     réellement visé**, son `git diff` et ses tests. Graphify est une carte, pas
+     une preuve : ne jamais inventer une arête ou conclure sur le seul graphe.
+  5. Après toute modification notable du code, actualiser le graphe avec
+     `cd ~/Desktop/bubblestop-client && graphify update .`, puis mettre à jour le
+     graphe global comme indiqué ci-dessous. Cette actualisation ne constitue ni
+     un commit, ni une OTA, ni un déploiement.
 - **Actualisation** : après une modification de code notable, lancer `graphify update .`, puis `graphify global add graphify-out/graph.json --as bubblestop-client`. Après une suppression/refonte qui réduit fortement le graphe, utiliser `graphify update . --force` avant de réinjecter le graphe global. Ne jamais confondre cette actualisation locale avec une OTA, un build EAS, un commit ou un déploiement.
 - **Questions app client ↔ POS** : le graphe global local fusionne les deux projets. L'interroger avec `graphify query "<question>" --graph "$(graphify global path)"`; les tags enregistrés sont `bubble-tea-pos` et `bubblestop-client`.
 - **Confidentialité** : la construction initiale est volontairement `--code-only`, donc AST local sans envoi de documentation à un service externe. `.graphifyignore` exclut secrets, certificats, données locales, builds, médias et assets lourds. **Ne jamais indexer une clé EAS/Google/Supabase, une base locale ou des données réelles de clients.**
 - **Claude** : un hook local non strict et fail-open rappelle de consulter le graphe avant les recherches brutes. **Codex** : les règles présentes ici et le skill global assurent le même comportement. La marche arrière consiste à supprimer `graphify-out/`, `.graphifyignore`, la présente section et `.claude/settings.local.json`; cela ne touche ni le code ni les données de l'application.
+
+## 💾 Claude — Phase 3 : la progression Boba Quest suit le COMPTE, plus le téléphone (26/07/2026, LOCAL, PAS D'OTA)
+
+> **Correction factuelle Codex, 26/07/2026 21h — MIGRATION LIVE ✅** :
+> la migration POS `20260726180000_jeu_etat_sauvegarde.sql` a été appliquée au
+> projet Supabase et contrôlée live. Le code client reste local : aucun OTA ni
+> déploiement web n’a été lancé.
+
+> **Fichiers touchés dans CE lot (liste EXHAUSTIVE — s'AJOUTE à celle de mon entrée « ACHAT RÉEL » plus bas, même journée)** :
+> **NOUVEAU** `src/lib/sauvegarde-jeu.ts`
+> **MODIFIÉS** `src/components/jeu/economie.ts` · `src/store/jeu.ts` · `src/app/jeu/_layout.tsx` · `src/app/jeu/index.tsx` · `scripts/test-jeu.cjs` · `AGENTS.md`
+> **JE N'AI TOUJOURS PAS TOUCHÉ** aux fichiers de la session concurrente listés dans mon entrée suivante (`src/app/carte-cadeau.tsx`, `src/app/jeu/arene.tsx`, `src/app/jeu/parcours.tsx`, `src/components/jeu/collectibles.tsx`, `combat-skia.tsx`, `ui-jeu.tsx`, `projectiles.tsx`, `shooter-juice.tsx`, `components/jeu/tournee.ts`).
+> ⚠️ `git add -A` à ÉVITER : lister explicitement ses propres fichiers, message préfixé `claude:`.
+> Le versant serveur (migration `20260726180000_jeu_etat_sauvegarde.sql` + son test) est documenté dans l'`AGENTS.md` de `bubble-tea-pos`, même date.
+> **✅ MISE À JOUR 26/07 ~21h — la migration EST appliquée en production** (Codex, version distante `20260726193044`), ainsi que les deux migrations du Passeport et la purge pg_cron. J'ai vérifié la base en lecture seule : RLS active, **une seule policy (SELECT)**, **aucun droit d'écriture directe pour `authenticated`** — la RPC reste l'unique porte. **⛔ Ne pas relancer `supabase db push`** (piège de versions documenté côté POS). **Rien n'est diffusé pour autant : aucun commit, aucune OTA, `PASSEPORT_ACTIF` toujours à `false`.**
+
+### Pourquoi maintenant
+
+Toute la progression vivait dans `AsyncStorage`, et **nulle part ailleurs**. Une réinstallation effaçait six semaines de jeu — **et les prix réels déjà gagnés mais pas encore présentés en caisse**, qui n'ont aucune existence serveur tant que le joueur ne les a pas réclamés. Tant que la collection s'obtenait en jouant, c'était un désagrément. Avec le Passeport de la Carte, **une carte représente un achat réel** : la progression devient un actif du client, et la perdre, c'est perdre le client.
+
+### Le modèle : SAUVEGARDE, pas synchronisation temps réel
+
+Le téléphone reste la source de vérité pendant qu'on joue ; le serveur est la copie qui permet de repartir. **On ne fusionne pas** deux parties menées en parallèle sur deux téléphones : ce serait un vrai moteur de merge, et une source de bugs pire que le problème résolu. L'arbitrage tient dans un compteur.
+
+- **`revision`** (nouveau champ d'état, `store/jeu.ts`) : incrémenté par `emit()`, donc **à chaque modification, sans exception et sans rien à câbler**. Monotone par construction — jamais décrémenté, jamais remis à zéro sauf reset explicite.
+- **`decisionSync(revisionLocale, revisionServeur, localVide)`** (`economie.ts`, PUR donc testé par `npm run test:jeu`) : `adopter-serveur` · `pousser-local` · `rien` · `attendre`.
+- **⚠️ LA DISTINCTION QUI PROTÈGE TOUT — `undefined` ≠ `null`.** `lireRevisionServeur()` renvoie `undefined` quand la lecture **a échoué** et `null` quand **il n'y a pas encore de sauvegarde**. `decisionSync` renvoie `attendre` sur `undefined` : **on ne pousse JAMAIS sans avoir lu le serveur avec succès.** Confondre les deux ferait qu'une installation neuve (révision 0, état vide) écraserait une sauvegarde riche dans la première seconde — précisément le scénario qu'on veut empêcher. La RPC ajoute une seconde ceinture (elle refuse toute révision non strictement supérieure), mais **c'est cette ligne-ci qui compte en premier**.
+- **`etatEstVierge()`** : un joueur qui n'a jamais joué ne crée pas de ligne serveur inutile.
+
+### Les pièces
+
+- **`src/lib/sauvegarde-jeu.ts` (NOUVEAU)** — le seul endroit qui parle au réseau. `synchroniser()` (idempotent, silencieux, verrou `enCours`), `programmerSauvegarde()` (**anti-rafale de 20 s** : on ne pousse pas 85 Ko à chaque bulle éclatée), `sauvegarderMaintenant()`, `surveillerAppState()`.
+- **Le store ne parle PAS au réseau** — il n'a jamais parlé au réseau, et c'est bien ainsi. Il expose seulement `instantaneEtat()` (copie profonde + `vierge`, ou `null` si l'état n'est pas fiable) et `adopterEtatServeur(brut, revision)`.
+- **La sauvegarde serveur passe par le MÊME `migrerSauvegarde()` qu'une sauvegarde locale** : champs additifs, valeurs sales assainies, version future refusée. Une sauvegarde distante n'est pas plus digne de confiance qu'une locale — elle vient du même client.
+- **La révision adoptée est celle du SERVEUR** (`Math.max(revisionServeur, migre.revision)`) : sinon le téléphone se croirait aussitôt en avance et repousserait ce qu'il vient d'adopter, en boucle.
+- **`app/jeu/_layout.tsx`** — le premier tour de sync est **BLOQUANT** (« Synchronisation de ta progression… »). Laisser entrer avant, c'est laisser jouer sur un état vide, puis écraser le serveur avec une partie fraîche de révision plus haute. **Filet de 4 s** : réseau lent, session expirée, table pas encore migrée → on laisse entrer quand même. *Une sauvegarde ne doit jamais empêcher de jouer.*
+- **`app/jeu/index.tsx`** — `useEffect(programmerSauvegarde, [etat.revision])` : une seule ligne, et toute progression devient sauvegardable, quel que soit l'écran qui l'a produite.
+
+### Deux pièges rencontrés, à ne pas refaire
+
+1. **Ordre des hooks.** `useState`/`useEffect` s'étaient glissés APRÈS les `return` anticipés de `_layout.tsx` (`if (!visible)`, `if (hydratation === 'chargement')`) : ordre d'appel variable d'un rendu à l'autre = crash React en production, invisible en test. C'est **TypeScript** qui l'a révélé (TS2367 : comparaison jugée impossible — le compilateur avait compris que le code était inatteignable). **Les hooks de ce fichier doivent rester avant tout `return`**, un commentaire le dit sur place.
+2. **`resetBobaQuest()` laissait l'hydratation à « chargement ».** Après une remise à zéro EXPLICITE il n'y a plus rien à charger : l'état en mémoire EST la vérité. Le laisser à « chargement » faisait mentir `instantaneEtat()`, qui refusait de synchroniser un état pourtant connu — et sur l'écran d'erreur de sauvegarde, la réinitialisation n'aurait jamais délivré. Corrigé (`hydratation = 'prete'`), sans aucun risque d'écrasement serveur : la révision repart à 1 et la RPC refuse toute révision qui ne dépasse pas celle en base.
+
+### Validations
+
+- **`npm run test:jeu` : VERT et STABLE** (5 exécutions consécutives). ~30 assertions ajoutées sur l'arbitrage.
+- **L'assertion la plus importante est la PREMIÈRE après le chargement du store** : au tout premier instant, la lecture d'AsyncStorage est encore en cours et `instantaneEtat()` **doit** renvoyer `null`. C'est la seule fenêtre où l'on peut vérifier ce contrat — après le premier `resetBobaQuest()`, la question ne se pose plus. **Ne pas déplacer ni « ranger » cette ligne.**
+- **`./node_modules/.bin/tsc --noEmit` : propre** (15 s, projet entier, `strict`).
+- Côté serveur : migration exécutée **pour de vrai sur PostgreSQL 17** (16 scénarios, dont « le téléphone en retard revient et pousse » → refusé) + 9 tests dans le dépôt POS.
+
+### Ce qui reste
+
+1. ~~**Appliquer la migration**~~ — ✅ **FAIT le 26/07 au soir.** (Le comportement de repli reste vrai et vaut d'être connu : si la RPC devient indisponible, `synchroniser()` échoue en silence, le filet de 4 s laisse entrer, et le jeu se comporte exactement comme avant — aucune erreur visible, aucune régression.)
+2. Après application, vérifier sur un vrai téléphone : jouer → attendre 20 s → réinstaller → la progression revient.
+3. La sauvegarde serveur **conserve un état de jeu lié au compte** : à mentionner dans la politique de confidentialité, avec le lot RGPD `achats_lignes` déjà listé.
+
+## ⚖️ Codex — information RGPD + règlement Boba Quest (26/07/2026, TERMINÉ LOCAL ✅)
+
+> **Fichiers de ce lot Codex (liste exhaustive ; ne pas utiliser `git add -A`)** :
+> `public/confidentialite.html`, nouveau `public/reglement-boba-quest.html`,
+> `src/app/compte.tsx`, `src/app/jeu/index.tsx`, `scripts/test-jeu.cjs` et cette
+> entrée `AGENTS.md`. Aucun commit, push, déploiement web ni OTA production.
+
+- La politique de confidentialité explique maintenant les lignes d’achat
+  nominatives utilisées par le Passeport : finalité, données limitées (ids
+  catalogue/options, quantité, magasin/TPV, date, montant net), absence de moyen
+  de paiement ou de numéro bancaire, destinataires, droits et rétention maximale
+  de **24 mois**. Elle explique aussi la sauvegarde de progression liée au compte,
+  son numéro de révision et sa suppression avec le compte. La purge des achats est
+  réellement planifiée côté Supabase par le lot POS.
+- Nouveau règlement public `reglement-boba-quest.html` : jeu gratuit sans achat
+  intégré, fonctionnement des objets virtuels et prix réels, validation en caisse
+  seulement après vente signée, Passeport adossé aux achats avec carte, lutte
+  contre les abus, disponibilité et lien vers la confidentialité.
+- Les liens vers ce règlement sont accessibles dans **Compte** et au bas du hub
+  **Boba Quest**. Ils pointent vers
+  `https://commande.bubblestop.fr/reglement-boba-quest`.
+- Validations : TypeScript strict propre ; `npm run test:jeu` vert (dont les
+  assertions légales) ; export web Expo réussi avec 31 routes ; les deux pages
+  `dist/confidentialite.html` et `dist/reglement-boba-quest.html` sont présentes.
+- `PASSEPORT_ACTIF` reste **false**. La page et les changements JS ne sont pas
+  visibles en production tant qu’un push web/une OTA n’est pas expressément
+  validé. Pilote physique POS requis avant activation du Passeport.
+
+## 🧋🎫 Claude — Boba Quest adossé à l'ACHAT RÉEL : Gorgée Fraîche + Passeport de la Carte (26/07/2026, LOCAL, PAS D'OTA)
+
+> **CHANTIER TERMINÉ côté app cliente. Rien n'est déployé : aucune OTA lancée.**
+> **Fichiers que j'ai touchés le 26/07 (liste EXHAUSTIVE — règle de verrouillage multi-sessions).** Elle couvre les deux vagues de correctifs d'audit du matin ET le chantier « achat réel » de l'après-midi :
+> **NOUVEAUX** `src/lib/visites.ts` · `src/lib/achats.ts` · `src/lib/passeport-libelles.ts`
+> **MODIFIÉS** `src/components/jeu/economie.ts` · `src/components/jeu/moteur-shooter.ts` · `src/components/jeu/arene.ts` · `src/store/jeu.ts` · `src/app/index.tsx` · `src/app/jeu/index.tsx` · `src/app/jeu/collection.tsx` · `src/app/jeu/capsules.tsx` · `src/app/jeu/roulette.tsx` · `src/app/jeu/shooter.tsx` · `src/app/jeu/duel.tsx` · `src/app/jeu/troc.tsx` · `src/app/jeu/boutique.tsx` · `src/app/jeu/tournee.tsx` · `src/app/jeu/infini.tsx` · `scripts/test-jeu.cjs` · `AGENTS.md`
+> **JE N'AI PAS TOUCHÉ** (travail d'une autre session déjà non commité dans l'arbre, laissé intact) : `src/app/carte-cadeau.tsx` · `src/app/jeu/arene.tsx` · `src/app/jeu/parcours.tsx` · `src/components/jeu/collectibles.tsx` · `src/components/jeu/combat-skia.tsx` · `src/components/jeu/ui-jeu.tsx` · `src/components/jeu/projectiles.tsx` · `src/components/jeu/shooter-juice.tsx` · `src/components/jeu/tournee.ts`.
+> ⚠️ `git add -A` est donc à ÉVITER : lister explicitement les fichiers ci-dessus, message préfixé `claude:`.
+> Le POS et les migrations SQL sont documentés dans l'`AGENTS.md` de `bubble-tea-pos` (même date). **C'est Codex qui finalise la base de production et le POS.**
+
+### Le problème traité
+
+Rien, dans tout le jeu, ne dépendait d'un achat réel. On pouvait tout farmer depuis son canapé et ne venir en boutique que RÉCOLTER : un client pouvait entrer, faire scanner sa carte, encaisser trois tampons et une grande boisson gagnés à la maison, et repartir sans avoir rien acheté. Coût mesuré : **4,40 € à 9,41 € de subvention par joueur actif et par mois**, sans aucune contrepartie (à 200 joueurs : 900 à 1 900 €/mois).
+
+### Phase 0 — LA GORGÉE FRAÎCHE (le jeu récompense une vraie visite)
+
+**Base qui marche, zéro travail serveur.** `app/index.tsx` interrogeait déjà `fidelite_cloud` toutes les 15 s et personne ne comparait l'ancienne valeur à la nouvelle : **une vraie visite était déjà observable gratuitement**. On la détecte et le jeu la fête.
+
+- **`src/lib/visites.ts` (NOUVEAU)** — détection AUTONOME, clé AsyncStorage `bobaQuest.visites`. **Volontairement HORS du store du jeu** : l'accueil de l'app ne doit pas importer `@/store/jeu` (invariant vérifié — seuls les écrans `app/jeu/*` l'importent, ce qui garantit qu'aucune mutation ne précède l'hydratation et rend sûr le fail-closed de `app/jeu/_layout.tsx`). Ne fait que détecter et mettre de côté ; c'est le jeu qui récompense.
+- **Trois pièges traités, à ne pas défaire :**
+  1. `fidelite_cloud.tampons` est le compteur **INTRA-CARTE** (affiché « n/9 ») : il retombe à 0 à chaque carte remplie. Le total monotone est `cartes_completees × 9 + tampons` → **`cartes_completees` a été AJOUTÉ au `select` de `app/index.tsx`**. Sans ça, une carte remplie ressemble à une baisse et la visite est perdue.
+  2. Le compteur monte AUSSI quand la caisse honore un tampon **gagné dans le jeu**. On soustrait cette part, lue côté **SERVEUR** (`jeu_recompenses_demandes` au statut `appliquee`, via `chargerDemandesRecompensesJeu`) et non depuis l'état local. En cas de doute on SUR-estime cette part : mieux vaut manquer une récompense que d'en offrir une pour un prix qu'on s'est offert soi-même.
+  3. **Amorçage** : le premier constat ne récompense JAMAIS, il calibre. Sans ça, une réinstallation (suivi local vide, compteur cloud à 47) serait lue comme 47 achats d'un coup.
+- **Économie de réseau** : la lecture serveur n'a lieu QUE si le total monotone a réellement augmenté. Sinon on ferait un appel toutes les 15 s pour rien.
+- **Récompense** (`GORGEE_FRAICHE` dans economie.ts) : 1 capsule DORÉE + 1 classique par boisson supplémentaire (**plafonné à 4** — une grosse commande n'ouvre pas un coffre-fort) + 300 perles + 1 Tournée offerte + **×2 perles pendant 24 h**. Les perles de visite ne passent PAS par `perlesEvenement` : les doubler par le ×2 qu'elles viennent d'activer serait absurde.
+- **Ordre d'orchestration à NE PAS INVERSER** (`app/jeu/index.tsx`) : on **lit** (`visitesEnAttente`), on **crédite** (`crediterGorgee`), et on ne **consomme** (`consommerVisitesEnAttente`) QUE si le crédit a réussi. L'inverse perdrait la récompense si le store refusait (sauvegarde illisible).
+- Le ×2 de visite s'ajoute aux multiplicateurs existants dans `perlesEvenement` ; le **plafond FINAL** (`PERLES_MAX_FINAL`) borne le cumul.
+
+### Phase 1c — LE PASSEPORT DE LA CARTE (une carte se débloque en BUVANT)
+
+Les 24 collectibles **SONT** les boissons de la carte, et les ids du catalogue sont **déjà identiques** côté caisse et côté app (`mt-taro` des deux côtés) : « acheter un Taro débloque Taro Queen » était exprimable sans rien réconcilier.
+
+- **`DEBLOCAGE_CARTES`** (economie.ts) : mapping carte → cible(s) catalogue, avec `ACHATS_PAR_RARETE` = commun 0 · rare 1 · épique 2 · légendaire 3. **Collection complète = 31 achats réels** (≈ 119 € de marge contre 8,67 € de prix distribués, soit ~1 pour 14).
+- **Le set Milk Tea (commun) reste GRATUIT** : le joueur qui ne vient jamais garde une équipe complète et compétitive — 3 communes coûtent 3 points sur un budget de 7, donc **+24 % via `multOutsider`**. Le système anticipait déjà ce cas. Ce n'est pas un lot de consolation, c'est un style de jeu.
+- **DÉTERMINISTE, JAMAIS ALÉATOIRE.** Un achat donne un résultat annoncé d'avance. Faire d'un achat un tirage de capsule ferait entrer de l'argent réel dans un mécanisme de hasard — exactement ce sur quoi plusieurs pays européens légifèrent, et la clientèle est jeune. Le jeu est propre sur ce point aujourd'hui (les perles ne s'achètent pas, aucune bibliothèque de paiement dans son périmètre) : **ne pas franchir cette ligne.**
+- **⚠️ DEUX MAPPINGS À TRANCHER PAR YOANN** — et c'est une brèche réelle, pas un détail : toute carte laissée sans mapping est GRATUITE, donc sortable d'une capsule sans le moindre achat. Deux cartes sont dans ce cas :
+  - **Flantastique** (`pudding`, épique) : aucun topping flan/pudding au catalogue. La crème brûlée est déjà prise par Caramel Chef.
+  - **Bubble Master** (légendaire ultime) : aucun produit. Piste proposée : en faire la récompense des **23 autres cartes réunies** plutôt qu'un achat.
+  Un test (`scripts/test-jeu.cjs`) assure que la liste de ces cartes non mappées reste exactement `['bubble-master', 'pudding']` : si quelqu'un en ajoute une sans le vouloir, le test tombe.
+- **Racheter sa boisson préférée fait monter sa carte préférée** : `exemplairesParAchats` = `floor(achats / requis)`. Au-delà du premier exemplaire, chaque série donne un **doublon**, la matière que l'entraînement consomme aux paliers 4/7/10. La fidélité de goût devient la progression de jeu.
+
+### Phase 2c — Côté app : lecture, attribution, affichage
+
+- **`src/lib/achats.ts` (NOUVEAU)** — lit `achats_lignes` (RLS : chacun ne voit que les siennes), traduit en `LigneAchat[]`, la forme comprise par les helpers PURS d'economie.ts (donc testés par `npm run test:jeu`).
+- **`appliquerPasseport(lignes)`** (store) — **MONOTONE** (`Math.max` partout, aucune soustraction : un échec réseau ou une purge de rétention ne retire JAMAIS une carte), **IDEMPOTENT** (appelable à chaque ouverture), **CUMULATIF** (une carte gagnée en capsule n'est jamais dégradée).
+- **`src/lib/passeport-libelles.ts` (NOUVEAU)** — traduit une cible en texte lisible. Une carte verrouillée affiche un **MENU**, pas un cadenas : « 🧋 Milk tea Taro 2/3 » invite, « verrouillé » punit. Toute la différence est dans la formulation.
+- `app/jeu/collection.tsx` charge l'historique au montage, accorde ce qui est dû, affiche la progression sur les cases non acquises. **Échec réseau = silencieux et sans conséquence.**
+
+### 🚦 L'INTERRUPTEUR — `PASSEPORT_ACTIF = false`, ET IL DOIT LE RESTER POUR L'INSTANT
+
+`economie.ts` expose `PASSEPORT_ACTIF`. **À `false` (état actuel), TOUT se comporte exactement comme avant** : les capsules donnent n'importe quelle carte, la collection s'obtient en jouant. Le Passeport n'est qu'affiché.
+
+À `true`, les capsules ne rendent plus que des cartes **déjà débloquées** au comptoir (plus le set commun) : la capsule cesse d'être la voie de DÉCOUVERTE et devient la voie d'ENTRAÎNEMENT — pity, suspense et doublons-matière inchangés, seul le vivier change.
+
+**NE PAS l'activer avant que la caisse publie réellement `achats_lignes`** (Phase 2b côté POS) : sinon on verrouille la collection sans aucun moyen de la débloquer. C'est le genre d'erreur qu'on ne rattrape pas — un joueur qui voit sa collection se fermer ne revient pas. Bascule prévue à terme via `app_config` (même schéma que le flag `jeu`) pour ne pas dépendre d'une mise à jour de l'app.
+
+### Corrections d'audit livrées le même jour (2 vagues, 117 correctifs commentés `🩹 26/07`)
+
+Le détail complet est dans le rapport d'audit HTML remis à Yoann. Les plus structurantes : closure périmée qui créditait le niveau précédent et bloquait le parcours · niveaux « couleur » et « nettoyer » **arithmétiquement ingagnables** (cible > matière existante) · mur de descente invisible (HUD promettant 29 tirs, mort au tir 24) · attaque de zone qui **soignait** au-delà des PV max (réduction cumulée à 125 %) · roulette perdant le lot du mois si l'app se ferme pendant les 4,2 s d'animation · entraînement consommant des doublons non annoncés · paliers de Boba Pass perdus en silence le lundi · roue affichant 8 parts égales pour des chances de 1 % à 28 % · abandon de combat sans coût dans tous les modes · plafond de perles appliqué AVANT les multiplicateurs (2 808 perles là où l'écran affichait « ≤ 450 »).
+
+### Validations
+
+- **`npm run test:jeu` : VERT**, et **stable** — j'ai ajouté ~120 assertions (Gorgée Fraîche, Passeport, store). ⚠️ J'ai aussi **corrigé un test instable PRÉEXISTANT** : « doublon épique = 500 perles » échouait **4 fois sur 8** parce que la garantie de pity « épique-ou-mieux » puise dans les 12 cartes épique+légendaire et peut rendre un légendaire (non possédé ⇒ pas un doublon). `ouvrirCapsule` accepte désormais un `rng` injectable, comme `terminerNiveau` et `finPartieInfini` le faisaient déjà. Un test qui tombe une fois sur deux finit par être ignoré : c'est pire que pas de test.
+- Second test réaligné : « niveau 12 : cadence 8 » figeait une valeur alors que l'invariant testé est « pas de paliers de descente en Aventure, contrairement à l'Infini ». La cadence est maintenant DÉRIVÉE de `paramsNiveau` (le correctif « nettoyer » du 26/07 la double légitimement).
+- **`./node_modules/.bin/tsc --noEmit` : propre** sur tout le projet, en `strict`.
+- `npm run test:menu` : VERT (non impacté).
+
+### Ce qui RESTE à faire (pas fait par moi, volontairement)
+
+> **✅ Point de situation au 26/07 ~21h (correction Claude).** Codex a bouclé le socle serveur et POS dans la soirée : migrations appliquées, purge 24 mois planifiée, `tpv-api` v14 cloisonnée par magasin/TPV, publication `achats_lignes` **uniquement après fiscalisation signée** (avec rattrapage réseau), confidentialité et règlement de jeu complétés. Les points 1, 2, 3 et 5 ci-dessous sont donc **FAITS**. Restent ouverts le point 4 et l'activation, ci-dessous.
+
+1. ~~Appliquer les deux migrations~~ — ✅ FAIT (⛔ ne plus lancer `supabase db push`, piège de versions documenté côté POS).
+2. ~~Phase 2b : la caisse doit publier `achats_lignes`~~ — ✅ FAIT (publication après fiscalisation + rattrapage).
+3. ~~Mention RGPD~~ — ✅ FAIT (achats nominatifs ET sauvegarde de la progression).
+4. **⚠️ TOUJOURS OUVERT — trancher les deux mappings** (Flantastique, Bubble Master) : toute carte sans mapping est **GRATUITE**, donc sortable d'une capsule sans le moindre achat. À trancher AVANT d'activer `PASSEPORT_ACTIF`, sinon la brèche s'ouvre le jour de l'activation. Un test verrouille la liste à `['bubble-master', 'pudding']` : elle ne peut pas s'allonger par inadvertance.
+5. ~~CGU / règlement de jeu~~ — ✅ FAIT. **Reste sans réponse** : les prix n'ont **aucune date d'expiration en base**. Ce n'est pas un bug, c'est une décision non prise — un prix gagné en juillet reste dû en décembre.
+6. **`PASSEPORT_ACTIF` reste à `false`** et doit le rester jusqu'au pilote physique. Le jour de la bascule, le vivier des capsules se restreint aux cartes débloquées : c'est le changement le moins réversible de tout le lot (un joueur qui voit sa collection se fermer ne revient pas).
+
+### Déploiement (commande pour Yoann, à lancer par lui)
+
+```
+cd ~/Desktop/bubblestop-client && npm run test:jeu && ./node_modules/.bin/tsc --noEmit
+```
+Puis, **seulement après avoir appliqué les migrations et validé le POS** :
+```
+cd ~/Desktop/bubblestop-client && npx eas-cli@latest update --branch production
+```
+⚠️ La Gorgée Fraîche part en OTA sans risque (elle ne dépend que de `fidelite_cloud`, déjà en place). Le Passeport, lui, n'affichera rien tant que `achats_lignes` n'existe pas — c'est voulu et sans erreur visible.
+
+## ✅ Codex — parcours solde prépayé vérifiable de bout en bout (26/07/2026, TERMINÉ LOCAL, aucune OTA)
+
+- **Correction client** : `src/app/carte-cadeau.tsx` encadre la création et l'annulation d'une demande par `try/catch/finally`. Le bouton n'est plus bloqué si l'invocation lève une exception. Une réponse réseau ambiguë demande explicitement d'actualiser avant de recommencer, car la mutation peut déjà avoir abouti côté serveur.
+- **Contrat bout en bout préparé dans le dépôt POS** : identité de la demande déduite du JWT, recharge créditée seulement après encaissement prouvé, débit serveur atomique/idempotent, carte figée dans la session, reprise après coupure sans nouveau débit/TPE. Voir `bubble-tea-pos/AGENTS.md` et la note technique 79.
+- **Validation locale** : `npx tsc --noEmit` vert ; `npm run test:menu` vert (8 familles, 52 saveurs). `npm run test:jeu` reste rouge dans les fichiers Boba Quest concurrents (`épique forcé au pity = doublon`) : ce lot n'a touché ni `src/app/jeu/**`, ni `src/components/jeu/**`, ni `src/store/jeu.ts`, ni `scripts/test-jeu.cjs`.
+- **Statut réel** : aucun `eas update`, build EAS, commit, push, changement de canal ou activation du flag live `carte_cadeau`. La fonctionnalité doit rester masquée jusqu'aux validations serveur, POS, coupure/reprise et pilote physique.
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v54.0.0/ before writing any code. Ce projet reste volontairement sur Expo SDK 54 ; ne pas forcer une montée majeure pour corriger un avertissement de dépendance transitive.
 
@@ -794,3 +1053,669 @@ Les illustrations et **les noms** des 24 collectibles existants sont conservés 
 - **Limite anti-triche connue** : la progression de Boba Quest reste locale. Le serveur garantit catalogue, accès, quotas et anti-double-demande, mais ne peut pas prouver cryptographiquement qu’un téléphone modifié a réellement terminé le set/niveau. Avant d’augmenter fortement la valeur ou les plafonds des prix, rendre l’attribution de progression serveur-authoritative ; ne jamais présenter les contrôles actuels comme une preuve complète du gameplay.
 - **Validations** : `npx tsc --noEmit` ✅ ; `npm run test:jeu` ✅ avec garde couvrant exactement les 15 codes et l’absence de code pour perles/capsules ; `npm run test:menu` ✅ ; `expo install --check` ✅ ; Expo Doctor **17/17** ✅ ; exports Expo iOS/Android/web ✅ (**1914/2003 modules**, 30 routes statiques). Côté POS : Vite **132 modules** ✅, **186/186 tests** ✅, audit production 0 ✅, réduction après vente et reprise depuis le journal couvertes. Live : RPC refusée à `authenticated` et accordée à `service_role`, Edge sans JWT = **401**, `tpv-api` sans credential = **403**.
 - **Compatibilité / déploiement effectué** : migrations + `jeu-recompenses` v2 + `tpv-api` v9 sont **LIVE et additifs** ; le POS **0.31.42 / F3.13** est publié aux trois caisses par le feed GitHub habituel, release `v0.31.42`, empreinte fiscale `6b6cfb95…`. Client gelé/poussé au commit **`b87473389b963f501e42dd3b497259e278c08939`** puis OTA production runtime **1.0.3** publiée : groupe **`214d33ff-eebc-4220-9334-b91ca0451600`**, Android **`019f8b7f-5db1-79ae-8d62-f5e4b978dfec`**, iOS **`019f8b7f-5db1-765e-b6e7-75d29196ab9c`**, message « Boba Quest : prix réels validés en caisse ». `update:list` et `channel:view production` confirment ce groupe en tête de la branche/canal. Les binaires 1.0.2 conservent leur ancien runtime et ne reçoivent pas cette OTA ; elle devient active sur les builds/store **1.0.3**. L'OTA a bundlé 2005 modules iOS / 1996 Android, 56 assets par plateforme, sans arbre Git sale.
+
+## 🍎 App Store 1.0.3 — diagnostic public du 23/07/2026 (LECTURE SEULE)
+
+- **Objectif / constat** : expliquer pourquoi l’App Store ne propose toujours pas la mise à jour. L’API publique Apple retourne encore **BubbleStop 1.0.2**, publiée le 13/07/2026 ; l’App Store public n’a donc pas encore reçu la 1.0.3.
+- **Chaîne EAS confirmée** : la build iOS store **1.0.3 (25)** `e01ac3be-51f5-4ece-8c73-5004f91102fc` est `FINISHED` et l’envoi EAS `c29ef4e9-4d3e-4340-ab33-521271f51ad1` avait déjà remis le binaire à App Store Connect/TestFlight. Cela ne publie jamais automatiquement l’app sur l’App Store.
+- **Cause procédurale connue** : le dernier état privé vérifié le 22/07 indiquait que le build 25 n’était pas encore attaché au brouillon App Store **1.0.3** puis envoyé à **App Review**. Tant que cette étape, la validation Apple et la libération de la version ne sont pas terminées, les clients restent sur 1.0.2 et les quatre nouveaux aperçus Apple restent dans le brouillon. La session App Store Connect privée n’était pas authentifiée lors de ce contrôle du 23/07 ; ne pas prétendre connaître un éventuel changement de statut interne postérieur sans rouvrir la console connectée.
+- **Validations / sécurité** : contrôle en lecture seule de l’API Apple publique, de `app.json`/`eas.json`, du build EAS 25 et de l’arbre Git. Aucun build, submit, review, release, OTA, rollback, métadonnée store, code ou donnée client modifié. Aucun problème de compatibilité ou migration : il manque une étape de diffusion App Store, pas un correctif applicatif. Ne jamais reconstruire ni re-soumettre le même binaire au hasard ; sélectionner le build 25 existant, le tester sur TestFlight, puis envoyer le brouillon 1.0.3 à la review seulement avec l’accord explicite de Yoann.
+
+## 🚀 RELEASE STORES 1.0.3 ENVOYÉE AUX DEUX STORES (23/07/2026)
+
+- **Objectif / autorisation** : Yoann a explicitement confirmé « tout est OK pour publication » et demandé l’envoi complet. Les binaires existants ont été réutilisés afin de ne créer aucun doublon et de ne consommer aucun nouveau crédit EAS : iOS **1.0.3 (25)** `e01ac3be-51f5-4ece-8c73-5004f91102fc` et Android **1.0.3 (14)** `bfd62b61-b9f8-4755-8057-9f45e161a90b`, tous deux contrôlés `FINISHED` avant soumission.
+- **Apple / état exact** : dans App Store Connect, la build **25** a été attachée au brouillon **App iOS 1.0.3**, la fiche enregistrée, ajoutée à une soumission puis envoyée à App Review. La confirmation Apple indique **« 1 élément envoyé »** et le statut de la version est **« En attente de vérification »** ; soumission App Review **`8540ca9c-5c2d-41a9-947b-ba4dbe70e331`**. Les quatre visuels marketing déjà enregistrés, les métadonnées, le compte de démonstration et le contact `contact@bubblestop.fr` sont inclus. La publication est réglée sur **automatique après approbation**, immédiatement pour tous les utilisateurs, sans publication graduelle et sans réinitialiser la note.
+- **Google Play / état exact** : la build Android existante **1.0.3 (versionCode 14)** a été envoyée au track **production** avec `releaseStatus=COMPLETED`. EAS a confirmé **« Submitted your app to Google Play Store »** ; soumission **`605d7bd9-b0a2-44e8-9ea5-31343b8c7807`**, dashboard `https://expo.dev/accounts/yio13/projects/bubblestop/submissions/605d7bd9-b0a2-44e8-9ea5-31343b8c7807`. Google doit encore traiter/revoir la release avant disponibilité publique.
+- **Validations / compatibilité** : `eas.json` a été relu avant l’envoi (`ascAppId=6783475068`, Android `track=production`, `releaseStatus=completed`) ; les deux statuts EAS ont été vérifiés avec leurs versions et numéros exacts. Aucun code, donnée, migration, dépendance, binaire, OTA, rollback ou republish n’a été ajouté pendant cette opération. Les validations natives et fonctionnelles restent celles de la préparation 1.0.3 ci-dessus ; la version embarque le runtime **1.0.3** et peut recevoir l’OTA production 1.0.3 déjà documentée.
+- **Pièges / suite** : **« envoyé » ne signifie pas encore « public »**. Attendre Apple Review et le traitement Google Play, puis vérifier les pages publiques sur les deux stores avant d’activer `app_config.mise_a_jour`. Ne jamais relancer une build ou une soumission identique pendant l’examen. En cas de rejet, corriger la cause exacte et conserver ces identifiants pour l’audit ; ne pas publier une OTA de test sur production.
+- **Statut de déploiement** : iOS **en attente de vérification Apple** ; Android **soumis à Google Play production, traitement/review en attente**. Aucun nouveau crédit EAS consommé, aucun commit ni push effectué par cette opération.
+
+
+## 🎮 BOBA QUEST — PACK 1 : riposte, cinématiques Signature, palmarès par carte, cérémonie capsule ×5 (23/07/2026, CODE LOCAL — NON PUBLIÉ)
+
+- **Objectif / décision produit** : retour de Yoann — « la façon de collecter les cartes et les combats ne sont pas assez intéressants ». Après audit du code (collection + combat), Pack 1 validé et implémenté : juice + attachement + contre-jeu, SANS réintroduire les verrous v3.2/v4 retirés le 17/07 (missions, Prestige, vedette, expédition). Le Pack 2 (évolutions à choix, mode run roguelite « Tournée des Maîtres ») reste proposé, non implémenté.
+- **🔄 Riposte de parade parfaite** (`arene.ts`, `duel.tsx`) : une Garde avec timing PARFAIT déclenche après l'action adverse un contre-coup automatique = **50 % de l'ATQ** (`RIPOSTE_PCT`), imparable, modulé par triangle des types, boost, variance ±10 %, crit possible 12 % (`RIPOSTE_CRIT`) — JAMAIS par timing/combo. Contre une **Signature** annoncée : parade **−80 %** (`GARDE_PARFAITE_ANTI_SIGNATURE`, `GARDE_PARFAITE` inchangé à 70 %) et jauge **+3** (au lieu de +2). La riposte part **même si l'adversaire n'a pas attaqué** (prime garantie, choix assumé commenté dans le code), peut mettre K.O. (flux normal : phase boss, Grigri, `verifierRemplacement`, fin). Nouvel evt `{t:'riposte'}` ; côté **JOUEUR uniquement** (l'IA n'y a jamais accès, comme le combo). Replay : élan + haptique moyenne/lourde + journal « RIPOSTE ! »/« RIPOSTE HÉROÏQUE ! ».
+- **⭐ Cinématique de Signature par famille** (`duel.tsx`, composant `CineSignature`) : sur l'evt `annonce` contenant « déchaîne » (joueur OU adverse), overlay plein écran **~640 ms** AVANT l'impact, **skippable au tap**, respecte la vitesse ×1/×2 via `attendre`. Voile violet 92 % (teinte danger + « SIGNATURE ADVERSE » si adverse), particules par famille (fruit vert/jaune, milk crème/rose, topping pluie rose/violet, signature rayons dorés + couronne), nom en Fredoka. Animations `useNativeDriver: true`, haptique lourde au départ via `@/lib/juice` (jamais d'import statique d'expo-haptics).
+- **🏅 Palmarès « Exploits » par carte** (`economie.ts`, `store/jeu.ts`, `duel.tsx`, `collection.tsx`) : nouveau champ persisté **additif** `exploits: Record<carteId,{ko,victoires,parfaits,plusGrosCoup}>`. Crédits depuis le duel (actions réellement engagées) : `parfaits` à la carte active sur timing PARFAIT ; `ko` à la carte source du K.O. (attaque, spé, signature, riposte, éclaboussure) ; `plusGrosCoup` = max d'un impact unique ; `victoires` +1 aux 3 membres à la victoire (tous modes). Le **Bonbon Piquant est exclu** (`sansExploitsB`). Agrégation en mémoire par round puis **une seule écriture** (`crediterExploits`, un seul `emit()`). **9 titres cosmétiques** (`TITRES_EXPLOITS`, paliers exacts) : Finisseur/Briseur/Fléau @ 10/50/150 K.O. ; Combattante/Vétéran/Légende du Shaker @ 5/25/100 victoires ; Adroite/Chirurgicale/Métronome @ 10/50/200 parfaits. **AUCUNE puissance, AUCUNE récompense** — attachement pur. UI : section « Exploits » dans la fiche collection (4 compteurs + chips jaune pâle, invite si vierge) + badge 🏅 sur les cases de l'album.
+- **🎊 Cérémonie de capsule théâtrale + ouverture ×5** (`capsules.tsx`) : rituel en 3 temps avec bouton **« Passer » toujours visible** — suspense dosé `SUSPENSE_MS` 620/800/1100/1500 ms selon la rareté tirée (lueur de la couleur `RARETES`, fissures, haptique progressive) → flash plein écran couleur rareté → matérialisation silhouette→couleurs (voile `#2A1D46` en fondu), badge « NOUVEAU ! »/« ✦ LÉGENDAIRE ✦ » en spring ; **doublon** = fonte + pluie de perles + compteur du remboursement. **Ouverture ×5** : bouton par offre — 5 gratuites si stock ≥ 5, sinon 5 × le coût en perles exigé (jamais de paiement mixte, grisé sinon) ; révélations accélérées (×0,45) avec points de progression teintés, puis **récap final** (5 cartes, la meilleure pulsante avec halo, total des remboursements, Encore ×5 / Voir collection). ×1 enchaîne sur la modal Révélation existante. **Économie 100 % inchangée** : probas, pity, remboursements, +10 XP pass par capsule, mêmes appels store (aucune logique de tirage parallèle).
+- **Sauvegarde / compatibilité** : `VERSION_SAUVEGARDE` **inchangée à 2** ; `exploits` dans DEFAUT + `migrerExploits` (assainit entiers ≥ 0, ignore entrées invalides, ne purge jamais) → merge strictement additif, anciennes sauvegardes intactes. Aucune dépendance, module natif, migration Supabase, donnée live ou changement de runtime : **compatible OTA preview/runtime 1.0.3**.
+- **Validations** : `npx tsc --noEmit` ✅ · `npm run test:jeu` ✅ (tests ajoutés EN FIN de `scripts/test-jeu.cjs` : riposte valeur exacte à rng figé, 'bien'/'rate' sans riposte, anti-Signature −80 %/+3, K.O. riposte → remplacement/fin, exploits incréments/record/titres à paliers exacts, migration tolérante) · `git diff --check` ✅. Diff : 7 fichiers + tests, ~1 084 insertions.
+- **Pièges à ne pas refaire** : ne jamais donner la riposte à l'IA ; ne pas changer `GARDE_PARFAITE` (la réduction 80 % est une constante dédiée) ; ne jamais créditer d'exploits au Bonbon Piquant ni écrire le palmarès par impact (flush unique) ; ne jamais importer `expo-haptics` en statique ; ne pas ajouter de logique de tirage parallèle pour le ×5 (toujours les appels store existants) ; le palmarès ne doit JAMAIS donner de bonus de puissance ou de perles.
+- **Statut de déploiement** : **code LOCAL uniquement**. Aucun commit/push, aucun OTA preview/production, aucun build EAS, TestFlight ou store. À tester visuellement (cérémonie ×1/×5, cinématiques des 4 familles joueur+adversaire, riposte normale et anti-Signature, section Exploits) sur simulateur/iPhone preview ; publication au maximum sur `preview` après validation, production uniquement avec accord explicite de Yoann.
+
+
+## 🎮 BOBA QUEST — PACK 2 : talents d'évolution à choix + Tournée des Maîtres (23/07/2026, CODE LOCAL — NON PUBLIÉ)
+
+- **Objectif** : suite du Pack 1, validé par Yoann — rendre la collection et les combats plus intéressants en PROFONDEUR : des builds par carte et un mode run roguelite. JS/TS pur, aucune dépendance/native/Supabase, compatible OTA.
+- **🎖️ Talents d'évolution (builds)** : aux paliers d'entraînement **4/7/10** (coûts doublons/éclats et +6 % stats inchangés), le joueur choisit **1 talent parmi 2 propres à la carte**. Enum fermé de 12 effets dans `economie.ts` + valeurs dans `arene.ts` : `vit_plus` (+3 VIT) · `atk_pct` (+10 % ATQ) · `pv_pct` (+12 % PV) · `spe_crit` (+20 pts crit spé) · `marque_plus` (Collant 3 actions, Pétillant 35 %) · `spe_munition` (+1) · `charge_depart` (+1) · `soin_plus` (×1,2) · `bouclier_depart` · `premiere_frappe` (+25 %, consommé au 1er impact) · `garde_maitrisee` (−55 % au lieu de −45 % ; parade parfaite/anti-Signature du Pack 1 inchangées) · `contre_marque` (25 % en encaissant). Cumuls via `Math.pow` quand une carte empile le même effet à plusieurs paliers. Table curée **`TALENTS_CARTES`** : 24 cartes × 3 paliers × 2 options nommées selon l'identité (soigneur/attaquant/tank/marqueur). Persistance additive `talentsCartes` + `migrerTalents` tolérant ; tant que le choix n'est pas fait, le talent est inactif (badge 🎖️! album, modale 2 options dans la fiche, section « Talents »). **Re-forge = 40 éclats** (`REFORGE_TALENT_ECLATS`) réinitialise un palier. `choisirTalent` gardé (carte possédée + palier atteint + pas déjà choisi). **Le PNJ n'a JAMAIS de talents** ; les talents s'appliquent dans TOUS les modes via `creerCombat`/`creerCombatBoss` (param `talentsA`, côté joueur uniquement).
+- **🗺️ Tournée des Maîtres (run roguelite hebdo)** : nouveau moteur pur `src/components/jeu/tournee.ts` + écran `src/app/jeu/tournee.tsx` + tuile candy orange #e08a5a sur le hub (badge = n° du prochain duel, « ! » si draft/palier en attente). Règles : run de duels à difficulté croissante, adversaires **déterministes par semaine** (`rngGraine` semaine+étape — tous les joueurs affrontent la même tournée ; échelle `1+0,07×étape`, pools rareté 3/6/10, objets PNJ dès l'étape 8) ; **les PV se reportent entre duels, les K.O. restent K.O.** (le bonus Thé Revigorant relève à 30 %) ; après chaque victoire, **draft de 3 bonus de run** parmi ~10 (soin 30 %, +15 % ATQ, +15 % PV, +1 munition spé, +1 charge, cooldown Garde −1, +3 VIT, marque d'ouverture, vol de vie 10 %, bouclier d'ouverture — cumulables, appliqués à toute l'équipe) ; une défaite = fin de run, record à vie persisté. Gains : **60 + 20×étape perles** par victoire via `perlesEvenement` (multiplicateurs appliqués) ; paliers hebdo (victoires cumulées de la semaine, 1×/semaine chacun) : **3 victoires → 250 perles · 6 → capsule classique · 9 → capsule dorée**. Run en cours persistée (reprendre après fermeture ; tuer l'app laisse la run intacte, le duel se rejoue avec les PV d'avant-combat). `duel.tsx` ajoute le mode `?mode=tournee&duel=N&s=SEMAINE` — adversaire seedé par les **params de route** (PAS le store, sinon le `useEffect [adversaire]` recréerait le combat après victoire) ; **aucun double crédit** (jamais victoireArene/Tournoi/Boss en mode tournée) ; les exploits du palmarès (Pack 1) restent crédités ; **quitter par la croix = défaite de run** (sinon on protégerait la série) ; le mutateur du jour reste actif (règle commune des duels). Fix latent au passage : munitions de spé affichées avec `Math.max(0, SPE_USAGES − speRestantes)` (RangeError si > 3 avec spe_munition/recharge-spé).
+- **Sauvegarde / compatibilité** : `VERSION_SAUVEGARDE` inchangée à 2 ; champs `talentsCartes` + `tournee` strictement additifs avec migrations tolérantes (record jamais purgé, valeurs sales assainies). Reset hebdo lazy (`tourneeActuelle`, `cleSemaine`) : record et run en cours préservés.
+- **Validations** : `npx tsc --noEmit` ✅ · `npm run test:jeu` ✅ (tests ajoutés EN FIN : table 24 cartes complète, activation palier+choix, migrations, talents plats/crit/marques/garde/soin/première frappe, déterminisme adversaire+draft, bonus de run, poignet-sûr cooldown, marque d'ouverture, K.O. relevé à 30 %, PV reportés, cycle victoire→draft→fin, record max) · `git diff --check` ✅. Diff cumulé Packs 1+2 : ~2 150 insertions, 2 fichiers créés (`tournee.ts`, `tournee.tsx`).
+- **Pièges à ne pas refaire** : ne jamais donner de talents au PNJ ; l'adversaire de tournée doit être seedé par les params de route ; ne jamais créditer les victoires arène/tournoi/boss depuis le mode tournée ; la croix du duel en tournée = défaite de run (ne pas « corriger » en abandon neutre) ; les paliers hebdo comptent les victoires CUMULÉES de la semaine (toutes runs), le record est à vie ; toujours passer par les helpers store pour perles/capsules (jamais de crédit direct).
+- **Statut de déploiement** : **code LOCAL uniquement**. Aucun commit/push, aucun OTA preview/production, build EAS, TestFlight ou store. À tester visuellement (modale de talents, re-forge, lobby/draft/fin de run, tuile hub + badge, duel tournée avec PV reportés) ; publication au maximum sur `preview` après validation, production uniquement avec accord explicite de Yoann.
+
+# QA simulateur iOS des Packs 1+2 (23/07/2026, soir — LOCAL)
+
+- **Méthode** : simulateur iPhone 16 Pro Max + app compilée (`npx expo run:ios --no-bundler`) + Metro `--dev-client`, pilotée par **idb** (`idb ui tap/swipe/describe-point`, coordonnées en points = screenshot px ÷ 3) + deep links `xcrun simctl openurl bubblestop://jeu/...`. Sauvegarde jetable injectée dans le fichier AsyncStorage du simulateur (perles 6500, 8 cartes, boba Nv 4 avec talent à choisir, exploits, 2 capsules gratuites). **Aucune vraie donnée touchée.**
+- **Tout le rendu visuel des deux packs est validé à l'écran** : album (badges 🏅 palmarès + 🎖️! talent à choisir + ×n doublons), fiche carte (sections **Talents** — chip doré « Palier 4 — choisir un talent ! », paliers 7/10 verrouillés — et **Exploits** avec compteurs + titres Finisseur/Combattante/Adroite), cérémonie capsule 3 temps (« La machine réfléchit… » → flash blanc → révélation avec rayons, NOUVEAU/doublon, pity décrémenté en direct), lobby Tournée (pitch, record, paliers 3/6/9, CTA), duel Tournée complet : modificateur hebdo « Sucre amer », **intention adverse live** (attaque + charges restantes, y compris « Signature : Marée Onctueuse »), QTE attaque et **PARADE**, chip GARDE + cooldown « Garde · 2 t », jauge Signature, bannière « PRÊT ! », QTE renforcé carte blessée (« la barre FILE et la cible rétrécit »), Givré → **Bris de Glace**, signature adverse (dégâts imparables + soin 20 % PV), swap Classico (« amortit 25 % du choc »), K.O. qui reste K.O. et entrée du 2e PNJ, **écran Défaite spécifique Tournée** (« La Tournée s'arrête ici : 0 victoire » → retour lobby, run réinitialisée).
+- **Fix appliqué pendant la QA** : le bouton « Fermer » des modales résultat/récap de `capsules.tsx` était un texte fantôme sans fond → le bouton vert « Ouvrir » de l'écran sous-jacent transparaissait à travers et rendait le texte illisible. `styles.fermerTxt` est désormais une **pastille opaque** (`backgroundColor: 'rgba(42,29,70,0.85)'`, borderRadius 999, paddingHorizontal 22). `npx tsc --noEmit` ✅ + `npm run test:jeu` ✅ après fix.
+- **⚠️ Artefact d'outillage (PAS un bug app)** : les taps synthétiques idb **traversent le contenu des `Modal` RN** sur simulateur (ils tombent sur le fond/le backdrop) → impossible de cliquer la modale de choix de talent, le récap ×5, ni de viser les QTE (d'où des « Raté… » systématiques en QA : le QTE expire, le moteur reste correct). À re-vérifier **au doigt sur le build preview** : choix de talent + re-forge, draft de 3 bonus après victoire Tournée (couvert par tests moteurs), timing des QTE. Sur device réel ces modales fonctionnent (pattern pré-existant utilisé quotidiennement pour Entraîner).
+- **Reste couvert par tests moteurs uniquement** : draft de 3 bonus (non atteint en QA — défaite au duel 1), paliers hebdo réclamés, cinématique Signature plein écran (les captures montrent le déclenchement + dégâts, pas la frame animée), riposte de parade parfaite (le QTE PARADE n'a pas pu être visé, cf. artefact).
+- **Statut de déploiement** : inchangé — **code LOCAL uniquement**, aucun commit/push/OTA/build. Captures dans `tmp/qa*.png` (non versionnées). Metro et idb_companion tués en fin de session.
+
+# OTA PREVIEW publiée (23/07/2026, ~22h35 — accord de Yoann)
+
+- `npx eas-cli@latest update --branch preview` : groupe `c70447de-a570-4d3c-92cc-7ed214eb872f`, runtime **1.0.3**, iOS + Android, commit `f2d0634*` (inclut les fichiers non commités des Packs 1+2 + fix Fermer). Reçue par la build interne `--profile preview` au prochain cold start (parfois 2 redémarrages). **Aucune production** : la prochaine étape est la validation au doigt (choix de talent + re-forge, QTE, draft Tournée, cinématique Signature), puis OTA production uniquement avec accord explicite de Yoann.
+
+# Renommages de cartes (23/07/2026, soir — demande Yoann)
+
+- **Fraisy → Fraisberry** : nom d'affichage changé dans `economie.ts` (l'`id` reste `fraisy` — sauvegardes, stats, talents, illustrations `collectibles.tsx` inchangés). `tsc` ✅ `test:jeu` ✅. D'autres renommages « clever » (Passion, Mango, Coco, Pudding, Jelly…) proposés à Yoann, en attente de son choix — à appliquer en une fois, puis republier l'OTA preview (la preview actuelle affiche encore « Fraisy »).
+- **Vague 2 (validée par Yoann)** : Mango→**Mangozilla** (+phrase kaiju), Litchee→**Litchiko**, Passion→**Maracudja** (+phrase Brésil, attaque « Cœur de passion »→« Cœur de Maracudja »), Citro **inchangé** (choix Yoann), Jelly→**Wobblina**, Coco→**Coco Loco** (+phrase loco), Pudding→**Flantastique**. Tous les `id` techniques inchangés (sauvegardes intactes). `src/data/catalogue.js` (vraie carte des boissons) volontairement non touché. `tsc` ✅ `test:jeu` ✅.
+
+# Pack 3 — Animations d'attaque du duel + Pack 4 — Juice du shooter (23/07/2026, soir — LOCAL puis OTA preview)
+
+- **Pack 3 (projectiles)** : nouveau `src/components/jeu/projectiles.tsx` (~500 l., 100 % `Animated` driver natif, zéro dépendance → OTA). `visuelAttaque(nom, type)` = table des **48 attaques → 12 familles visuelles** (graines éventail, perle-bond, rouleau grossissant, shuriken tournoyant, liquide en arc, brume +💤 si étourdissant, melee = assaut de la carte + étoile d'impact SANS projectile, double ×2 cadencé, zone = pluie ×8, soin = étincelles vertes, boost = aura dorée, bouclier = bulle) + **repli générique par type** (contenu futur jamais crash). `duel.tsx` : overlay `pointerEvents="none"` mesuré par `onLayout`, vol ~520 ms lancé à l'événement `annonce` (pendant la lecture existante — pattern `CineSignature`, aucun await ajouté, timings QTE/garde/swap inchangés), impact à l'événement `degats` : **squash carte (0,85→back) + flash blanc + burst particules** (+ étoile si mêlée). Signatures/ripostes/consommables = burst standard (pas de projectile). `combat-skia.tsx` : prop `couleur` optionnelle (un critique reste doré). Positions de cartes = fractions approchées de la zone (0,15/0,85) — à vérifier au doigt. Attaque `double` : 2e projectile légèrement en avance sur le 2e impact (compromis assumé).
+- **Pack 4 (shooter « Perle Rush »)** : (1) **Boss incarné** — `bossPersonnage(n)` dans le moteur (rotation sur les 6 légendaires), `BossShooter` dans le nouveau `src/components/jeu/shooter-juice.tsx` : `PastilleCollectible` qui respire (cadence trahissant la phase 1300/850/520 ms), choc aux dégâts, 3 attitudes (anneau violet/orange/rouge), badge d'attaque animé au-dessus du visage (frénétique quand imminente) ; (2) **Pop avec corps** — 6/4/3 débris balistiques par perle (plafond 24, 420 ms), **squash & stretch** des voisines pleines (≤ 8, masquées du Skia et rendues à l'identique en `BilleSkia` re-projetées avec `gridShift`), titre « CHAÎNE/CASCADE ×N » + flash de la pill chaîne ; (3) **Copain de tir visible** — `BuddyLanceur` : idle flottant, saut de joie sur match, grimace sur raté, pulse + étincelles quand Shaker Fever prêt (rien rendu si aucun buddy) ; (4) **Infini tendu** — paliers de descente 6→5→4 tirs (champ `descentes` dans `EtatShooter`, aventure inchangée grâce au garde-fou `tirsRestants === null`), avertissement danger (ligne qui pulse + vignette rougeoyante, haptique moyenne/lourde sur fronts uniquement) et « la prochaine descente peut être fatale ! » en critique.
+- **Validations** : `npx tsc --noEmit` ✅ · `npm run test:jeu` ✅ (tests ajoutés EN FIN : paliers infini 6→5→4, cadence aventure inchangée, rotation bossPersonnage) · `git diff --check` ✅. Tests visuels simulateur interrompus (companion idb instable) → **validation au doigt par Yoann sur build preview**. Limites : débris non compensés par gridShift (comme les anneaux existants), squashs limités aux perles pleines.
+- **Diff cumulé (Packs 1-4 + renommages + fix Fermer)** : ~2 600 insertions, 13 fichiers modifiés, 3 créés (`tournee.ts`, `projectiles.tsx`, `shooter-juice.tsx`) + `tournee.tsx`.
+
+# OTA preview renommages + Packs 3/4, validation iPhone, boss Oreo Star → Tiger Sugar (23→24/07/2026)
+
+- **OTA preview republiées** (branche `preview`, runtime 1.0.3, jamais de production) : `f3092791-…` (renommages vague 2) puis `c54fccef-…` (Packs 3+4). Toutes reçues par la build interne preview 1.0.3 (24) de Yoann en 2 cold starts.
+- **Validation au doigt par Yoann sur iPhone (24/07 ~00h14)** : « ça fonctionne » — Packs 1-4 + renommages confirmés visuellement sur device réel (l'artefact idb/modales du simulateur ne s'y produit pas, comme prévu).
+- **Renommage boss, demande Yoann** : « je n'ai pas d'oreo dans mon menu » — vérifié dans `src/data/catalogue.js` : les Signatures réelles sont Tiger Sugar, Matcha Mousse, Milk Tea Crème Brûlée, Mango Punch. Choix de Yoann : **Oreo Star → Tiger Sugar** 🐯 (sa signature la plus iconique). Retouches appliquées, `id: 'oreo-star'` INCHANGÉ (sauvegardes, rotation boss `BOSS_PERSONNAGES`, `BOSS_BASES`, tournée, album — aucune migration) :
+  1. `economie.ts` COLLECTIBLES : nom « Tiger Sugar », phrase « Le brown sugar coule en rayures de tigre. » ;
+  2. talent légendaire : « Éclat d'étoile » → « Instinct du tigre » (+12 % crit, effet inchangé) ;
+  3. `BOSS_NOMS[3]` : « Oreo Titan » → « Tigre Titan » (boss d'arène hebdo) ;
+  4. arbre de talents `TALENTS_CARTES` : Griffes filantes / Pas feutré / Rayures poisseuses / Embuscade / Rugissement / Chasse sans fin (effets inchangés) ;
+  5. `arene.ts` attaques : « Morsure tigrée » (dégâts) + « Marée brown sugar » (zone) — stats inchangées ;
+  6. `projectiles.tsx` : les deux lignes renommées dans `VISUELS_ATTAQUES` (même familles visuelles, couleurs tigre/brown sugar) ;
+  7. `collectibles.tsx` : gobelet recoloré lait doré `#f0dcb8` + coulures brown sugar `#8a5a2a` (le « tigré » du vrai produit), points cookie + étoile retirés.
+  ⚠️ Ne pas confondre avec `brown-sugar-king` (autre légendaire caramel) : noms d'attaques volontairement distincts (« Rayure de caramel » vs « Morsure tigrée »).
+- **Validations** : `npx tsc --noEmit` ✅ · `npm run test:jeu` ✅ · `git diff --check` ✅ · grep résiduel « Oreo/cookie » côté jeu = 0.
+- **Déploiement** : OTA **preview uniquement** publiée le 24/07 ~00h25 — groupe `f9d74ed7-84f1-4051-9abb-d504c57de2c2` (iOS `019f9112-9259-7707-a099-ad7102713571`, Android `019f9112-9259-7212-a5b0-69060d056dbc`, runtime 1.0.3, message « Boba Quest : le boss Oreo Star devient Tiger Sugar »). Réception : 2 cold starts de la build preview. **Isolation vérifiée après publication** (`eas update:list`) : preview → `f9d74ed7` ; **production inchangée** → `214d33ff-eebc-4220-9334-b91ca0451600` (« prix réels validés en caisse », runtime 1.0.3). **Aucune production sans accord explicite de Yoann.**
+
+
+# Pack 5 — Butin de consommables dans le shooter + Comptoir de Troc v2 (24/07/2026, CODE LOCAL — NON PUBLIÉ)
+
+- **Objectif** : (5a) rendre les consommables de combat **gagnables** en jouant sans casser l'économie boutique ; (5b) refondre le troc v1 (1 échange/jour, modal teaser « bientôt ») en un vrai **Comptoir de Troc quotidien** : 3 offres/jour, non spammable, équilibré. JS/TS pur, aucune dépendance/native/Supabase, compatible OTA.
+- **🎁 5a — Butin de consommables** (`economie.ts`, `store/jeu.ts`, `shooter.tsx`, `arene.tsx`) : `SAC_MAX_CONSO = 5` (plafond de possession PAR consommable) ; `BUTIN_CONSO_PODS` (potion 18 / reveil 22 / energie 22 / glacon 20 / piment 18) + `tirerButinConso(rng)` pondéré ; `probaButinNiveau(etoiles, boss, premiere)` = `min(0,9, étoiles × 20 % × (boss ? 1,5 : 1))`, **moitié au rejeu** ; `probaButinInfini(score)` = 0 < 500, 25 % ≥ 500, 50 % ≥ 1000. `gagnerConsommable(id, n)` : ajoute jusqu'au plafond, chaque unité excédentaire **remboursée `Math.floor(cout/2)` perles créditées directement** (PAS perlesEvenement — esprit doublons d'objets). `acheterConsommable` refuse si l'achat dépasserait le plafond (perles non débitées). `terminerNiveau(..., rng = Math.random)` et `finPartieInfini(stats, rng)` : paramètre FINAL optionnel, retour étendu `butin: { id, ajoute, convertisPerles } | null` (champs existants inchangés). Récap shooter : ligne « 🎁 Butin : {emoji} {nom} » sous les perles (+ « (sac plein → +N perles) »), rien si `ajoute = 0 && convertis = 0`. Boutique de l'arène : « ×n/5 » par ligne, sac plein = ligne grisée + pastille « Sac plein », achat désactivé.
+- **🤝 5b — Comptoir de Troc v2** (`economie.ts`, `store/jeu.ts`, `troc.tsx` réécrit, hub `index.tsx`) : `offresTrocDuJour(jour, { doublons, manquants })` = **TOUJOURS 3 offres** ids stables `sam`/`fonte`/`ressource`, déterministes via la même PRNG mulberry que `trocDuJour` mais seedée `` `${jour}|${index}` `` (tirages indépendants) — **anti-spam = offres fixes, chacune utilisable 1×/jour**. (1) **sam** : veut un doublon de rareté R ; offre une manquante de rareté ÉGALE si possible, sinon la plus proche STRICTEMENT inférieure, sinon n'importe laquelle (jamais supérieure tant qu'une candidate ≤ existe) ; collection complète → `sam-ressource` (commun 120 perles · rare capsule classique · épique classique + 20 éclats · légendaire dorée). Sans aucun doublon, Sam montre quand même son offre (carte possédée ×1) — marquée non faisable. (2) **fonte** : 65 % → 3 doublons rare+ → capsule classique ; 35 % → 2 doublons épique+ → dorée. (3) **ressource** : 40 % 60 éclats → classique ; 35 % 6 consommables → classique ; 25 % 4 consommables → 20 éclats. Persistance `trocJour` = **`{ jour, faits: string[] }`** (v2) ; `migrerTrocJour` (economie, PUR) : ancien `{ jour, fait: true }` d'aujourd'hui → `{ jour, faits: ['sam'] }`, sinon reset ; ids invalides filtrés/dédupliqués. Reset lazy `assurerJourTroc` comme les défis. Store : `offresTrocAujourdhui(e)` enrichit `{ fait, faisable: { ok, manque? } }` (sam → doublon ×n≥2 ; fonte → ≥ nb cartes DISTINCTES ×n≥2 et rareté ≥ min ; éclats/consos → compteurs suffisants) ; `realiserOffreTroc(id, choix?)` **re-valide TOUT côté store** (jour, pas déjà faite, faisabilité, cartes distinctes ×n≥2 rareté ok, consos compteurs) et ne consomme rien en cas de refus (retour null) ; `recu` = texte FR court. **Exports `trocDuJourActuel` / `faireTrocDuJour` SUPPRIMÉS** (`trocDuJour` v1 d'economie conservé tel quel pour compat, plus utilisé par l'app). Écran `troc.tsx` réécrit : 3 cartes (« Le troc de Sam » 🤝, « La fonte de doublons » 🔥, « Le troc du comptoir » 🎒) avec PastilleCollectible donne/reçois, bouton Troquer 3 états (Fait ✓ / actif / grisé + raison), modale fonte (grille ×(n−1) troquables, toggle max nb, compteur « 2/3 »), modale consos (tap répété +/−, « 4/6 »), bannière récap dismissible, haptique légère via `@/lib/juice`. Hub : tuile troc → `router.push('/jeu/troc')` (déjà en place), **modal teaser « J'ai hâte ! » + state `trocVisible` supprimés**, badge « ! » quand ≥ 1 offre faisable et non faite.
+- **Équilibre (rappel design)** : les trocs consomment les compteurs ×n (monnaie d'entraînement des cartes), **jamais le dernier exemplaire** (garde `(collection[id] ?? 0) >= 2` partout), aucune ressource gratuite (tout s'échange) ; le sac plafonné + remboursement perles évite le stock infini.
+- **Sauvegarde / compatibilité** : `VERSION_SAUVEGARDE` **inchangée à 2** ; `trocJour` v2 migré tolérant (jamais de purge) ; `consommables` inchangé (le plafond est appliqué à l'écriture, pas au chargement — un sac > 5 hérité reste lisible et redescend à l'usage). Aucune migration Supabase, aucun changement de runtime : compatible OTA preview/production 1.0.3.
+- **Validations** : `npx tsc --noEmit` ✅ · `npm run test:jeu` ✅ (tests ajoutés EN FIN de `scripts/test-jeu.cjs` : probas exactes 1★/3★/boss/rejeu/infini, tirage pondéré dans le catalogue, **harnais store compilé à part avec react/AsyncStorage mockés via `Module._resolveFilename`** — gagnerConsommable plafond+conversion 120, achat refusé non débité, terminerNiveau/finPartieInfini rng injecté forcé/refusé/plafond, offres déterministes sur 5 jours, sam rareté égale/inférieure/ressource par rareté, realiserOffreTroc sam/fonte/ressource + refus ×1/rareté/indistinct/incomplet/2×-par-jour, reset jour suivant, migration v1) · `git diff --check` ✅ · grep `faireTrocDuJour|trocDuJourActuel` = 0.
+- **Pièges à ne pas refaire** : ne jamais rendre le dernier exemplaire troquable (la vitrine ×1 est protégée côté store ET UI) ; ne pas contourner `realiserOffreTroc` (l'UI propose, le store re-valide tout) ; ne pas ajouter d'emit par élément (un emit unique par troc) ; le remboursement de butin reste HORS `perlesEvenement` ; garder `trocDuJour` v1 exporté tant que d'anciens tests/versions pourraient l'importer, mais ne plus l'utiliser dans l'app ; les tests du store en node exigent les mocks react/AsyncStorage du harnais — ne pas importer `@/store/jeu` directement dans node sans eux.
+- **Statut de déploiement** : OTA **preview uniquement** publiée le 24/07 ~01h05 — groupe `517dbc03-de68-433c-a6bb-88d53b9d93d5` (iOS `019f912d-02cf-70e4-8991-cf82bcffc810`, Android `019f912d-02cf-796b-a0d3-8aad4f729f7b`, runtime 1.0.3, message « Boba Quest : butins d'objets dans le shooter + Comptoir de Troc »). Réception : 2 cold starts de la build preview. **Isolation vérifiée** : production inchangée → `214d33ff-eebc-4220-9334-b91ca0451600`. À tester visuellement au doigt (butin en fin de niveau/infini, boutique sac plein, 3 offres + modales fonte/consos, badge hub). **Aucune production sans accord explicite de Yoann.**
+
+# 🎁 Rythme des capsules aventure resserré — « capsule événement » (24/07/2026, ~01h15)
+
+- **Objectif / décision produit (Yoann)** : « il est trop facile d'obtenir des cartes… 10 min chrono, 7 cartes débloquées ». Cause : **chaque 1ʳᵉ réussite de niveau donnait une capsule garantie** → les premiers niveaux étaient un tapis rouge.
+- **Nouvelle règle** (`economie.ts`, `store/jeu.ts`) : à la 1ʳᵉ réussite, capsule **classique uniquement aux niveaux multiples de `NIVEAU_CAPSULE_RYTHME = 3`**, capsule **dorée au boss inchangée** (tous les 5, `n % 5 === 0` du moteur — un niveau multiple de 3 ET boss donne la dorée). Les autres 1ʳᵉ réussites donnent une **prime d'exploration `NIVEAU_PRIME_EXPLORATION = 60` perles** (hors `perlesGagnees`, crédit direct) en compensation. Helpers purs : `capsuleDuNiveau(niveau, boss)` et `prochaineCapsuleNiveau(n)` (compte à rebours). Dosage ajustable en 1 constante.
+- **Anticipation = addictif** : le récap de victoire sans capsule affiche « 🎁 Prochaine capsule garantie : niveau X — plus que N ! » (`shooter.tsx`) ; le pitch du parcours annonce « Capsule offerte tous les 3 niveaux — dorée au boss ! ».
+- **Non rétroactif** : les niveaux déjà réussis (etoiles persistées) ne sont pas touchés ; seul le futur change. Aucune migration, `VERSION_SAUVEGARDE` inchangée, JS pur compatible OTA. Défis/roulette/tournée/pass/boss hebdo : robinets de capsules INCHANGÉS (rétention quotidienne).
+- **Validations** : `npx tsc --noEmit` ✅ · `npm run test:jeu` ✅ (tests EN FIN : capsuleDuNiveau tous les cas dont boss∩×3, prochaineCapsuleNiveau jalons, prime +60 exacte hors perlesGagnees, capsule multiple de 3 conservée, rejeu sans capsule ni prime) · `git diff --check` ✅.
+- **Piège** : la « capsule » du gameplay shooter (bulle à libérer sur le plateau, objectif de niveau) n'a RIEN à voir avec la capsule-récompense — ne pas « harmoniser » les deux. Le texte du parcours distingue désormais « capsules du plateau » et « capsule offerte ».
+- **Déploiement** : OTA **preview uniquement** publiée le 24/07 ~01h20 — groupe `4cba9ba7-e49e-45c9-bbf2-09962d42ec80` (iOS `019f9135-0651-734b-946b-7d7b26e8abfb`, Android `019f9135-0651-735b-b712-c0cf3efba980`, runtime 1.0.3). Réception : 2 cold starts. **Isolation vérifiée** : production inchangée → `214d33ff-eebc-4220-9334-b91ca0451600`. **Aucune production sans accord explicite de Yoann.**
+
+# 💰 Prix des capsules + remboursements doublons rééquilibrés (24/07/2026, ~01h30)
+
+- **Objectif / décision produit (Yoann)** : « ouvrir des capsules coûte trop peu cher — 4 000 perles gagnées en 10 min = 10 capsules ». Suite directe du resserrement du rythme aventure (section précédente).
+- **Nouvelle règle** (`economie.ts` uniquement — tout est dynamique, aucun prix en dur dans l'UI) : **capsule classique 400 → 700 perles · capsule dorée 1 200 → 2 000 perles**. Remboursements des doublons `DOUBLON_PERLES` ajustés en proportion pour rester un lot de consolation sans financer une capsule entière : commun 60→**90** (≈ 13 % d'une classique), rare 150→**220** (≈ 31 %), épique 350→**500** (≈ 71 %), **légendaire inchangé à 800** (≈ 40 % d'une dorée). Probabilités/pity/cérémonie : INCHANGÉS. Capsule Objet (450, équipement) volontairement hors scope — Yoann ne visait que les capsules de cartes.
+- **Effet recherché** : 4 000 perles de démarrage ≈ 5 capsules au lieu de 10 ; en croisière (~1 000-1 500/jour) ≈ 2 capsules/jour max → la chasse redevient un objectif. La fonte du Comptoir de Troc (3 doublons rares → classique) reste quasi neutre (3×220 ≈ 660 ≈ prix 700) : équilibrée, et d'autant plus attractive qu'elle vise une CHANCE de légendaire.
+- **Validations** : `npx tsc --noEmit` ✅ · `npm run test:jeu` ✅ (tests EN FIN : prix exacts 700/2000, table remboursements exacte, débit 700 à l'ouverture payante, refus sans perles, doublon épique forcé au pity → +500 exact) · `git diff --check` ✅ · grep prix en dur dans l'UI = 0.
+- **Piège** : ne JAMAIS réintroduire de prix de capsule en dur dans un texte — toujours `CAPSULES[type].cout` / `formatNb`. Si le dosage doit bouger, une seule constante (et penser à recaler `DOUBLON_PERLES` en proportion).
+- **Déploiement** : OTA **preview uniquement** publiée le 24/07 ~01h35 — groupe `a3b52079-afa8-4f51-b4fb-79cc3de74564` (iOS `019f913b-ba5c-7522-884d-b365afc038bb`, Android `019f913b-ba5c-7953-b47b-f6f9536c8b04`, runtime 1.0.3). Réception : 2 cold starts. **Isolation vérifiée** : production inchangée → `214d33ff-eebc-4220-9334-b91ca0451600`. **Aucune production sans accord explicite de Yoann.**
+
+# 🚀 OTA PRODUCTION — Boba Quest « Packs 1-5 » chez les clients (24/07/2026, ~01h40 — GO EXPLICITE DE YOANN)
+
+- **Accord** : Yoann a dit « go production » le 24/07 à ~01h08 après une nuit de tests au doigt sur la build preview (Packs 1-4 + renommages validés « ça fonctionne », puis Pack 5 et les deux rééquilibrages publiés en preview entre-temps).
+- **Checklist pré-publication (CONSIGNE-OTA-CANAUX.md)** : périmètre du diff = **100 % jeu** (`src/app/jeu/**`, `src/components/jeu/**`, `src/store/jeu.ts`, `scripts/test-jeu.cjs`, AGENTS.md — aucun `compte.tsx`/`explore.tsx`/`app-tabs.tsx`/`_layout.tsx`) → démarrage, connexions email/Apple/Google, barre d'onglets et Fidélité = **code identique à la prod précédente** (déjà validée) · `package.json`/`app.json`/`eas.json` **inchangés** (aucune dépendance native → compatible release stores 1.0.3) · aucun secret · aucun `console.log` ajouté (seul un `console.warn` sous `__DEV__` préexistant) · `npx tsc --noEmit` ✅ · `npm run test:jeu` ✅ · `git diff --check` ✅.
+- **Publication** : `npx eas-cli@latest update --branch production --message "Boba Quest : combats enrichis, Comptoir de Troc, butins shooter, renommages, economie reequilibree"`. Groupe **`48d3eb7e-7f02-46f8-a7b4-1983dbc51fff`**, runtime **1.0.3**, iOS `019f913e-de3c-7519-8175-2121f01e8172`, Android `019f913e-de3c-722f-b834-7d7da7a637e6`. Vérifié après coup : production → ce groupe ; preview inchangée (`a3b52079`). Réception client : 1-2 cold starts de l'app store 1.0.3.
+- **Rollback d'urgence** (à connaître AVANT d'en avoir besoin) : republier le groupe stable précédent — `npx eas-cli@latest update:republish --group 214d33ff-eebc-4220-9334-b91ca0451600 --branch production` (« prix réels validés en caisse », 23/07). Ne jamais rollback sans avoir confirmé via `eas update:list/view` que l'update fautive est bien celle en ligne.
+
+## 📦 CONTENU EXACT DE CETTE RELEASE (tout ce que les clients reçoivent)
+
+**Combats (duel)** :
+1. **Riposte de parade parfaite** (Pack 1) : parade PARFAITE → contre-coup auto 50 % ATQ, imparable ; contre une Signature adverse : −80 % dégâts + jauge +3. Joueur uniquement, haptiques + journal « RIPOSTE ! ».
+2. **Cinématiques de Signature par famille** (Pack 1) : overlay ~640 ms skippable avant impact, voile violet, particules par famille, « SIGNATURE ADVERSE » en danger.
+3. **Projectiles animés pour les 48 attaques** (Pack 3) : 12 familles visuelles (graines, perle-bond, rouleau, shuriken, liquide, brume 💤, mêlée sans projectile, double, zone, soin, boost, bouclier) + squash/flash/burst à l'impact ; repli générique par type (jamais de crash).
+4. **Talents d'évolution à choix** (Pack 2) : aux paliers 4/7/10, 1 talent parmi 2 par carte (12 effets : vit, atk, pv, crit spé, marques, munitions, charge, soins, bouclier départ, 1ʳᵉ frappe, garde maîtrisée, contre-marque) ; re-forge 40 éclats ; PNJ jamais talenté.
+5. **Palmarès « Exploits » par carte** (Pack 1) : compteurs K.O./victoires/parfaits/plus gros coup persistés + 9 titres cosmétiques (aucune puissance).
+6. **Tournée des Maîtres** (Pack 2) : run roguelite hebdo, adversaires déterministes par semaine, PV reportés entre duels, K.O. définitifs, draft de 3 bonus après victoire, paliers hebdo 3/6/9 victoires (perles + capsules), record à vie.
+
+**Collection / économie** :
+7. **Cérémonie capsule théâtrale + ouverture ×5** (Pack 1) : suspense dosé par rareté (skippable), flash, doublon = fonte + pluie de perles ; ×5 avec récap (5 tirages, meilleure carte pulsante).
+8. **Comptoir de Troc v2** (Pack 5) : 3 offres/jour seedées (Sam doublon→manquante de rareté égale/inférieure ou ressources si collection complète · fonte de doublons au choix → capsule · troc de ressources éclats/consommables), chacune 1×/jour, jamais le dernier exemplaire, badge « ! » sur le hub.
+9. **Butins de consommables dans le shooter** (Pack 5) : aventure 20 %/40 %/60 % par ★ (boss ×1,5, rejeu moitié), infini 25 % ≥500 / 50 % ≥1000 ; **sac plafonné à 5 par objet** (boutique incluse), excédent remboursé moitié prix en perles.
+10. **Capsules aventure resserrées** (24/07) : classique garantie **tous les 3 niveaux** à la 1ʳᵉ réussite (avant : chaque niveau), dorée au boss inchangée, autres niveaux = prime +60 perles ; récap avec compte à rebours « Prochaine capsule garantie : niveau X — plus que N ! ».
+11. **Prix capsules rééquilibrés** (24/07) : classique **400→700**, dorée **1 200→2 000** ; remboursements doublons ajustés (90/220/500/800).
+
+**Shooter « Perle Rush »** :
+12. **Boss incarné** (Pack 4) : un légendaire en rotation par niveau boss, qui respire selon la phase, badge d'attaque animé ; débris balistiques + squash & stretch au pop ; copain de tir visible (réactions + pulse Shaker Fever) ; infini tendu (descente 6→5→4 tirs + alerte danger).
+
+**Renommages (ids techniques inchangés, sauvegardes intactes)** : Fraisy→**Fraisberry**, Mango→**Mangozilla**, Litchee→**Litchiko**, Passion→**Maracudja**, Jelly→**Wobblina**, Coco→**Coco Loco**, Pudding→**Flantastique**, Oreo Star→**Tiger Sugar** 🐯 (attaques « Morsure tigrée »/« Marée brown sugar », boss d'arène « Tigre Titan » — aligné sur la vraie carte du menu ; Citro conservé par choix de Yoann).
+
+**Persistance / compatibilité** : `VERSION_SAUVEGARDE` inchangée à 2 ; tous les champs nouveaux (exploits, talentsCartes, tournee, trocJour v2) sont additifs avec migrations tolérantes — aucune sauvegarde client n'est cassée. JS/TS pur, aucune migration Supabase.
+- **Suivi** : surveiller les retours clients les premiers jours (combat trop riche visuellement ? économie trop dure ?). Prochaine étape produit déjà identifiée : **troc joueur↔joueur réel** (nécessite Supabase + anti-abus multi-comptes — NON fait, hors scope OTA).
+
+# 📦 Règle OTA vs build store pour Boba Quest (24/07/2026 — réponse à Yoann)
+
+- **Tout le jeu est du JS pur** (écrans, moteurs, économie, animations `Animated`, SVG/Skia déjà dans le binaire) → **jamais de mise à jour store** : nouvelles cartes, attaques, objets, talents, offres de troc, équilibrages, nouveaux écrans de jeu et animations partent en **OTA directe** (preview d'abord, production après accord de Yoann). Vérifié le 24/07 : 6 OTAs preview + 1 production publiées sur la release 1.0.3 sans toucher aux stores (`package.json`/`app.json`/`eas.json` inchangés — c'est LA condition).
+- **Une nouvelle build store n'est requise QUE si** : nouvelle dépendance **native** (module Swift/Kotlin pas déjà dans le binaire), changement d'`app.json`/`eas.json`/icônes/splash/permissions/plugins, montée de SDK/runtime, ou correctif natif. Dans ce cas : build + TestFlight + validation sur vrai iPhone avant toute soumission (règles habituelles).
+- **Déjà en file d'attente pour le prochain build natif** (aucun n'est planifié, ne pas builder juste pour ça) : retirer `expo-glass-effect` + `expo-symbols` (deps natives inutilisées) ; API Install Referrer Android pour le parrainage automatique. Avant toute nouvelle feature, vérifier si son module est déjà dans le binaire (ex. `expo-haptics` OUI ; un futur audio/`expo-av` à vérifier AVANT de promettre).
+
+# 🔧 REFONTE PROFONDE DU MOTEUR DE JEU — « du piment » (27/07/2026, CODE LOCAL — NON PUBLIÉ, PAS D'OTA)
+
+**Demande de Yoann** : « le tir de perles est assez ennuyeux, il faudrait des perles spéciales » · « les combats sont très linéaires, il faut ajouter beaucoup de piment » · « faire évoluer les cartes selon ce que consomment les clients » · « n'hésite pas à faire une profonde refonte du moteur de jeu si nécessaire ».
+
+## Pourquoi
+
+Audit préalable des trois moteurs. **Le combat n'était pas plat par manque de mécaniques — il en avait beaucoup — mais parce qu'elles ne produisaient presque jamais de décision** : la spé était strictement dominante (×1,5 sur tous les axes, aucun coût), les **24 cartes avaient toutes la même attaque de base** `degats` ~1,0, changer de carte coûtait le tour entier (banc mécaniquement mort), la Garde — seule vraie décision — n'était dispo qu'**1 tour sur 3**, et le ratio agency/passivité était de **1 pour 3** (2 taps pour 2,4 s à 6 s de cinématique). Côté shooter, les 7 spéciales existantes étaient traitées par **3 blocs séquentiels codés en dur** dans `tirer()` : ajouter une perle voulait dire ajouter un bloc.
+
+## Ce qui change pour le joueur
+
+**Combat.** Une **jauge d'énergie d'équipe** (⚡ 0-6, +2 par round) : la spé se paie 3 ⚡, changer de carte 2 ⚡ — **et le changement ne consomme plus le tour**, donc le banc redevient jouable. Les 24 cartes reçoivent des **traits d'attaque** (perce, rapide, précise, siphon, venin, saignée, recul…) et **leur propre Signature** (24 ultimes au lieu de 4 partagées par set). Un **système de statuts générique** remplace les 6 champs ad hoc : brûlure, poison cumulable, régénération, faiblesse, fureur, insensible — affichés en clair sous chaque carte, avec cumul et tours restants (les marques Collant/Givré/Pétillant étaient la meilleure couche tactique du jeu et étaient invisibles). **Phases de rage pour tous** : Second Souffle à 50 % PV, Dernier Sursaut à 25 %. **L'IA garde et change de carte** (3 personnalités selon le set de son actif). **Plus d'échec sec** : un coup raté effleure à 45 % au lieu de faire perdre le tour sur un jet de dé. Rythme resserré de **41 %** (round type 2 440 → 1 440 ms, combat complet 91 → 51 s).
+
+**Shooter.** **6 nouvelles perles** : 🥤 Paille (aspire sa ligne), 🍯 Sirop (repeint ses 6 voisines — setup de combo), 🔗 Jumelles (éclater l'une éclate l'autre), 🧨 Mèche (compte à rebours visible, explosion en croix), 🌀 Portail (dévie le projectile), 🪨 Roche (bloc 3 PV qui ne tombe jamais). **4 nouveaux objectifs** : `chaine`, `lacher`, `parfaits`, `speciales`.
+
+**Cartes ↔ boutique.** Le **Rang de Goût 0-5** : boire réellement du Taro fait monter Taro Queen. +2 % PV/ATQ par rang (plafond +10 %), +1 munition de Spé au rang 3, marque +1 action au rang 5, liseré doré au rang 5. Réutilise le mapping `DEBLOCAGE_CARTES`/`achatsPourCarte` existant — **aucun second mapping**.
+
+## Le modèle
+
+- **`arene.ts`** : `statuts: Statut[]` générique (13 `StatutId`, helpers `aStatut`/`poserStatut`/`tickStatuts`) ; `EtatCombat.energie` + `EtatCombat.combo` (le combo vivait dans l'UI) ; `TraitAttaque` (12) ; `SIGNATURES_CARTE` + `signatureDe()` ; **un seul pipeline d'impact** `resoudreImpact` là où il y avait 4 chemins de calcul non factorisés ; `choisirActionIA` ; `INFOS_STATUT` et `cle`/`attaqueIdx` sur les événements, pour que l'UI cesse de piloter ses animations en parsant du français.
+- **`moteur-shooter.ts`** : **moteur de cascade** (file de propagation unique avec `Set` anti-boucle et plafond `CASCADE_MAX = 200`) remplaçant les 3 blocs figés ; **registre `EFFETS_PERLE`** — une perle = une entrée ; `simulerVolPlateau` qui lit les portails dans la grille, ce qui rend guide / aperçu / tir **incapables de diverger**.
+- **`economie.ts` / `store/jeu.ts`** : `rangGout`, `bonusGout`, `appliquerGout` (monotone, idempotente, un seul `emit()`), `goutsEquipe`.
+
+## Valeurs et règles importantes
+
+`ENERGIE_MAX 6` · `ENERGIE_PAR_ROUND 2` · `COUT_SPE 3` · `COUT_CHANGER 2` · `COUT_OBJET 2` · `EFFLEURE_MULT 0.45` · `GARDE_COOLDOWN 2 → 1` · `GOUT_MAX 5` · `GOUT_ACHATS_PAR_RANG 2` · `GOUT_BONUS_PCT 2` · `CASCADE_MAX 200`.
+
+**Bornes tenues** : durée de combat 9 à 23 rounds sur 200 combats seedés ; dégâts de statut ≤ 20 % des PV max par tour à **tous** les rounds ; bonus de Goût ≤ +10 % (contre +24 % déjà accordés gratuitement par `multOutsider` à une équipe 100 % commune — **un joueur qui ne vient jamais en boutique reste compétitif**).
+
+**Inchangés** : `PASSEPORT_ACTIF = false`, `VERSION_SAUVEGARDE = 2`, `GARDE_PARFAITE 0.7`, `GARDE_PARFAITE_ANTI_SIGNATURE 0.8`, tous les plafonds de soin, `PERLES_MAX_*`, les plafonds mensuels de prix réels, les 24 illustrations et `id` de collectibles, les 48 noms d'attaque (`projectiles.tsx` les indexe par nom), `package.json` / `app.json` / `eas.json`.
+
+## 🔴 Faille corrigée au passage — doublons régénérables
+
+`appliquerPasseport` comparait `exemplairesParAchats()` à la **collection vivante**, que `entrainerCarte` décrémente. Un joueur pouvait donc **régénérer un doublon à volonté** en quittant et rouvrant l'écran Collection. Mesuré : **40 000 perles en 50 rouvertures**, pompe linéaire non bornée. La faille n'était **pas** gardée par `PASSEPORT_ACTIF` : elle se serait ouverte le jour où `chargerAchats()` renvoie des lignes — c'est-à-dire bientôt, la caisse publiant déjà `achats_lignes`. Correction : nouveau champ `exemplairesPasseport` (ce qui a **déjà été octroyé**), amorcé conservativement sur la collection existante. Après : 0 régénéré sur 50 rouvertures, un vrai achat octroie toujours.
+
+## Validations effectuées
+
+- `npx tsc --noEmit` : **0 erreur** sur `src/app/jeu` / `src/components/jeu` / `src/store`.
+- `npm run test:jeu` : **vert 5 fois de suite**, ~10 s. Le harness passe de 946 à **4 463 assertions** (+1 313 lignes, ajoutées en fin, rien retiré ni déplacé — l'assertion `instantaneEtat() === null` reste la première après le chargement du store). 12 familles : statuts · énergie · pipeline unique · effleuré · IA · durée · cascade · portails · objectifs · Goût · anti-régression doublons · sauvegarde.
+- **Revue adversariale** indépendante : ~250 000 tirs comparés au moteur d'avant refonte, ~4 000 combats seedés. 2 bloquants et 5 sérieux trouvés, **tous corrigés** (voir pièges ci-dessous).
+- Invariant anti-mensonge du shooter : **14 400 angles** sur 36 niveaux à portails, guide == aperçu == tir réel, **0 écart** (le code livré avant refonte se trompait sur 488 d'entre eux, 3,4 %).
+- Perf : la frame de visée est **nette plus rapide qu'avant** (le surcoût du balayage des portails, +2,2 µs, est plus que payé par l'optimisation du tri d'empilement, −5,6 µs).
+
+## Compatibilité / migration
+
+`VERSION_SAUVEGARDE` **reste à 2**. Deux champs additifs (`goutCartes`, `exemplairesPasseport`) avec migrateurs **purs et tolérants** (`migrerGout`, `migrerExemplairesPasseport`) sur le modèle de `migrerExploits` : assainissent, **ne purgent jamais** une donnée légitime, tolèrent `undefined`. Une sauvegarde v2 d'avant ce lot se charge **sans la moindre perte** (11 champs vérifiés un à un). Aucun champ de partie n'est persisté (`statuts`, `energie`, `combo`, `grille` : absents du blob). JS/TS pur, **aucune dépendance native** → OTA-compatible.
+
+## Pièges rencontrés (ne pas refaire)
+
+1. **La 🪨 Roche rendait les niveaux boss ingagnables.** `plateauEstVide()` la comptait comme du contenu alors qu'elle ne tombe ni ne se matche jamais → plus de régénération, boss définitivement invulnérable, et le filet universel « plateau vidé = victoire » neutralisé partout. 51 % des parties finissaient avec une roche orpheline flottant dans le vide. → `plateauEstVide()` ignore désormais les blocs `neTombeJamais`. **Toute future perle qui ne tombe pas doit être vérifiée contre la régénération ET contre le filet de victoire.**
+2. **`riposter()` laissait un cadavre en combattant actif** : la fonction ne vérifiait le remplacement que du camp `b`, alors que le contre-coup peut tuer son auteur via les 🌵 épines. Conséquences : action du joueur silencieusement jetée au round suivant, `ko` ré-émis (cinématique rejouée), `ENERGIE_KO` crédité deux fois, et sur la dernière carte **aucun événement `fin`**. → `verifierRemplacement(etat, 'a')` en fin de riposte, et pas de `ko` sur une cible déjà à 0 PV.
+3. **Un plafond calculé avant un multiplicateur n'est pas un plafond.** Les dégâts de statut étaient bornés à 20 % des PV max **puis** remultipliés par l'escalade de round : 60 % au round 25. Même classe de bug que le plafond de perles corrigé le 26/07. → borner **après** tous les multiplicateurs, ou exclure explicitement la source.
+4. **Ne pas laisser un `Record<string, …>` là où un `Record<UnionFermée, …>` est possible** : la table de dessin des perles acceptait silencieusement une perle sans dessin, rendue comme une perle ordinaire. Avec le `Record` exhaustif, TypeScript refuse de compiler tant que le dessin manque.
+5. **Un défaut de paramètre peut être un mensonge.** `simulerVol(…, portails = null)` signifiait « ce plateau n'a pas de portail » : un appelant qui l'oubliait mentait au joueur sans que rien ne casse (mesuré : 14 impacts faux sur 360 angles). → paramètre sans défaut, `simulerVolPlateau` pour le chemin nominal.
+6. **Un test de caractérisation doit être retiré, pas assoupli.** Cinq bugs avaient été figés par des tests `🐞 TROU CONNU` pour ne pas s'aggraver en silence ; ils ont tous été remplacés par le test de non-régression du comportement corrigé.
+7. **Vérifier que son type-check vérifie quelque chose.** Une config `tsc` avec un `types` dont les `typeRoots` ne résolvaient pas échouait sur `TS2688` **avant de contrôler le moindre fichier** : la sortie vide ne prouvait rien.
+8. **`GARDE_COOLDOWN` 2 → 1 a rendu le bonus de run « Poignet Sûr » sans effet** (le plancher de l'invariant « jamais deux Gardes d'affilée » absorbait exactement le gain). Le bonus renforce désormais la Garde elle-même (0,45 → 0,55, via le talent `garde_maitrisee` existant) — 6ᵉ sur 10 en puissance mesurée. **Changer une constante globale peut vider un bonus de son sens : vérifier les contenus qui en dépendaient.**
+
+## Écarts assumés
+
+- Deux perles historiques ne se comportent plus à l'identique, **volontairement** : une 💥 bombe-plateau **incluse dans le groupe matché** détone désormais (avant, la matcher la désamorçait — l'inverse de son aide de jeu), et une ⭐ perle bonus détruite par une munition bombe rapporte enfin ses 40 points (les points étaient recopiés à la main dans 4 blocs sur 5). Coût d'équilibrage mesuré sur 110 parties de bot : 44 vs 43 niveaux gagnés — dans le bruit. Les 5 autres spéciales sont strictement iso-comportement.
+- Les 7 cartes dont la Spé est `bouclier`/`boost` n'ont plus de QTE (il n'avait aucun effet mécanique) et ne peuvent donc plus gagner le +1 ⚡ d'un tap parfait. Le combo, lui, est préservé. « Pas de tap, pas de bonus de tap » — documenté dans le code.
+- **Trou connu non fermé** : un miroir défensif (`lacto`/`pasteka`/`mochito` des deux côtés, joueur qui garde à chaque tour) peut atteindre **34 rounds** au lieu des 25 visés. Le combat termine toujours ; le refermer demandait de rendre les rounds 12-19 des duels normaux nettement plus violents. Arbitrage d'équilibrage laissé à Yoann, verrouillé par un test.
+
+## Statut de déploiement
+
+**CODE LOCAL UNIQUEMENT — aucun commit, aucun push, aucune OTA.** Rien n'est parti en preview ni en production. Le périmètre du diff est **100 % jeu** (`src/app/jeu/{collection,duel,shooter,tournee}.tsx`, `src/components/jeu/{arene,economie,moteur-shooter,plateau-skia,tournee}`, `src/store/jeu.ts`, `scripts/test-jeu.cjs`) — aucun `compte.tsx`, `explore.tsx`, `app-tabs.tsx` ni `_layout.tsx`, donc démarrage, connexions et Fidélité sont **le code identique à la prod précédente**. Prochaine étape : validation au doigt sur iPhone via une OTA **preview**, puis accord explicite de Yoann avant production.
+
+# 🎡 Roulette du mois — parts égales redevenues honnêtes + rééquilibrage (27/07/2026, CODE LOCAL, PAS D'OTA)
+
+**Signalement de Yoann** : « la roulette du mois est illisible avec des toutes petites portions ». Puis, sur la maquette de comparaison : « 300 perles et 800 perles sont ridicules comme récompense par rapport à un % ou des tampons, rééquilibre ça · tu peux tout représenter de la même taille dans le camembert sans annoncer le % de chance · la boisson offerte peut être plus de 1 % ».
+
+## Pourquoi
+
+Le correctif du 26/07 avait remplacé 8 parts égales par des parts **proportionnelles**, à raison : montrer « Boisson offerte » aussi large que le reste laissait croire à 1 chance sur 8 au lieu d'1 sur 100. Mais le remède a créé un autre mal — une part de 1 % fait **3,6°, soit 9 px au bord d'une roue de 310** : libellé illisible, débordant sur ses voisines.
+
+**La vraie cause était l'ÉCART des chances (28 % → 1 %), pas le découpage.** En resserrant l'écart, les parts égales redeviennent défendables : au pire une part annonce 12,5 % pour 7 % réels, un facteur 1,8 au lieu de 12.
+
+Second problème, indépendant : `+300 perles` valait **3,75 %** du prix boutique d'un tampon (8 000 perles) et un quart d'une journée de jeu — pour un tour qui ne revient qu'**une fois par mois**. Le joueur qui tombait dessus avait l'impression d'avoir perdu sur une roue « toujours gagnante ».
+
+## Le modèle
+
+| Lot | Poids avant | Poids après | Valeur avant | après |
+|---|---|---|---|---|
+| +1 tampon | 28 | **18** | | |
+| perles (petit) | 22 | **15** | 300 | **1 200** |
+| +2 tampons | 14 | 14 | | |
+| Capsule dorée | 8 | **13** | | |
+| −10 % | 12 | 12 | | |
+| perles (gros) | 10 | **11** | 800 | **3 000** |
+| +3 tampons | 5 | **10** | | |
+| Boisson offerte | 1 | **7** | | |
+
+Écart max/min : 28 → **2,6**. Distorsion maximale entre la part affichée (12,5 %) et la chance réelle : 12 → **1,8**.
+
+- **Roue** : 8 parts égales de 45°, décalées d'une demi-part pour que la flèche désigne le **centre** d'un lot au repos et non une couture. Libellés **tangentiels sur une ou deux lignes** — le radial obligeait à pencher la tête et la part du haut butait dans la flèche. `couperLibelle()` coupe au point d'équilibre quand le libellé dépasse la corde utile (70,7 px). `SECTEURS[i].pct` reste la chance **réelle**, décorrélée de l'angle : le tirage suit toujours les poids.
+- **Couleurs** : les 8 teintes hors charte (`#A3C724`, `#FFD166`, `#7EC8E3`…) sont remappées sur les tokens de `charte.ts` — dette DA du 18/07 fermée. `TEXTE_SOMBRE` gagne `tampon-2` (le bleu de la charte est plus clair).
+- **La roue est HORS multiplicateurs** (décision Yoann, 27/07) : le lot en perles est crédité **à sa valeur faciale**. Le 26/07 il avait été branché sur `perlesEvenement` au motif que le bandeau du hub promet « toutes tes perles gagnées sont doublées » ; on revient dessus pour deux raisons. La part **annonce son montant en toutes lettres** (« 1 200 perles ») : en rendre 2 400 ou 6 240 selon le jour recrée un écart entre l'affiché et le réel. Et avec les lots relevés, le cumul ×5,2 (événement ×2 · série ×1,3 · Gorgée Fraîche ×2) faisait de « 3 000 perles » un lot de **15 600 perles, soit 22 capsules d'un coup**, ce qui annulait l'équilibrage du 24/07. La roue rejoint donc les perles de série quotidienne et de Gorgée Fraîche, déjà hors multiplicateurs. Un plafond devient inutile. `tournerRoulette(rng?)` accepte désormais un rng en dernier paramètre optionnel (doctrine du projet + testabilité). L'écran le dit au joueur : « les lots de la roue sont fixes ».
+
+## Valeurs et règles importantes
+
+⚠️ **Ce qui rend les parts égales honnêtes, c'est la liste « Tes chances » sous la roue**, qui affiche les probabilités exactes. **Ne pas la retirer.** C'est elle qui porte l'information que le découpage ne porte plus.
+
+⚠️ **Le plafond de perles s'applique APRÈS les multiplicateurs**, jamais avant — même piège que le plafond de perles corrigé le 26/07, où un plafond posé trop tôt ne bornait rien.
+
+⚠️ Toute modification future des poids doit garder chaque lot à **moins d'un facteur 2** de la part affichée (12,5 %). Un test le verrouille : s'il casse, il faut soit resserrer les poids, soit repasser la roue en secteurs proportionnels. **Ne pas l'assouplir.**
+
+## Coût pour la boutique
+
+À 200 joueurs actifs, 1 tour par mois :
+
+| | avant | après |
+|---|---|---|
+| tampons distribués | 142 / mois | 152 / mois |
+| réductions −10 % | 24 / mois | 24 / mois |
+| **boissons offertes** | **2 / mois** | **14 / mois** |
+
+Le passage de la boisson de 1 % à 7 % est le seul poste réellement coûteux : **+12 boissons par mois**. C'est un choix produit assumé (« la boisson offerte peut être plus de 1 % ») — pour revenir en arrière, il suffit de baisser son poids et de remonter celui de `+1 tampon` d'autant, en gardant la distorsion sous 2 (donc poids ≥ 7).
+
+## Validations effectuées
+
+`npx tsc --noEmit` **exit 0** sur tout le projet · `npm run test:jeu` vert **5 fois de suite** · `git diff --check` propre. Nouveau bloc de tests en fin de `scripts/test-jeu.cjs` : distorsion ≤ 2 pour chaque lot, **200 000 tirages seedés** vérifiant que le tirage suit bien les poids et non le découpage visuel (écart < 0,6 point), et lots en perles ≥ 10 % du prix d'un tampon et ≤ plafond.
+
+Le test « hors multiplicateurs » a été **vérifié en le cassant volontairement** : rebrancher `perlesEvenement` fait tomber l'assertion (2 400 perles créditées pour 1 200 annoncées).
+
+Rendu de la roue **vérifié visuellement** (rendu SVG hors app, captures successives) : les 8 libellés tiennent dans leur part, aucun ne mord sur les séparateurs blancs, la flèche désigne le centre de « +1 tampon » au repos.
+
+## Compatibilité / migration
+
+Aucun `id` ni `code` de segment modifié — le test qui verrouille les 15 codes de prix réels passe inchangé. `VERSION_SAUVEGARDE` reste à 2, aucun champ ajouté. Un joueur ayant déjà joué son tour du mois n'est pas affecté. JS pur, aucune dépendance : **OTA-compatible**.
+
+## Statut de déploiement
+
+**CODE LOCAL — non commité, non publié.** Fichiers touchés : `src/app/jeu/roulette.tsx`, `src/components/jeu/economie.ts`, `src/store/jeu.ts`, `scripts/test-jeu.cjs`.
+
+## 🎬📳 Duel — animations d'attaque resynchronisées + une seule vibration par attaque (27/07/2026, retour terrain de Yoann, CODE LOCAL)
+
+**Signalement après test iPhone** : « les combats ont l'air de fonctionner mais il n'y a plus les animations d'attaques, et il y a une vibration à chaque événement — une vibration par attaque suffirait ».
+
+### 1. Les animations n'avaient pas disparu — elles arrivaient trop tard
+Diagnostic : le contrat `annonce.cle` / `attaqueIdx` fonctionnait (vérifié sur 3 900 annonces simulées : 100 % portent une clé, 2 646 attaques résolues, **0 non résolue**). Le vrai coupable est le resserrement du rythme du même jour : `ATTENTE.annonce` est passée de **520 à 300 ms**… or 520 n'était pas un réglage de rythme, c'était **exactement `DUREE_VOL_MS`**, le temps de vol du projectile. Désynchronisés, les dégâts s'affichaient pendant que le projectile était encore en l'air : l'impact étant déjà passé, l'attaque se lit comme si elle n'avait aucune animation.
+
+**Correctif** : `duel.tsx` **dérive** désormais son attente d'annonce de la durée réelle de l'effet (`DUREE_VOL_MS` pour un projectile, `DUREE_SOI_MS` pour un effet sur soi, `ATTENTE.annonce` pour un corps-à-corps ou une annonce sans attaque). Les deux durées sont resserrées (520 → **380**, 640 → **460**) pour conserver le gain de rythme sans rompre le couplage.
+
+⚠️ **`DUREE_VOL_MS` et `DUREE_SOI_MS` sont des constantes de SYNCHRONISATION, pas de rythme.** Ne jamais raccourcir l'attente d'une annonce sans elles.
+
+### 2. Une vibration par attaque
+`REACTIONS_STATUT` associait une haptique à ~40 clés d'événement. Un round produisant jusqu'à une douzaine d'événements narratifs (poses de marque, expirations, phases, énergie…), la main était saturée et la vibration ne signifiait plus rien.
+
+**Correctif** : toutes les haptiques de statut sont retirées ; la table ne sert plus qu'au discriminant `crit`. Une vibration est **armée par l'annonce** d'une attaque et **tirée au PREMIER impact**, puis désarmée — une vague de zone qui touche trois cartes ne vibre donc qu'une fois. Restent le K.O., la riposte et la fin de combat (rares), et le tap PARFAIT du joueur (le « bien » ne vibre plus).
+
+**Mesuré sur 1 012 rounds simulés : 5,6 → 1,8 vibration par round (−67 %)**, pour 1,64 attaque par round.
+
+### Validations
+`npx tsc --noEmit` exit 0 · `npm run test:jeu` vert 5×. Deux fils-pièges ajoutés en fin de harnais : l'attente d'annonce doit rester **dérivée** de `DUREE_VOL_MS`/`DUREE_SOI_MS`, et aucune haptique ne doit revenir dans `REACTIONS_STATUT`. **Les deux ont été vérifiés en les cassant volontairement.**
+
+### Piège à retenir
+Une constante partagée entre deux modules peut porter une **relation** (ici : attente d'annonce == durée de vol) que rien ne déclare. Avant de retoucher une valeur de rythme, chercher si une autre valeur lui est numériquement égale — c'est souvent un couplage non écrit.
+
+**Statut** : code local, non commité, non publié.
+
+# 🎯 Quatre chantiers d'économie et de progression (27/07/2026, CODE LOCAL, PAS D'OTA)
+
+**Questions de Yoann après test sur iPhone** : « Que se passe-t-il après avoir battu le boss ? » · « Les combats ne paient pas assez comparé au jeu des billes » · « Je ne vois pas la mécanique de comment faire venir le client au magasin ».
+
+Les trois constats étaient exacts, et chacun avait une cause structurelle.
+
+## 1. 🎡 Les boss ouvrent enfin quelque chose
+
+**Constat** : le boss du shooter donnait une capsule dorée puis rien ; le boss du niveau 5 et celui du niveau 50 étaient structurellement identiques. Le boss hebdo de l'Arène passait la carte en gris pendant 7 jours.
+
+**Le parcours devient une suite de CHAPITRES de 5 niveaux**, chacun refermé par son boss. Un chapitre ouvert fait trois choses visibles : sa **perle signature entre en jeu et ne repart plus**, **six silhouettes de plateau inédites** rejoignent la rotation à partir du chapitre 4, et le boss lui-même durcit son souffle givré. Le renfort démarre au **niveau 16**, exactement là où tous les dosages existants plafonnent (glaçons 13, bombes 14, givre 16, budget 24) : **les niveaux 1-15 sont inchangés bit à bit**. Dans `parcours.tsx`, le joueur voit venir le prochain palier et ce qu'il ouvrira.
+
+Deux perles inédites accompagnent les chapitres 4 et 5 : 💧 **Cascade** (rase sa colonne — le miroir vertical de la Paille) et 🧲 **Aimant** (supernova locale, fenêtre 5×5). 9 nœuds Skia chacune, dans la bande des six perles du 27/07.
+
+Le **boss hebdo devient une revanche** : rejouable à volonté, **un cran plus fort chaque jour de la semaine** (mardi = palier 2, dimanche = palier 7). **Zéro récompense**, dit noir sur blanc sur la carte et dans le récap. La branche de revanche n'appelle **aucune** fonction de crédit — pas même `victoireBoss()` « à vide », un appel inerte étant une bombe à retardement.
+
+### 🔴 Neuf niveaux boss étaient arithmétiquement ingagnables
+Découvert en chemin : les PV du boss suivaient `26 + 4n` (186 au niveau 40, 266 au 60) alors que le budget de tirs plafonne à 25 dès le niveau 24 — il fallait **7,4 dégâts par tir quand le maximum mesuré est 4,6**. Trois causes cumulées, toutes corrigées : PV bornés par le budget réel ; le « mur invisible » ne provisionnait pas les rangées que le boss fait tomber lui-même ; et les blocs, qui n'infligent aucun dégât, saturaient le plateau (26 spéciales pour 34 cases au niveau 20). Ce sont les **5ᵉ à 13ᵉ niveaux ingagnables** livrés par le projet.
+Bot en force brute, niveaux 1-60 : **41/60 → 56/60 gagnés, boss 3/12 → 12/12**.
+
+## 2. 💰 Les combats paient enfin
+
+**Constat** : `recompenseRang` = `min(200 + 45r, 700)` — le plafond était atteint au **rang 12**, après quoi monter en rang ne rapportait plus rien. Le shooter, lui, ne plafonne jamais (650 par première réussite + capsule tous les 3 niveaux). La Tournée était le mode le plus mal payé du jeu (60 perles par combat en médiane) alors que c'est le **seul où perdre efface toute la run**.
+
+| Rang | 1 | 5 | 10 | 15 | 20 | 30 |
+|---|---|---|---|---|---|---|
+| avant | 245 | 425 | 650 | 700 | 700 | 700 |
+| après | 245 | 425 | 650 | **819** | **883** | **951** |
+
+Le mur devient une montée à demi-vie vers une asymptote de 1 000 (`ARENE_RANG_LINEAIRE = 13`, `ARENE_DEMI_RANGS = 8`), **strictement croissante jusqu'au rang 48** alors que le meilleur compte mesuré décroche au 50. Rythme des capsules `%5/%10` → **`%3/%6`** : 270 → **405** perles de valeur par victoire (le shooter en donne 575). Valeur totale par combat rapportée au shooter : rang 15 **79 % → 100 %**, rang 30 **79 % → 111 %**.
+
+Tournée : prime de risque **cumulative** (`TOURNEE_PERLES_RISQUE = 30`, palier à l'étape 6), **nulle à l'étape 1** — le plancher anti-farm de 80 perles est intouché. Une run médiane du compte maximal passe de 144 à **492 perles par combat**, soit 84 % du tarif d'Arène du même joueur.
+
+`PERLES_DEFAITE_ARENE` reste à **45**, volontairement : une consolation indexée sur le rang serait farmable en concédant instantanément. L'écart perdre/gagner se resserre de 6,4 % à 4,9 %.
+
+**Impact sur les prix réels** : le chemin le plus rapide vers une boisson (rang 25, multiplicateur maximal ×8,32) passe de 10,3 à **7,8 combats, −24 %**. Ce chemin était déjà le plus rapide du jeu ; la protection reste le **plafond mensuel** (`parMois`), inchangé et hors périmètre.
+
+## 3. 🧋 La boutique est enfin visible dans le jeu
+
+**Constat, et c'était le plus important** : la mécanique existait et était branchée — **la Gorgée Fraîche** — mais **rien ne la promettait avant**. Elle n'apparaissait qu'*après* la visite, en modale surprise ; le seul élément visible pré-visite était une pastille qui ne s'affiche que quand le ×2 est **déjà** actif. Un joueur qui n'était jamais venu ne pouvait pas découvrir que venir paie. Une récompense que le joueur ignore ne change aucun comportement : elle ne fait que remercier ceux qui seraient venus de toute façon — exactement la subvention que le projet cherche à supprimer.
+
+Une **carte permanente** dans le hub, après la grille des modes, promet la Gorgée avant la visite : les lots en détail, la condition réelle (« ta carte de fidélité scannée en caisse » — pas seulement entrer), et le temps restant du ×2 s'il tourne. Ton **menu, jamais cadenas** ; aucun compte à rebours anxiogène — le seul temps affiché est celui d'un bonus **déjà acquis**.
+
+**Aucun chiffre n'est en dur** : tout vient de `gorgeePourBoissons(1)`, la fonction que `crediterGorgee` appelle réellement pour payer, et de `GORGEE_FRAICHE`. Vérifié par mutation de l'économie en mémoire, avec contre-essai (trois chiffres re-figés à la main : le filet les refuse).
+
+## 4. 🎫 Le Passeport de la Carte est prêt à basculer
+
+Les **deux derniers mappings sont tranchés** (décisions de Yoann) : **Flantastique → la famille vanille** (4 saveurs sur 3 catégories, aucune réclamée par une autre carte — un flan est une crème vanille) ; **Bubble Master → les 23 autres cartes réunies**, via une nouvelle variante `{ par: 'collection' }`. Elle n'est **pas gratuite** : sous Passeport actif, elle n'entre dans le vivier des capsules qu'à 23/23. Plus aucune carte hors set commun n'est gratuite — la brèche est fermée.
+
+**L'interrupteur devient serveur** (`app_config`, clé `passeport_carte`), sur le modèle exact du flag `jeu` : lecture serveur + cache + repli. Précédence **serveur > cache > défaut compilé (`false`)**, fail-closed. Yoann peut donc basculer **et rebasculer en secondes, sans OTA** — c'était la condition pour que le changement le moins réversible du projet devienne réversible.
+
+**`PASSEPORT_ACTIF` reste à `false` et rien n'a été basculé.** Ne pas le passer à `true` avant que la caisse publie réellement `achats_lignes`, sinon on verrouille la collection sans donner la clé.
+
+Le jour de la bascule, pour un joueur à 12 cartes (mesuré) : **il ne perd rien** ; son vivier passe de 24 à 12 cartes, donc chaque capsule devient un doublon garanti ; ses 12 cartes manquantes deviennent un **menu** ; Bubble Master affiche « 🏆 Réunis les 23 autres cartes 12/23 ». Retour arrière sans perte.
+
+**Fuite fermée au passage** : le comptoir de troc de Sam offrait une carte payante **400 jours sur 400** à un joueur sans le moindre achat — soit les 18 cartes payantes en 18 jours, gratuitement. L'interrupteur aurait été décoratif. Restreint au même vivier que les capsules, **uniquement quand le Passeport est actif**.
+
+## 🔴 Une famille de bugs de sauvegarde, découverte et fermée
+
+La couverture de tests a révélé que `migrerSauvegarde` assainissait `collection`, `niveauxCartes` et `goutCartes`, mais recopiait **onze sous-objets par spread brut**. Une sauvegarde corrompue les traversait intacte. La règle générale, désormais écrite en tête du bloc : **une comparaison n'est pas un garde-fou contre `NaN`** — `Math.max(1, NaN)` vaut `NaN`, `'nawak' < 30` est `false`, et `'340' + 26` vaut `'34026'`.
+
+| Faille | Avant | Après |
+|---|---|---|
+| `arene.rang` non numérique | `perles = NaN` → poussé au serveur en `null` **et** `etatEstVierge` renvoie `true` → **progression écrasée en silence** | rang 1, 245 perles |
+| `pass.xp: 'nawak'` | **+2 345 perles + toutes les capsules + la dorée finale** — identique à `xp: 99999` | +295, identique à `xp: 0` |
+| `classement.pc: "340"` | `'340' + 26` = **34 026 PC, tier « Boba Légende »** au lieu du tier 2 | 366 PC, tier 2 |
+| **`prixMois.achats` non numérique** | **16 boissons RÉELLES obtenues au lieu d'une** — en euros, pas en perles | 1 = `parMois` |
+| 7 autres sous-objets | 12 champs numériques arrivaient non numériques dans l'état vivant | 0 |
+
+Corrigé à **deux niveaux** : la migration assainit, **et** les fonctions de calcul refusent une entrée non finie. Coercition **avant** test de finitude (`"12"` garde sa valeur 12) ; les migrateurs **assainissent sans jamais purger**, tolèrent `undefined`, et **conservent les champs inconnus**.
+
+Régression du lot boss corrigée dans la foulée : `palierInfo(NaN)` levait, et le crash remontait jusqu'à `creerNiveau` puis au rendu de `parcours.tsx` — une sauvegarde abîmée donnait un **écran rouge irrécupérable** au lieu d'un niveau bizarre.
+
+Et un défaut silencieux du générateur : `poserSpecial` **perdait des perles sans le dire** (niveau 15 : une paire de portails promise, zéro posée ; niveau 49 : Supernova de chapitre absente). Deux exigences désormais garanties : **une paire est entière ou absente**, et **une perle promise est réellement posée** — à défaut, la demande est réduite en amont plutôt que perdue en silence.
+
+## Validations
+
+`npx tsc --noEmit` **exit 0** sur tout le projet · `npm run test:jeu` **vert 5 fois de suite** (~9,5 s) · `git diff --check` propre. Le harnais passe de 4 463 à **~5 300 assertions** (+1 173 lignes, ajoutées en fin, rien retiré ni déplacé ; `instantaneEtat() === null` reste la première après le chargement du store).
+
+**Campagne de mutation : 19 mutations sur 19 détectées.** Chaque nouveau test a été vérifié en cassant volontairement le correctif qu'il protège — un test qui ne sait pas échouer ne prouve rien. Deux assertions initialement écrites ne mordaient pas et ont été renforcées.
+
+Bot en force brute, niveaux 1-80, avant/après chaque lot : aucune régression.
+
+## Compatibilité
+
+`VERSION_SAUVEGARDE` reste à **2**. Aucun champ persisté ajouté par les lots boss et hub (tout est dérivé de `aventure.niveauMax` et du jour de la semaine — un palier déductible ne peut pas se désynchroniser d'une sauvegarde). L'interrupteur du Passeport vit **hors** de `EtatBobaQuest` : il ne consomme aucune révision et ne voyage pas d'un téléphone à l'autre. JS pur, aucune dépendance native : **OTA-compatible**.
+
+## Pièges à retenir
+
+1. **Un plafond atteint tôt est un mur invisible.** `min(200 + 45r, 700)` plafonnait au rang 12 pour un contenu joué jusqu'au rang 50 : 38 rangs payaient tous pareil.
+2. **Une récompense que le joueur ignore ne change aucun comportement.** La Gorgée Fraîche était complète, testée, branchée — et invisible.
+3. **Une comparaison n'est pas un garde-fou contre `NaN`.** Onze sous-objets de sauvegarde le prouvaient.
+4. **Vérifier la faisabilité des objectifs en JOUANT, pas en calculant.** Neuf niveaux boss impossibles ont franchi toutes les revues arithmétiques.
+5. **Un appel inerte est une bombe à retardement** : la revanche n'appelle pas `victoireBoss()` « à vide », elle n'appelle rien.
+6. **Mesurer avant de régler.** Un correctif de faisabilité boss a d'abord visé les dégâts par tir (aucun effet mesuré, 4 runs sur 32 aux trois valeurs testées) alors que le vrai goulot était la marge de rangées (4/32 → 25/32 à cible inchangée).
+
+## Statut
+
+**CODE LOCAL — non commité, non publié.** Périmètre : 100 % jeu (`src/app/jeu/**`, `src/components/jeu/**`, `src/store/jeu.ts`, `src/lib/app-config.ts`, `scripts/test-jeu.cjs`). `package.json` / `app.json` / `eas.json` inchangés.
+
+## 🔐 Sécurité Supabase — 5 fonctions de trigger retirées de l'API publique (27/07/2026, APPLIQUÉ EN PRODUCTION sur la base, PAS un changement de code app)
+
+**Objectif** : l'advisor de sécurité Supabase (`get_advisors type=security`) signalait 19 fonctions `SECURITY DEFINER` appelables par les rôles `anon`/`authenticated` via `/rest/v1/rpc/…`. Le tri a montré que **5 d'entre elles sont des fonctions de TRIGGER** (type de retour `trigger`), donc jamais destinées à être appelées à la main — les exposer en RPC était une porte inutile, et deux touchent à la fidélité/parrainage (effets de bord à privilèges élevés).
+
+**Systèmes concernés** : base Supabase `zpnoopitysojsvuqnbuo`, schéma `public`. **Aucun fichier de l'app modifié.** C'est une modification SQL directe en production, pas une OTA ni un build.
+
+**Comportement exact / ce qui a été fait** :
+```sql
+revoke execute on function
+  public.audit_trigger(),
+  public.fidelite_cloud_anti_regression(),
+  public.fidelite_demande_cloud_instant(),
+  public.fidelite_parrainage_instant(),
+  public.profils_verrou_naissance()
+from public;   -- ⚠️ FROM PUBLIC, pas FROM anon/authenticated
+```
+
+**Valeurs / règle importante — LE PIÈGE** : un premier `REVOKE … FROM anon, authenticated` avait tourné **sans erreur mais sans effet**. L'`EXECUTE` de ces fonctions venait de **PUBLIC** (défaut Postgres : toute fonction naît avec `EXECUTE` pour PUBLIC), dont `anon`/`authenticated` héritent. Il faut donc **révoquer à PUBLIC**, pas aux rôles nommés. Toujours vérifier avec `has_function_privilege('anon', oid, 'EXECUTE')` APRÈS, jamais se fier au « pas d'erreur = fait ».
+
+**Validations effectuées (après application)** :
+- `has_function_privilege` : `anon` = false, `authenticated` = false, `service_role` = **true** (le backend garde l'accès) sur les 5.
+- `pg_trigger` : les triggers restent **actifs et inchangés** — `audit_trigger` en pilote 11, les 4 autres 1 chacun. Un trigger s'exécute au nom du propriétaire de la table, indépendamment de `EXECUTE` : la révocation ne les affecte pas.
+
+**Compatibilité / ce qui pourrait avoir cassé** : rien ne devrait être impacté — aucun client légitime n'appelle une fonction de trigger en RPC. **Si quelque chose casse**, le symptôme serait un code app ou un flux caisse qui faisait un `supabase.rpc('fidelite_demande_cloud_instant' | 'fidelite_parrainage_instant' | 'activer_ma_carte'…)` en direct (au lieu de laisser le trigger se déclencher sur INSERT/UPDATE). À vérifier côté POS et app : un appel `.rpc()` vers l'un de ces 5 noms renverrait désormais une erreur de permission. **`activer_ma_carte` n'est PAS dans le lot révoqué** (c'est un vrai endpoint RPC, retour `text`), donc l'activation de carte express n'est pas touchée.
+
+**REVENIR EN ARRIÈRE si besoin** (restaure l'état exact d'avant) :
+```sql
+grant execute on function
+  public.audit_trigger(),
+  public.fidelite_cloud_anti_regression(),
+  public.fidelite_demande_cloud_instant(),
+  public.fidelite_parrainage_instant(),
+  public.profils_verrou_naissance()
+to public;
+```
+
+**Reste à faire (non fait, non urgent)** :
+- Protection mots de passe compromis (HaveIBeenPwned) désactivée → Dashboard : Authentication → Policies → Leaked password protection (un clic, pas faisable en SQL).
+- `activer_ma_carte` et `rate_limit_check` restent appelables par `anon` (probablement voulu : borne, limiteur de débit) — à relire pour confirmer leurs gardes internes, pas un correctif automatique.
+- Les 57 tables « RLS activé sans policy » sont le motif **deny-by-default voulu** (accès service_role/Edge only). **Ne PAS y ajouter de policy** en croyant corriger un trou : ce n'en est pas un.
+
+**Statut** : ✅ appliqué en production sur la base le 27/07. Aucune migration de fichier, aucun déploiement d'app associé.
+
+## 🩹 Correctifs shooter + combat, et réconciliation avec le chantier Codex (28/07/2026, CODE LOCAL, PAS D'OTA)
+
+**Objectif** : reprendre l'amélioration du jeu et fermer des défauts documentés mais non corrigés, après avoir vérifié que mon travail et le chantier parallèle de Codex (« synchronisation automatique achats → collectibles ») n'avaient pas divergé.
+
+### 0. Réconciliation Codex — RAS
+La machine portait **mon travail + celui de Codex**, en additif. Codex a créé `src/lib/synchronisation-achats-jeu.ts` (relève `achats_lignes` publié par le POS après fiscalisation, appelle `appliquerPasseport` + `appliquerGout`, notifie l'UI, idempotent par curseur `created_at` synchronisé au compte) et `src/app/jeu/shooter.web.tsx` (repli web du shooter, que l'audit avait justement recommandé), et a câblé la synchro dans `_layout.tsx`. **Vérifié** : `appliquerPasseport` compare toujours à `exemplairesPasseport` (jamais à la collection vivante) et **ajoute** au lieu de rétablir — la garde anti-pompe-à-doublons tient même appelée en boucle par la synchro. `tsc` 0 erreur sur l'arbre fusionné, tests verts. Aucun écrasement.
+
+⚠️ **Piège à retenir** : le cache de `device_stage_files` a servi une version PÉRIMÉE (tailles d'origine, marqueurs absents) alors que le disque avait la bonne version. Toujours vérifier le contenu réel via `device_bash` + `grep` / `shasum`, jamais se fier au staging seul pour un diagnostic « mon travail a-t-il disparu ». Contournement : copier les fichiers vers un dossier `tmp/` neuf sur la machine via `device_bash`, puis stager depuis là.
+
+### 1. 🟠 Shooter — le renfort de chapitre n'est plus jamais sacrifié
+Au-delà du niveau ~20, `genererGrilleNiveau` complétait les motifs par des rangées pleines : le niveau **49 tombait à 0 case libre** et sa Supernova de chapitre n'apparaissait jamais (un chapitre qui promet une perle sans la livrer). `alignerSurPoses` masquait le trou. Correctif (`rationnerSpeciales` + `cellulesSilhouette`) : le total des spéciales de base est borné par la matière réelle, en **réservant d'abord la place du renfort** + un plancher plat de 8 perles ordinaires ; le débordement est raboté **blocs d'abord**, jamais le renfort. **Mesuré** : renforts absents 1 → **0** sur les niveaux 16-120 ; plancher de perles ordinaires 0 → **8** ; niveau 49 Supernova absente → présente. Boss 50/60/70/80 battables, 0 orpheline au départ.
+
+### 2. 🔴 Shooter — un vrai niveau ingagnable trouvé et corrigé (le 17)
+Un bot fort (2-3 coups d'anticipation, 4 personnalités, recherche sans descente à 300 tirs) a **prouvé** que 5 des 6 niveaux suspects (8, 24, 41, 56, 57) sont gagnables, mais que le **niveau 17 était réellement INGAGNABLE** : ses 8 blocs (glaçon ×4, roche ×2, portail ×2) **muraient ses 3 capsules** — 0 capsule libérée sur 4000 parties aléatoires + recherche exhaustive. C'est le 14ᵉ niveau ingagnable trouvé dans le projet. Correctif (`blocsMurent`) : les blocs sont exclus des niveaux **capsules** exactement comme des **nettoyer** (« ne pas livrer un objectif que le plateau interdit »), réservé à `n > 14` pour préserver les niveaux figés. Après : le bot gagne le 17.
+
+### 3. 🟡 Shooter — étiquette « NOUVELLE PERLE » honnête
+Aux tours de boucle des chapitres, la promesse de perle s'affichait encore alors que la perle était déjà connue. Nouveau champ dérivé `Palier.premiereFois` (le moteur porte le fait, pas le texte) ; `parcours.tsx` n'affiche la promesse qu'au premier passage, un libellé neutre ensuite.
+
+### 4. 🔴 Combat — fuite du duel d'ami fermée (deep-link)
+`resoudreDuelAmi(gagne, miseId, gainId)` créditait `gainId` **venu d'un paramètre d'URL** : un deep-link forgé se faisait créditer n'importe quelle carte, légendaire comprise. Correctif : `gainDuelAmiDuJour(e?, jour?)` (pure) dérive une carte de `equipeSam(cleJour())` (commun/rare/épique, **jamais de légendaire**, privilégie une non possédée) ; `resoudreDuelAmi` **rejette** un id hors roster et crédite le dérivé, puis **renvoie** l'id réellement crédité (l'écran lit ça, plus l'URL). `arene.tsx` promet la même carte dans la modale. **Prouvé** : `gain=taro-queen` forgé → collection inchangée, le store crédite une carte de Sam. Amical (`amical=1`) et crédit légitime intacts, un seul `emit()`.
+> Résidu mineur non fermé (valeur faible, hors périmètre) : un deep-link contourne encore la limite de 3 mises/jour ; l'impact est fortement réduit (on ne gagne qu'une carte commun/rare/épique de l'équipe réelle de Sam, et seulement en gagnant). Fermeture propre = tracer la mise engagée comme état autoritaire (nouveau champ persisté).
+
+### 5. 🟡 Combat — revanche du boss dosée pour rester jouable
+Personne n'avait joué la revanche aux paliers hauts. Mesuré : l'ancien `ATK 0,10 / PV 0,22` créait un **heal-lock** sur le gimmick `regen` (soin ÷ dégâts = 7,2 au palier 7, boss finissant à 100 % PV) et des combats de 27-30 rounds. Correctif : la difficulté monte par l'**attaque**, plus par les PV (`REVANCHE_ATK_PAR_PALIER 0,10 → 0,12`, `REVANCHE_PV_PAR_PALIER 0,22 → 0,00`). Courbe obtenue (500 seeds) : palier 7 dur mais faisable pour une bonne équipe (regen 41 % avec un stunner, bouclier 48 %, zone-immune 60 % en équipe maxée), **terminaison garantie**, rounds max 26 (parité avec le boss de base), plus de heal-lock, aucun one-shot.
+
+### Validations
+`npx tsc --noEmit` **exit 0** sur tout le projet · `npm run test:jeu` vert **5 fois de suite** (~12 s) · `git diff --check` propre. Le harnais gagne 5 familles de tests, **chacune prouvée mordante** contre le code pré-correctif (anti-soupe, blocs-capsules, premiereFois, gainId forgé crédité, borne de dosage revanche). Aucun nouveau bug trouvé par l'agent de tests. Bornes protégées : `REVANCHE_PV_PAR_PALIER ≤ 0,02` et `REVANCHE_ATK_PAR_PALIER ∈ ]0 ; 0,16]` verrouillées par un test de source — un futur réglage qui les dépasse échoue.
+
+### Compatibilité
+`VERSION_SAUVEGARDE` reste à **2**, `PASSEPORT_ACTIF` à **false**. Correctifs shooter = génération de niveaux (aucun champ persisté), **niveaux 1-15 inchangés bit à bit** (test figé). Correctif duel = logique de crédit du store, pas de nouveau champ. JS pur, aucune dépendance native : **OTA-compatible**.
+
+### Pièges à retenir
+1. **Un objectif doit être borné par la matière RÉELLE du plateau, jamais par une formule en `n`.** Le niveau 17 (blocs murant les capsules) est le 14ᵉ niveau ingagnable ; seule une force brute qui JOUE les attrape, pas une revue arithmétique.
+2. **Ne jamais faire confiance à un id venu de l'écran / d'un paramètre d'URL** : le store re-valide toujours. Même classe que la pompe à doublons.
+3. **Une difficulté qui monte par les PV rouvre toute dérive de soin** (regen = % des PV max) : faire monter par l'attaque.
+4. **Le cache de staging ment** : diagnostiquer « travail perdu ? » toujours sur le disque réel.
+
+**Statut** : code local, non commité, non publié. Fichiers touchés cette session : `src/components/jeu/moteur-shooter.ts`, `src/app/jeu/{parcours,duel,arene}.tsx`, `src/store/jeu.ts`, `scripts/test-jeu.cjs`.
+
+# 🗼 BOBA TOWER — « La Tournée des Saveurs » : prototype jouable du 2e jeu (29/07/2026, CODE LOCAL, PAS D'OTA)
+
+**Demande de Yoann** : un deuxième jeu en parallèle de Boba Quest — compréhensible en 5 s, un seul doigt, sessions de 30-60 s, records/combos/défis quotidiens, lié aux visites réelles pour les vrais lots, masquable à distance, sans rien dégrader de Boba Quest. Séquencement imposé : audit → architecture → **prototype** → validation du ressenti **avant** toute économie. **Ce lot livre le prototype ; AUCUNE économie réelle n'est branchée.**
+
+## Fichiers touchés (liste EXHAUSTIVE — règle de verrouillage multi-sessions)
+- **NOUVEAU** `src/components/boba-tower/moteur-tower.ts` — moteur PUR (711 l., zéro import, zéro Math.random/Date.now)
+- **NOUVEAU** `src/app/boba-tower.tsx` — écran unique, route auto-découverte `/boba-tower`
+- `src/lib/app-config.ts` — flag `boba_tower` (113 insertions, 0 suppression, existant intact)
+- `src/app/index.tsx` — carte d'entrée vert pâle sous la carte Boba Quest, gated par `useTowerVisible()`
+- `src/components/app-tabs.tsx` + `src/components/app-tabs.web.tsx` — route déclarée **cachée dans les DEUX miroirs** (pattern exact de `jeu` : jamais de `href` avec `tabBarButton`)
+- `scripts/test-jeu.cjs` — bloc « 🏗️ BOBA TOWER » auto-compilé, placé AVANT la ligne canonique
+**JE N'AI PAS TOUCHÉ** : tout `src/components/jeu/**`, `src/store/jeu.ts`, `src/app/jeu/**`, la synchro-achats de Codex. Boba Quest est inchangé à l'octet près.
+
+## Le concept implémenté
+Un ingrédient oscille au-dessus d'un gobelet géant (onde **triangle**, vitesse constante — équitable et 100 % reproductible) ; **un tap** le fait tomber. `offset = |x(t) − centre du sommet|` → PARFAIT ≤ 6 u / BIEN ≤ 16 / BANCAL ≤ 26 / RATÉ au-delà (pas posé). Instabilité 0..6 (parfait −1, bancal +1, raté +2) : à 6, ou si la dérive du centre dépasse 20 u, **la boisson bascule**. Recette de 16 ingrédients ; tout poser = couvercle + bonus de finition (+400, +40×stabilité restante, +200 sans-faute). Score par pose `(50 + centrage×50) × (1 + 0,25×min(combo,8))` — le combo = parfaits consécutifs, un BIEN le conserve, bancal/raté le cassent. Période 2200 ms, −7 % tous les 4 ingrédients (plancher 1200). 5 ingrédients spéciaux seedés (🧊 glaçon lent/punitif, 🫧 popping qui pardonne ×0,55, 🍓 fraise rapide ×2 pts, 🌙 mini fenêtres ×0,7, 🍮 mousse qui glisse de +6 u), jamais deux de suite. **Défi du jour** (5 variantes : Vent, Pressé, Gobelet étroit, Pluie de minis, Tout-glaçon) + **3 objectifs quotidiens** + **série de jours sans malus** — tous dérivés d'un seed de date, purs. Records locaux (`bobaTower.*` AsyncStorage), record du défi séparé par jour. Onboarding 1 bulle, rejeu instantané, haptiques via `@/lib/juice`, **pas de son** (module audio absent du binaire — contrainte connue).
+
+## Simulation (200 parties × 3 profils, seedée)
+Bon joueur : **100 % de victoires**, 30,7 s, score médian 4 666. Joueur moyen : **87 %**, 36,0 s, 2 509. Joueur qui rate : 12 %, 25,6 s. Défis : 70-86 % (moyen). Cible « satisfaisant dès la première partie » atteinte sans retoucher un seul chiffre du cadrage.
+
+## Le toggle distant (indépendant de Boba Quest)
+Clé `app_config.boba_tower`, valeur `{actif, selection, admin}` — même forme et même parseur-pattern que `jeu`, cache `appConfig.towerActif`, **fail-closed** (ligne absente ou réseau KO sans cache → caché ; `__DEV__` → visible ; admins → `admin !== false`, canal du pilote). **La ligne n'existe pas encore en base → aujourd'hui : invisible pour tous les clients, visible pour les admins et en dev.** Masqué = aucune carte, aucun lien mort (la carte d'accueil et l'écran se gatent tous deux). `selection` est parsé/préservé mais ignoré : la sélection par membre est phase 2 (proposition : colonne `jeu text default 'quest'` sur `jeu_acces_membres`, PK (profil_id, jeu)).
+
+## Règles économiques — PROPOSÉES, RIEN N'EST BRANCHÉ
+La ligne quête de l'écran est purement informative. Phase 2, après validation du ressenti par Yoann :
+- **Récompenses réelles** : RÉUTILISER `jeu_recompenses_catalogue`/`demandes`/Edge `jeu-recompenses` tels quels — nouvelles lignes de catalogue `origine='tower'`, codes `tower_*`, `preuve_vente_requise=true`, plafonds `limite_periode`. Même parcours caisse que Boba Quest (préparer → scan → confirmation caissier). Aucun deuxième système.
+- **Clés de boutique** : 1 clé = 1 **jour distinct** avec achat carte scannée, lues depuis `achats_lignes` (RLS par client, source de vérité serveur — même principe que le Passeport). Jamais indexé sur le montant dépensé. Le client ne compte rien lui-même.
+- **Sauvegarde cloud** : état Tower ≈ 1 Ko (records + cosmétiques) — proposition : colonne `jeu` sur `jeu_etat` (PK (profil_id, jeu)) + paramètre optionnel sur la RPC `sauver_jeu_etat`. Prototype : local uniquement.
+- Toujours : pas d'argent réel, pas de loot box payante, pas de bouton « marquer utilisé » côté client.
+
+## Validations effectuées
+`npm run test:jeu` vert **5 fois** dans la copie de travail ET sur la machine (sortie finale = ligne canonique Boba Quest, le bloc Tower s'imprime avant) · `npx tsc --noEmit` **exit 0** machine · `git diff --check` propre · miroirs app-tabs **synchrones** (diff des blocs = vide), aucun `href` combiné · hooks tous avant les returns anticipés · tests moteur : déterminisme 2-runs, bornes de fenêtres, combo, instabilité→bascule, dérive→bascule, victoire+sans-faute, spéciaux, défi/objectifs par date, entrées NaN sans propagation, durée simulée dans [25 s ; 70 s], **test de source : le moteur n'importe rien de Boba Quest** — 5 morsures prouvées (borne parfaite, combo, raté+2, Math.random interdit, reproductibilité).
+
+## Compatibilité / pièges
+- `VERSION_SAUVEGARDE` Boba Quest **intouchée** (2) ; Tower ne touche ni au store ni aux sauvegardes Quest.
+- ⚠️ **Toute nouvelle route sous le `Tabs` racine DOIT être déclarée cachée dans `app-tabs.tsx` ET `app-tabs.web.tsx`** — sinon expo-router fabrique un onglet par défaut (vérifié dans `expo-router/build/useScreens.js`). Pattern `jeu`, jamais de `href`.
+- ⚠️ Le harnais garde comme **dernière ligne** « Boba Quest : tests moteurs + store OK » : tout nouveau bloc s'insère AVANT elle (contrat de sortie de la batterie de release).
+- L'export web comptera **une route de plus** (30 → 31) : attendu, à ne pas prendre pour une anomalie au prochain préflight.
+- Bloc harnais Tower auto-compilé dans SON dossier temporaire (comme le PACK 5 — STORE) : la liste de compilation d'en-tête n'est pas modifiée.
+
+## Statut de déploiement
+**CODE LOCAL — non commité, non poussé, aucune OTA, aucun build, aucun toggle réel créé.** Pour le pilote : publier en OTA preview (JS pur, OTA-compatible), tester au doigt (la carte apparaît pour les admins), puis créer la ligne `app_config.boba_tower` le jour voulu. Prochaine étape après validation du ressenti : phase 2 (clés/récompenses/cloud/stock).
+
+## 🗼 Boba Tower v2 — « La tour vivante » (29/07/2026, retour de Yoann : « ennuyeux et répétitif », CODE LOCAL, PAS D'OTA)
+
+**Diagnostic acté** : l'erreur n'avait pas de conséquence physique (jauge comptable), le tap n'était jamais une décision, la partie était une liste fermée de 16 poses. Direction retenue par Yoann : « la tour vivante » + réglages nerveux (zone dorée / fever / boss-météo explicitement NON retenus — ne pas les réintroduire sans redemander).
+
+**Le modèle v2** (`moteur-tower.ts`, réécrit) :
+- **La largeur EST la barre de vie** : `LARGEUR_INITIALE 56` ; parfait +4 (plafond), bancal −6, raté −12 ; **mort à L < 22**. Les fenêtres de verdict **scalent avec L ET l'étage** (`0,96^(étage−1)`, plancher 0,72) : chaque erreur rend la suivante plus probable, et une partie parfaite finit quand même par se tendre. `instabilite` supprimé de l'état et du résultat ; la dérive (>20 → bascule) et l'inclinaison restent le 2e axe de mort.
+- **Rattrapage** : après bancal/raté, la tour vacille 900 ms (marqueur triangle pur) ; 2e tap à ±150 ms de l'équilibre → moitié de la perte récupérée, verdict compté BIEN pour le sans-faute, **zéro point, combo non ressuscité**, jamais de double peine, un seul par pose. `rattraper(etat, tMs)` pure. Cas limite : une 8e pose bancale **diffère le scellement** jusqu'à l'issue du rattrapage.
+- **Étages sans fin** : 8 poses = scellement (`bonus 200 + 4×L`, +100 sans-faute), `L = min(L0, L+10)`, et on continue — **la seule fin est la bascule**. Le record star devient l'étage atteint (`bobaTower.recordEtages`, records v1 conservés).
+- **Nerfs** : période 1900 ms, −8 %/3 poses, plancher 1050 ; spéciaux 1/3 (glaçon : perte double sur bancal, rattrapage cohérent +6).
+
+**Simulation (200 parties × 3 profils, seedée)** : moyen 37 s méd / étage 2-4 ; bon 140 s méd / étage 11 méd, p90 25, **0 partie infinie sur 600** (la spirale attrape tout le monde) ; faible 20 s / étage 1-2. Morts du bon réparties 52/48 entre largeur et dérive — les deux menaces vivent.
+
+**Validations** : harnais vert 5× copie + machine (bloc Tower réécrit, resté AVANT la ligne canonique Quest) ; `npx tsc --noEmit` exit 0 machine ; 5 morsures prouvées (spirale de largeur, altitude qui mord au palier calculé, plancher de mort, dérive, glaçon double). Boba Quest inchangé — l'isolement est reprouvé par le harnais à chaque run.
+
+**Fichiers** : `src/components/boba-tower/moteur-tower.ts` · `src/app/boba-tower.tsx` · `scripts/test-jeu.cjs` (bloc Tower uniquement). **Statut : code local, rien de commité/poussé/publié, aucun toggle créé.**
+
+## 🎡 La Roue du Mois — 3e jeu AUTONOME, sortie de Boba Quest (03/08/2026, demande de Yoann : « un jeu à part entière, activable séparément, design entièrement revu, propose des prix »)
+
+**Objectif** : la roue mensuelle quitte Boba Quest. Nouveau jeu indépendant sur `/roue`, interrupteur serveur SÉPARÉ `app_config.roue_du_mois` (`{ actif, admin }`, même contrat que `boba_tower` : fail-closed, admin visible par défaut, `__DEV__` visible), carte dédiée sur l'accueil (jaune pâle, sous la verte Tower), design refait (écrin violet forain, tics haptiques qui ralentissent avec la roue, cérémonie, double tour), et des lots RÉELS portés par le pont caisse `jeu-recompenses` — plus aucune perle virtuelle.
+
+**Systèmes concernés** : app cliente (nouveaux `src/components/roue/roue.ts` + `src/app/roue.tsx` ; édits `app-config.ts`, `recompenses-jeu.ts`, `app-tabs.tsx` + `app-tabs.web.tsx` (miroirs), `app/index.tsx`, `app/jeu/index.tsx`, `app/jeu/roulette.tsx`, `scripts/test-jeu.cjs`) **et base Supabase en production** (voir plus bas — 2 lignes de catalogue, 1 ligne app_config, 1 fonction SQL modifiée).
+
+**La table des lots (8 parts AFFICHÉES ÉGALES, poids réels en % — somme 100)** :
+`+1 tampon` 17 (`roulette_tampon_1`) · `Topping offert` 16 (`roue_topping`, NOUVEAU) · `Double tour` 14 (virtuel : re-spin qui s'exclut lui-même — le lot final est TOUJOURS réel) · `+2 tampons` 13 (`roulette_tampon_2`) · `−10 %` 13 (`roulette_reduction_10`) · `+3 tampons` 11 (`roulette_tampon_3`) · `Chantilly offerte` 9 (`roue_chantilly`, NOUVEAU) · `Boisson offerte` 7 (`roulette_boisson_l`). Écart max/min 17/7 ≈ 2,4 ; pire distorsion affichage/réel 12,5/7 ≈ 1,8. Les probabilités EXACTES restent affichées dans « Tes chances » sous la roue (doctrine parts égales du 27/07) — ne jamais retirer cette liste.
+
+**Comportement exact** :
+- Moteur pur `roue.ts` (zéro React/réseau/stockage, rng injecté, Date en paramètre — Math.random/Date.now INTERDITS dedans) : tirage pondéré avec exclusion renormalisée, `tirageComplet` (double tour → re-spin, finalId jamais 'double'), géométrie parts égales avec `rotationCibleVers`/`segmentSousPointeur` (aller-retour prouvé, marge ≥ 6° des coutures), `instantsDeCrans` (inverse analytique du cubic-out : les tics haptiques s'espacent comme une vraie roue), `cleDuMois`/`joursAvantMoisSuivant` (heure locale, « 1 j » le dernier soir du mois), `pourcentagesHonnetes`.
+- Écran `/roue` : résultat tiré AVANT l'animation (elle ne décide jamais), verrou mensuel local `roueDuMois.v1.tirage` persisté AVANT le spin (leçon du 26/07 : fermer l'app pendant la rotation ne perd pas le lot), parsing tolérant (JSON corrompu → « pas encore joué », le serveur borne le réel), roue FIGÉE sur le lot quand le mois est déjà joué, compte à rebours, statut caisse (`en_attente`/`appliquee`/`refusee` → « À présenter en caisse » / « Utilisé ✅ » / « Refusé »), envoi caisse automatique à l'arrêt + bouton « Préparer pour la caisse » en cas d'échec.
+- Pont caisse : `gain_local_id` DÉTERMINISTE `roue-AAAA-MM` → idempotent par construction (index unique `(client_id, gain_local_id)`), rejouable sans risque. Le quota serveur `roulette_mensuelle` (1 lot d'origine 'roulette'/mois, PARTAGÉ avec l'ancienne roulette Quest) borne le mois de transition : au pire un double tour de roue en août, jamais deux lots réels.
+- Ancienne roulette : la tuile du hub Quest est RETIRÉE, `/jeu/roulette` devient un `<Redirect>` vers `/roue`. La table `ROULETTE` d'economie.ts et `tournerRoulette` du store RESTENT (compat sauvegardes : `derniereRouletteMois` migre toujours) — plus aucune UI ne les alimente. Ne pas les supprimer sans migration de sauvegarde.
+
+**Valeurs / règles importantes** :
+- `roue_topping`/`roue_chantilly` : type `reduction`, `quantite: 1` (plancher imposé par la contrainte `quantite > 0` — la valeur est PUREMENT informative : la RPC de confirmation n'insère AUCUN mouvement fidélité pour une réduction ; le LIBELLÉ guide la caissière, la preuve de vente signée reste exigée). ⚠️ Si le POS affiche/applique « −1 % » : cosmétique, à ajuster côté POS ou me le dire.
+- L'erreur 409 de l'Edge (plafond, carte inactive…) arrive dans `error.context`, PAS dans `data` : `creerDemandeRecompenseJeu` lit désormais ce corps (best-effort) pour rendre les vrais messages. Sans ça, « plafond atteint » s'affichait « La demande n'a pas pu être préparée » et l'écran invitait à réessayer pour rien.
+
+**Base Supabase MODIFIÉE EN PRODUCTION le 03/08 (inerte tant que le toggle est fermé)** :
+1. Catalogue : +2 lignes `roue_topping` / `roue_chantilly` (origine 'roulette', regle 'roulette_mensuelle', limite 1, preuve exigée). Rollback : `delete from jeu_recompenses_catalogue where code in ('roue_topping','roue_chantilly');`
+2. `app_config` : +1 ligne `roue_du_mois` = `{"actif": false, "admin": true}` (fermé aux clients, visible admin). Rollback : `delete from app_config where cle = 'roue_du_mois';`
+3. Fonction `creer_demande_recompense_jeu` (migration `roue_du_mois_autorisation_autonome`) : le catalogue est lu AVANT l'autorisation, et un prix d'origine 'roulette' est AUSSI autorisé par l'interrupteur `roue_du_mois` (OR, jamais un remplacement — l'ancien chemin `jeu` continue de passer). Rollback exact : `_sauvegardes-supabase/2026-08-03-creer_demande_recompense_jeu-AVANT.sql` (gitignoré, sur le Mac).
+
+**Validations effectuées** : `tsc` strict → 0 erreur `src/` (l'erreur historique compte.tsx/google-natif est morte : le fichier manquait juste à la copie de travail) ; harnais 3× byte-identiques, bloc « 🎡 ROUE DU MOIS » AVANT la ligne canonique (« Roue du Mois : moteur pur OK » puis « Boba Quest : tests moteurs + store OK » en dernier) ; 4 morsures prouvées (poids 17→18, easing ³→², exclusion ignorée, marge supprimée — chacune nommant l'assertion qui a mordu) ; cohérence moteur↔SVG vérifiée (convention horaire depuis 12 h des DEUX côtés) ; RPC : appel réel `roue_topping` ok:true puis sonde SUPPRIMÉE (elle aurait occupé le quota d'août), branche roue prouvée sur table de vérité (fermée/client=NON, ouverte/client=OUI, fermée/admin=OUI).
+
+**Compatibilité** : sauvegardes Quest intactes (VERSION_SAUVEGARDE inchangée, champs roulette migrés comme avant) ; `boba_tower` non touché ; le mois de transition peut offrir UN tour de plus (verrous locaux distincts) mais jamais deux lots réels (quota serveur partagé).
+
+**⚠️ Piège reconductible documenté** : la copie de travail cloud était EN RETARD sur le Mac (Tower + commits Codex « préparer les prix ») — TOUJOURS re-comparer les empreintes `shasum` des fichiers partagés avec le Mac avant d'éditer `app-tabs*`, `index.tsx`, `app-config.ts`, `test-jeu.cjs`, et rebaser dessus. C'est ce qui a été fait ici (20 fichiers re-adoptés du Mac avant édition).
+
+**Statut** : ✅ code prêt et livré sur le Mac, base de prod préparée (toggle FERMÉ : `actif=false`, seul l'admin voit la carte). **Aucune OTA publiée** — publier le preview quand tu veux tester sur iPhone, puis basculer `actif=true` le jour de l'ouverture aux clients.
+
+## 🎡 Roue du Mois — prix ajustés + validité 30 jours + « choix en caisse » (03/08/2026, retours de Yoann sur le lot du jour même)
+
+**Décisions de Yoann actées** : (1) le lot topping devient **« 2 toppings offerts »** ; (2) **chantilly SUPPRIMÉE** (n'existe que sur les milkshakes — lot mort pour une partie des clients) et remplacée par **« −20 % »** ; (3) **JAMAIS un deuxième segment boisson** (surclassement compris) : la boisson offerte est déjà servie en taille MAX — règle inscrite en commentaire de `SEGMENTS_ROUE`, ne pas la réintroduire sans redemander ; (4) **les lots de la roue expirent 30 jours après le tirage** ; (5) activation = **choix en caisse** : le lot reste `en_attente` et réapparaît à CHAQUE scan tant que la caissière ne le confirme pas — c'est le comportement natif du pont, aucun code POS requis, seuls les textes de l'appli portent le « utilise-le quand tu veux ».
+
+**Table finale (parts égales, poids réels %)** : +1 tampon 17 · 2 toppings offerts 16 (`roue_topping`) · Double tour 14 (virtuel) · +2 tampons 13 · −10 % 13 · +3 tampons 11 · **−20 % 9 (`roue_reduction_20`, NOUVEAU)** · Boisson offerte 7. Segment `reduc20` : couleur bleu clair (slot de l'ex-chantilly), donc `TEXTE_SOMBRE` = {tampon1, double, reduc10, reduc20}.
+
+**Validité 30 jours — implémentation double verrou, serveur source de vérité** :
+- Moteur pur : `LOT_VALIDITE_JOURS = 30` + `expireLe(joueLe)` en jours CALENDAIRES (année/mois/jour + 30, heure conservée — PAS +30×24 h : une addition en millisecondes dériverait d'une heure aux changements d'heure). Testé dans le harnais (mois de 31 j, passage d'année, 31/01 + février bissextile, traversée de l'heure d'hiver) ; morsure prouvée (30→29 → AssertionError).
+- Appli : `TirageStocke.joueLe` (ISO, posé au tirage ; absent/illisible → repli 1er du mois stocké = échéance la plus courte, on SOUS-promet toujours). Carte du lot : « Valable jusqu'au J mois », puis « Expiré — retente ta chance le mois prochain » (pastille grise, bouton caisse masqué). Un lot `appliquee` n'expire jamais à l'affichage.
+- RPC `confirmer_demande_recompense_jeu` (migration `roue_du_mois_expiration_30j`) : garde `origine='roulette' AND created_at < now()−30j` → `{ok:false, erreur:'lot expire'}`, placée APRÈS les blocs de statut (l'idempotence « déjà appliquée » reste intacte). Rollback : `_sauvegardes-supabase/2026-08-03-confirmer_demande_recompense_jeu-AVANT.sql`.
+- Edge `jeu-recompenses` v6 (`demande-par-numero`) : filtre `.or('origine.neq.roulette,created_at.gte.<coupure>')` — les lots roue expirés DISPARAISSENT du scan POS, les autres origines ne sont jamais filtrées. ⚠️ La coupure ISO est émise SANS millisecondes (un point dans une valeur `or=` PostgREST est ambigu). Rollback : redéployer `_sauvegardes-supabase/2026-08-03-jeu-recompenses-index-AVANT.ts` (v5 ; `_shared/cors.ts` inchangé).
+- L'appli compte depuis le TIRAGE, le serveur depuis la CRÉATION de la demande (plus tard si hors-ligne) : l'échéance affichée est toujours ≤ celle du serveur — on n'affiche jamais valable un lot que la caisse refuserait.
+
+**Catalogue (prod, 03/08)** : `roue_topping` relabellisé « 2 toppings offerts (au choix) » (quantite reste 1, purement informatif pour un type reduction) ; `roue_chantilly` SUPPRIMÉ (0 demande, vérifié avant) ; `roue_reduction_20` créé (reduction, quantite 20, libellé identique au −20 % boutique pour la cohérence POS, origine roulette, regle roulette_mensuelle, limite 1). 7 codes d'origine 'roulette' = les 7 segments réels.
+
+**Validations** : tsc 0 erreur `src/` ; harnais 3× byte-identiques (nouveaux tests `expireLe` inclus) ; morsure 30→29 prouvée puis retour au vert ; RPC : sonde de 40 j → `'lot expire'` (garde) puis ABSENTE de la requête-filtre POS pendant que les lots roue récents et les autres origines restent listés ; sonde supprimée après coup (elle n'occupe aucun quota).
+
+**Statut** : ✅ appli livrée sur le Mac, catalogue + RPC + Edge v6 déployés en prod (toggle `roue_du_mois` toujours `actif=false` — rien de visible client). Toujours **aucune OTA publiée**.
+
+## 🎡 Roue du Mois — libellés « Double topping » + coupe 3 lignes (04/08/2026, retours de Yoann)
+
+**Décision** : sur la ROUE, libellé COURT « Double topping » (le « offert » quittait la part de 45°) ; l'explication complète « Double topping offert » vit dans le libellé de GAIN — carte du lot, cérémonie, liste « Tes chances », et catalogue caisse (« Double topping offert (au choix) », mis à jour en prod).
+
+**Implémentation** : `SegmentRoue.libelleGain?` (absent = `libelle`) dans `roue.ts` — la roue lit `libelle`, tout ce qui PARLE du gain lit `libelleGain ?? libelle` (`pourcentagesHonnetes`, `TirageStocke.libelle` au tirage, repli de `parserTirage`, pilule de cérémonie). `couperLibelle` (roue.tsx) passe de 2 à **3 lignes max**, critère = la ligne la plus LARGE (c'est elle qui mord les coutures), jamais un mot coupé, le moins de lignes qui tiennent. Vérifié pour les 8 libellés : max 48 px pour ~60 px utiles (l'ancien « 2 toppings offerts » laissait ~95 px en coupe 2).
+
+**⚠️ Épisode conteneur (04/08, à connaître)** : la copie de travail cloud a été RÉINITIALISÉE par un redémarrage (retour à un état d'avant la roue). Aucune perte : le Mac + Supabase portaient tout ; re-resynchronisation complète depuis le Mac (25 fichiers, empreintes vérifiées) avant toute édition. Le réflexe « re-comparer les shasums avec le Mac avant d'éditer » (entrée du 03/08) vaut AUSSI après toute coupure de session.
+
+**Validations** : tsc 0 erreur `src/` ; harnais vert (aucune assertion ne fige les libellés — vérifié avant de toucher) ; simulation de coupe des 8 libellés. Catalogue : `roue_topping` → « Double topping offert (au choix) ». **Toujours aucune OTA.**
+
+## 🎡 Roue du Mois — interrupteur OUVERT aux clients (04/08/2026, demande explicite de Yoann : « active-le dans l'écran client directement »)
+
+`app_config.roue_du_mois` passé à `{"actif": true, "admin": true}` en production. **Effet immédiat : AUCUN** — aucune OTA n'a encore embarqué le code de la roue ; l'interrupteur est ARMÉ. Dès qu'une mise à jour (preview pour tester, puis production) livre `/roue`, la carte apparaît pour TOUS les clients au prochain passage sur l'accueil, sans autre action. Pour refermer à tout moment : `actif=false` (fail-closed, la carte disparaît au prochain focus). **Toujours aucune OTA publiée — la publication reste soumise au « go » explicite.**
+
+## 🎁 Offres → caisse : bouton « Duo −50 % » dans l'éditeur d'offres (04/08/2026, volet appli du chantier POS offres)
+
+**Contexte** : Yoann veut des offres pilotées depuis son appli et appliquées AUTOMATIQUEMENT en caisse après scan du QR fidélité. L'essentiel EXISTAIT déjà des deux côtés : l'éditeur d'offres de `compte.tsx` (admin) écrit `remise_type`/`remise_valeur`/`cible_categories` (happy hour −%, −€/boisson, tampons ×N), et le POS applique tout seul depuis sa 0.28.159 (scan obligatoire, ligne dédiée sur le ticket). Ce lot ajoute le manquant : l'**offre duo**.
+
+**Comportement** : nouveau chip « 👯 Duo −50 % » dans « Avantage fidélité automatique en caisse ». Aucune valeur à saisir (le taux est l'offre : −50 % sur la boisson la MOINS chère, dès 2 boissons ciblées, UNE fois par ticket — calcul côté caisse, voir AGENTS.md de bubble-tea-pos au 04/08). Cible par défaut à la publication : toutes les catégories du catalogue cloud SAUF `mochi-glace` (constante `NON_BOISSONS` — un mochi ne compte ni comme 2ᵉ boisson ni comme moins chère) ; catalogue pas encore chargé → publication refusée avec message doux plutôt qu'un duo « toute la carte ». `remise_valeur` reste `null` pour un duo. La liste des offres publie un résumé « 👯 Duo : −50 %… ».
+
+**Règle serveur/caisse liée (décidée le 04/08, implémentée côté POS)** : UNE seule remise € par ticket — la meilleure pour le client (duo OU happy hour, jamais la somme) ; tampons ×N orthogonal et cumulable ; lots Boba Quest/Roue du Mois et boissons fidélité = des droits, toujours honorés en plus.
+
+**Fichiers** : `src/app/compte.tsx` uniquement. **Validations** : tsc 0 erreur `src/`, harnais vert (aucun test ne couvre compte.tsx — l'algorithme du duo est testé côté POS, 8 pass + 3 morsures prouvées). **Statut** : livré sur le Mac, PAS d'OTA publiée. La caisse ne comprendra `duo` qu'à partir de sa prochaine release embarquant offres-helpers 04/08 — publier une offre duo AVANT cette release est sans danger (type inconnu = ignoré par les caisses actuelles, garde 0.28.159).
+
+## 🎡 Roue du Mois — passe DA « plus Bubble » (04/08/2026, demande de Yoann)
+
+**Trois gestes, zéro mécanique touchée** : (1) **palette** — fini l'alternance clair/foncé, la roue passe aux pastels gourmands de la charte (vert boba, rose dragée #FFD6E8, jaune perle, lavande C.surViolet, rose bubble, vert pâle #DFF0BC, bleu) avec texte ENCRE partout ; le violet (C.violetClair) est réservé au SEUL segment du gros lot (boisson, texte blanc) — la hiérarchie se lit d'un coup d'œil. `TEXTE_SOMBRE` = tous sauf 'boisson'. (2) **Mascotte perle COURONNÉE au moyeu** (`MascottePerle couronne`, ui-kit) : composant RN posé HORS du rotor sur l'assiette blanche du SVG — elle reste droite pendant la rotation. Les cercles « perle violette » du moyeu SVG sont retirés (elle les remplace). (3) **Vagues signature** dans l'écrin violet (`VAGUES_ROUE_XML`, même idiome copier-coller que le header/carte fidélité de l'accueil).
+
+**Fichiers** : `src/components/roue/roue.ts` (couleurs de la table uniquement) · `src/app/roue.tsx`. Harnais vert (les couleurs ne sont pas figées par les tests — vérifié), tsc 0 erreur. Aperçu HTML régénéré à l'identique pour validation visuelle. **Toujours aucune OTA.**
+## 🚀 OTA PRODUCTION — La Roue du Mois chez les clients (05/08/2026, GO EXPLICITE DE YOANN : « tu peux mettre en ligne la roue dans l'appli client »)
+
+**Ce que reçoivent les clients** : la carte jaune **La Roue du Mois** sur l'accueil, l'écran `/roue`, un tour gratuit par mois, un lot RÉEL à présenter en caisse. L'interrupteur serveur `app_config.roue_du_mois` était **DÉJÀ** `{"actif": true, "admin": true}` en production (mis à jour le 04/08 à 15h24) : il ne manquait que le JS de l'appli. C'est précisément ce que cette OTA apporte — aucune migration, aucun changement de base dans ce lot.
+
+**Ce que les clients NE voient PAS** — vérifié flag par flag AVANT publication, chaque carte de l'accueil ayant son propre garde (`jeuFlag.visible` / `towerFlag.visible` / `roueFlag.visible`, aucun lien mort) :
+- **Boba Quest** : `app_config.jeu = {"actif": false, "admin": true, "selection": true}` → visible pour l'admin et les **2** membres actifs de `jeu_acces_membres` (base : 53 membres, 46 avec carte fidélité, 1 admin).
+- **Boba Tower** : la clé `app_config.boba_tower` **n'existe toujours pas** → `lireTowerFlags()` renvoie `{actif:false, adminVisible:true}` (fail-closed) → carte masquée aux clients, visible admin.
+- **Passeport de la Carte** : `PASSEPORT_ACTIF` reste `false`.
+
+**⚠️ COMMIT D'EMBARQUEMENT (décision Yoann du 05/08)** — une OTA publie **UN SEUL bundle** : il est techniquement impossible de n'expédier que la Roue. L'arbre contenait ~**16 700 lignes non commitées** appartenant à plusieurs sessions (Boba Quest Packs, Tournée des Maîtres, Gorgée Fraîche / Passeport, synchronisation achats→collectibles de Codex, Boba Tower). Un commit limité aux seuls fichiers de la Roue a été étudié puis **ÉCARTÉ, preuves à l'appui, car il aurait cassé `main`** :
+- `src/lib/app-config.ts` (fichier de la Roue) importe `passeportActif` / `definirPasseportActif`, qui **n'existent que dans la version non commitée** de `src/store/jeu.ts` (chantier Codex) — absents de `HEAD`.
+- `src/app/index.tsx` (carte de la Roue) importe `@/lib/visites`, qui **n'était pas suivi par git**.
+- (En revanche `CodeRecompenseReelle`, seul symbole que `roue.tsx` prend dans `economie.ts`, existe bien dans `HEAD` : c'est un import de TYPE, effacé à la compilation.)
+Le commit embarque donc **tous les chantiers présents dans l'arbre**, avec **liste de fichiers EXPLICITE** (`git add -A` reste interdit). Chaque chantier **conserve son entrée et son statut propres** dans ce journal ; leur code est désormais commité et publié, mais reste **invisible aux clients** par ses propres flags. Seul `"Publier OTA preview.command"` (aide locale) est laissé hors commit.
+
+**Validations avant publication** (05/08, sur le Mac, dans `~/Desktop/bubblestop-client`) :
+- `npm run test:jeu` ✅ — « Boba Tower : tests moteur OK · Roue du Mois : moteur pur OK · Boba Quest : tests moteurs + store OK ».
+- `./node_modules/.bin/tsc --noEmit` ✅ **0 erreur**. Les 5 seules erreurs constatées venaient de `_sauvegardes-supabase/2026-08-03-jeu-recompenses-index-AVANT.ts`, une sauvegarde de fonction **Deno** (dossier gitignoré) que `tsconfig.json` n'excluait pas : `_sauvegardes-supabase` est désormais dans `exclude`, pour que ce contrôle reste lisible et ne fasse plus de faux positif à chaque préflight.
+- `git diff --check` ✅ propre.
+
+**⚠️ Ce qui n'a PAS été fait, et le risque assumé** : **aucun essai sur `preview`**, aucun test au doigt sur build interne (démarrage, connexions e-mail/Apple/Google, barre d'onglets, Fidélité lisible). Yoann a explicitement choisi la production directe. Les tests automatiques et le typage ne couvrent pas un plantage d'exécution ni un défaut visuel : le rollback ci-dessous doit être connu **avant** de publier.
+
+**Rollback d'urgence** : relever le groupe stable **AVANT** de publier (`npx eas-cli@latest channel:view production`), puis, si besoin, `npx eas-cli@latest update:republish --group <groupe-stable> --branch production`. Ne jamais rollback sans avoir confirmé par `eas update:list` que l'update fautive est bien celle en ligne. **GROUPE STABLE RELEVÉ EN DIRECT LE 05/08 AVANT PUBLICATION** : canal `production` (ID `019f3d18-5831-796e-ac66-df7a6b4f09ab`) → groupe **`48d3eb7e-7f02-46f8-a7b4-1983dbc51fff`**, runtime **1.0.3**, iOS + Android, message « Boba Quest : combats enrichis, Comptoir de Troc, butins shooter, renommages, economie reequilibree » (publié une semaine plus tôt par `yio13`). C'est CE groupe qu'il faut republier en cas de problème : `npx eas-cli@latest update:republish --group 48d3eb7e-7f02-46f8-a7b4-1983dbc51fff --branch production`.
+
+**Compatibilité** : runtime **1.0.3**. Les binaires 1.0.2 ne reçoivent pas cette OTA. Réception côté client : 1 à 2 démarrages à froid. Un OTA n'apparaît jamais comme une mise à jour dans TestFlight ni dans les stores.
+
+**Fichiers du commit d'embarquement** (liste explicite, aucun `-A`) : `.gitignore` · `AGENTS.md` · `tsconfig.json` · `public/confidentialite.html` · nouveau `public/reglement-boba-quest.html` · `scripts/test-jeu.cjs` · `src/app/{index,compte,carte-cadeau}.tsx` · nouveau `src/app/roue.tsx` · nouveau `src/app/boba-tower.tsx` · `src/app/jeu/{_layout,index,arene,boutique,capsules,collection,duel,infini,parcours,roulette,shooter,troc}.tsx` · nouveau `src/app/jeu/tournee.tsx` · `src/components/{app-tabs,app-tabs.web}.tsx` · nouveau `src/components/roue/roue.ts` · nouveau `src/components/boba-tower/moteur-tower.ts` · `src/components/jeu/{arene.ts,collectibles.tsx,combat-skia.tsx,economie.ts,moteur-shooter.ts,plateau-skia.tsx,ui-jeu.tsx}` · nouveaux `src/components/jeu/{projectiles.tsx,shooter-juice.tsx,tournee.ts}` · `src/lib/{app-config,google-natif,recompenses-jeu}.ts` · nouveaux `src/lib/{achats,passeport-libelles,sauvegarde-jeu,synchronisation-achats-jeu,visites}.ts` · `src/store/jeu.ts`.
+
+**⚠️ VERRUE CONNUE, MESURÉE AVANT PUBLICATION — « Double topping » et « Chantilly » appliquent −1 % au ticket.** Les deux lots `roue_topping` et `roue_chantilly` sont de type `reduction` avec `quantite: 1` (plancher imposé par la contrainte `quantite > 0` de la base). Or le POS ne traite pas cette quantité comme informative : `src/customer/App.jsx` alimente `remiseManuelle = { type:'pourcent', valeur: Number(meilleureReduction.quantite), source:'boba-quest', label }` → le ticket porte une remise **−1 %** libellée « Double topping offert (au choix) », et `EcranFidelite.jsx` annonce « −1 % appliqués automatiquement au ticket ». Le lot lui-même reste honoré : le LIBELLÉ s'affiche à la caissière, qui donne le topping. Poids de la roue : topping **16/100** + chantilly **9/100** ⇒ **≈ 25 % des tours** tombent sur ce cas. Impact réel : quelques centimes de remise indue et une ligne de ticket trompeuse, jamais un lot perdu. **Corrections possibles, à décider** : (1) côté POS, exclure de `meilleureReduction` les lots d'origine `roulette` dont la quantité vaut 1 et n'afficher que la consigne caisse — propre, mais exige une nouvelle version POS (la 0.31.71 vient d'être publiée) ; (2) côté appli, remplacer ces deux segments par des lots réellement monétisables (−10 %, tampons, boisson) — part dans la même OTA ; (3) laisser tel quel, la caissière lisant le libellé. Yoann a publié en connaissance de ce point.
+
+**Incident au gel — verrou d'index orphelin (05/08)** : le premier `git add` a échoué sur `fatal: Unable to create '.git/index.lock': File exists`. Diagnostic avant tout geste : le fichier était **vide (0 octet) et daté du 26/07 15h30**, soit dix jours plus tôt, et **aucun processus `git` ne tournait** — vestige d'un `git` planté, pas une opération en cours. Remède : `rm -f .git/index.lock` puis relancer le `git add`. Ne jamais supprimer ce verrou sans avoir vérifié ces deux points (date/taille du fichier ET absence de processus git), sinon on corrompt une écriture réelle d'index. Même piège déjà rencontré dans `bubble-tea-pos`.
+
+**Statut à l'écriture de cette entrée** : commit + push + OTA production **à lancer par Yoann** (commande fournie dans la conversation). Le push déclenche aussi le déploiement web Cloudflare Pages du site client (il embarque `confidentialite.html` mis à jour et publie `reglement-boba-quest.html`).
+
+**À COMPLÉTER dès la publication** : groupe EAS, identifiants d'update iOS et Android, horodatage, nombre de modules bundlés, et sortie de `channel:view production` confirmant le groupe en tête. **À constater ensuite sur un vrai téléphone** : la carte jaune apparaît sur l'accueil d'un compte NON admin, un tour se joue, le lot part en caisse (`jeu_recompenses_demandes`, `gain_local_id = roue-2026-08`) et la caissière le voit au scan fidélité. Rappel : le quota `roulette_mensuelle` est **partagé** avec l'ancienne roulette de Boba Quest — au pire un membre qui avait déjà tourné en août ne pourra pas rejouer ce mois-ci.
