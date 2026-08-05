@@ -505,9 +505,13 @@ function RoueContenu() {
                 </Text>
               </View>
             )}
-            {!!verrou?.doubleTour && (
-              <Text style={styles.lotDouble}>Gagné après un nouveau tour 🌀</Text>
-            )}
+            {/* Le « nouveau tour » n'est PAS un lot : c'est un relanceur, et seul le
+                tirage final compte. La carte que le client présente en caisse ne doit
+                donc afficher QUE ce lot final — une mention « nouveau tour » à côté se
+                lit comme un second gain à honorer. Le pont caisse était déjà sain (le
+                code envoyé est celui du lot final, `finalId` n'est jamais 'double') :
+                c'était l'affichage qui mentait. `verrou.doubleTour` reste stocké, il
+                sert au rejeu de l'animation au rechargement. */}
             <View style={styles.statutRang}>
               <View style={[styles.statutPastille, {
                 backgroundColor: lotExpire ? C.texte3
@@ -574,7 +578,6 @@ function RoueContenu() {
                 {revele.libelleGain ?? revele.libelle}
               </Text>
             </View>
-            {!!verrou?.doubleTour && <Text style={styles.gainDouble}>… et avec un nouveau tour 🌀</Text>}
             <Text style={styles.gainAide}>
               {envoiEnCours
                 ? 'Préparation pour la caisse…'
