@@ -22,7 +22,7 @@ export type SegmentRoue = {
   /** Chance RÉELLE en % — la somme de la table fait exactement 100. */
   poids: number;
   /** Code canonique du catalogue caisse (validé côté serveur). `null` pour le SEUL
-   *  lot virtuel, « Double tour » : tout le reste se retire en boutique. */
+   *  lot virtuel, « Nouveau tour » : tout le reste se retire en boutique. */
   code: string | null;
   couleur: string;
   emoji: string;
@@ -55,7 +55,7 @@ export type SegmentRoue = {
 export const SEGMENTS_ROUE: SegmentRoue[] = [
   { id: 'tampon1', libelle: '+1 tampon', poids: 17, code: 'roulette_tampon_1', couleur: '#9FC038', emoji: '💮' },        // C.vert (vert boba)
   { id: 'topping', libelle: 'Double topping', libelleGain: 'Double topping offert', poids: 16, code: 'roue_topping', couleur: '#FFD6E8', emoji: '🍡' }, // rose dragée (pastel)
-  { id: 'double', libelle: 'Double tour', poids: 14, code: null, couleur: '#F2DA33', emoji: '🌀' },                      // C.jaune (jaune perle)
+  { id: 'double', libelle: 'Nouveau tour', poids: 14, code: null, couleur: '#F2DA33', emoji: '🌀' },                      // C.jaune (jaune perle)
   { id: 'tampon2', libelle: '+2 tampons', poids: 13, code: 'roulette_tampon_2', couleur: '#D9C9F0', emoji: '🌸' },       // C.surViolet (lavande pastel)
   { id: 'reduc10', libelle: '−10 %', poids: 13, code: 'roulette_reduction_10', couleur: '#F7B8D6', emoji: '🏷️' },       // C.rose (rose bubble)
   { id: 'tampon3', libelle: '+3 tampons', poids: 11, code: 'roulette_tampon_3', couleur: '#DFF0BC', emoji: '🌺' },       // vert pâle (pastel badge)
@@ -103,7 +103,7 @@ export type TirageRoue = {
 };
 
 /**
- * Le tirage complet du mois, en un appel. « Double tour » est un lot VIRTUEL : il
+ * Le tirage complet du mois, en un appel. « Nouveau tour » est un lot VIRTUEL : il
  * relance la roue en s'excluant lui-même, si bien que le lot FINAL est toujours un
  * lot réel — un mois ne peut jamais se solder par « rien ». Les deux tirages sont
  * faits ICI, avant toute animation : l'écran ne fait que rejouer ce verdict.

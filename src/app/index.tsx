@@ -64,6 +64,13 @@ export default function AccueilScreen() {
   const [prenom, setPrenom] = useState('');
   const [carte, setCarte] = useState<{ tampons: number; cadeaux: number } | null>(null);
   const [carteLiee, setCarteLiee] = useState<boolean | null>(null);
+  // Session connue explicitement. `null` = pas encore su : les cartes de jeu restent
+  // alors masquées, comme sous un flag serveur éteint (fail-closed). Les trois jeux —
+  // Quest, Tower, Roue — se jouent avec un compte et leurs lots se retirent en
+  // boutique : on ne propose jamais un jeu qu'on ne pourra pas honorer.
+  // (`carteLiee` ne pouvait pas servir : il vaut false aussi bien pour « pas connecté »
+  //  que pour « connecté sans carte de fidélité ».)
+  const [estConnecte, setEstConnecte] = useState<boolean | null>(null);
   // null = chargement initial (ou module désactivé). On évite ainsi d'afficher
   // "Pas d'offre" avant que Supabase ait réellement répondu.
   const [offres, setOffres] = useState<any[] | null>(null);
@@ -110,6 +117,7 @@ export default function AccueilScreen() {
 
       const { data: { session }, error: erreurSession } = await supabase.auth.getSession();
       if (erreurSession) throw erreurSession;
+      setEstConnecte(!!session);
       if (!session) { setCarteLiee(false); setErreurReseau(echec); return; }
 
       // Profil : prénom + carte. La ville n'est plus demandée depuis le retrait
@@ -255,7 +263,7 @@ export default function AccueilScreen() {
 
           {/* === 🕹️ Boba Quest : visible pour tous, pour une sélection de membres,
                ou pour l'admin selon les réglages serveur (cf. AGENTS.md). === */}
-          {jeuFlag.visible && (
+          {jeuFlag.visible && estConnecte === true && (
             <Pressable style={styles.jeu} onPress={() => router.push('/jeu' as any)}>
               <MascottePerle taille={46} />
               <View style={{ flex: 1 }}>
@@ -273,7 +281,7 @@ export default function AccueilScreen() {
                `boba_tower`, fail-closed). Masqué → aucune carte, aucun lien mort.
                Les sous-titres différencient les deux jeux : Quest = collection et
                combats, Tower = parties rapides et records. === */}
-          {towerFlag.visible && (
+          {towerFlag.visible && estConnecte === true && (
             <Pressable
               style={styles.tower}
               onPress={() => router.push('/boba-tower' as any)}
@@ -295,7 +303,7 @@ export default function AccueilScreen() {
                serveur `roue_du_mois`, fail-closed) — sortie du hub Boba Quest le
                03/08/2026. Un tour gratuit par mois, lot RÉEL à retirer en boutique.
                Masqué → aucune carte, aucun lien mort. === */}
-          {roueFlag.visible && (
+          {roueFlag.visible && estConnecte === true && (
             <Pressable
               style={styles.roue}
               onPress={() => router.push('/roue' as any)}

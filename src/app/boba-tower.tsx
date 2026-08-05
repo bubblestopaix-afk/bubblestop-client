@@ -42,6 +42,7 @@ import {
   type VerdictPose,
 } from '@/components/boba-tower/moteur-tower';
 import { useTowerVisible } from '@/lib/app-config';
+import { InviteInscription, useEstConnecte } from '@/components/garde-jeu';
 import { hapticLeger, hapticLourd, hapticMoyen, hapticSucces } from '@/lib/juice';
 
 // --- Persistance locale UNIQUEMENT (prototype) : clés `bobaTower.*`, jamais le
@@ -109,6 +110,7 @@ export default function BobaTowerScreen() {
   // ⚠️ TOUS les hooks AVANT tout return anticipé (piège documenté du projet : un
   // hook après un return conditionnel = ordre d'appel variable = crash en prod).
   const { visible, charge } = useTowerVisible();
+  const connecte = useEstConnecte();
   const insets = useSafeAreaInsets();
 
   // — mesure de la zone de jeu (une seule setState, au layout) —
@@ -529,6 +531,17 @@ export default function BobaTowerScreen() {
   // sait pas, retour accueil si le flag est coupé (cf. useTowerVisible).
   // ------------------------------------------------------------------
   if (!visible) return charge ? <Redirect href={'/' as any} /> : null;
+  // Non inscrit : les records et les défis s'attachent à un compte, et les
+  // récompenses se retirent en boutique. `null` tant qu'on ne sait pas.
+  if (connecte === null) return null;
+  if (!connecte) {
+    return (
+      <InviteInscription
+        emoji="🗼"
+        texte="Boba Tower garde tes records et tes défis sur ton compte, et ce que tu y gagnes se retire en boutique avec ta carte de fidélité."
+      />
+    );
+  }
 
   // — géométrie (dérivée de la mesure ; re-calculée seulement aux re-renders de tap) —
   const l = zone?.l ?? 0;

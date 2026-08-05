@@ -771,6 +771,31 @@ export default function CompteScreen() {
     }
   };
 
+  // Écrit le prénom Apple sans dépendre de l'ordre d'exécution : `_layout.tsx` crée lui
+  // aussi la ligne `profils` sur SIGNED_IN, et les deux partent en même temps.
+  //  · si on insère le premier, la ligne naît avec le prénom ;
+  //  · si _layout a déjà inséré, notre insert échoue et on retombe sur un update, borné
+  //    aux lignes dont le prénom est encore vide — on n'écrase donc jamais une saisie.
+  const enregistrerPrenomApple = async (prenom: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const { error } = await supabase.from('profils').insert({
+        id: session.user.id,
+        email: session.user.email,
+        nom: prenom,
+        app_utilisee: true,
+        prenom_sur_ticket: true,
+      });
+      if (error) {
+        await supabase.from('profils')
+          .update({ nom: prenom })
+          .eq('id', session.user.id)
+          .is('nom', null);
+      }
+    } catch { /* le prénom n'est jamais bloquant : la connexion prime */ }
+  };
+
   // === Connexion via Apple (iOS — exigé par l'App Store 4.8 dès qu'on propose Google) ===
   // Token d'identité Apple → Supabase (provider apple). Le provider Apple doit être activé
   // côté Supabase avec le bundle `com.bubblestop.client` dans les Client IDs autorisés.
@@ -784,8 +809,16 @@ export default function CompteScreen() {
         ],
       });
       if (!credential.identityToken) throw new Error('Connexion Apple incomplète (jeton manquant).');
+      // ⚠️ Apple ne transmet le nom QU'ICI, et QU'À LA PREMIÈRE autorisation. Il n'est
+      // pas dans `identityToken`, donc il n'atterrit jamais dans `user_metadata` — d'où
+      // le `full_name` de _layout.tsx qui marche pour Google et jamais pour Apple.
+      // Aux reconnexions suivantes `credential.fullName` est null, définitivement :
+      // si on ne le capte pas à cet instant, le prénom est perdu pour toujours.
+      const prenomApple = [credential.fullName?.givenName, credential.fullName?.familyName]
+        .filter(Boolean).join(' ').trim();
       const { error } = await supabase.auth.signInWithIdToken({ provider: 'apple', token: credential.identityToken });
       if (error) throw error;
+      if (prenomApple) await enregistrerPrenomApple(prenomApple);
     } catch (e: any) {
       if (e?.code === 'ERR_REQUEST_CANCELED') return; // annulé par l'utilisateur
       setMessage(String(e?.message ?? e));

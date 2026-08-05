@@ -12,6 +12,7 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { GardeMiseAJour } from '@/components/garde-mise-a-jour';
 import AppTabs from '@/components/app-tabs';
 import { GateNaissance } from '@/components/gate-naissance';
+import { GatePrenom, prenomReporte } from '@/components/gate-prenom';
 import { supabase } from '@/lib/supabase';
 import { appliquerParrainEnAttente } from '@/lib/parrainage';
 import { enregistrerPush } from '@/lib/push';
@@ -25,6 +26,10 @@ export default function TabLayout() {
 
   // Utilisateur connecté SANS date de naissance → on bloque sur l'écran de saisie.
   const [naissanceUserId, setNaissanceUserId] = useState<string | null>(null);
+
+  // Connecté SANS prénom → encart de rattrapage, REPORTABLE (voir gate-prenom).
+  // Les deux portes ne s'affichent jamais ensemble : l'anniversaire d'abord.
+  const [prenomUserId, setPrenomUserId] = useState<string | null>(null);
 
   // Badge sur l'icône : les pushs (offres, agent, POS) posent badge=1 → on l'efface
   // dès que l'appli est ouverte / revient au premier plan (le client « a vu »).
@@ -68,30 +73,40 @@ export default function TabLayout() {
         // Code parrain scanné AVANT l'inscription (/p?c=…) → appliqué dès la connexion.
         appliquerParrainEnAttente().catch(() => {});
         const { data: prof } = await supabase.from('profils')
-          .select('id, date_naissance').eq('id', session.user.id).maybeSingle();
+          .select('id, date_naissance, nom').eq('id', session.user.id).maybeSingle();
         if (!prof) {
           // Nouveau compte (souvent Google/Apple) : on crée la ligne, sans date → gate.
           await supabase.from('profils').insert({
             id: session.user.id,
             email: session.user.email,
-            nom: (session.user.user_metadata as any)?.full_name || null,
+            // `full_name` est la clé de Google. Apple ne renseigne aucune de ces clés
+            // (vérifié : 14 comptes Apple sur 14 sans `given_name`) — son prénom est
+            // capté à la source, dans loginApple. Les alternatives ci-dessous ne
+            // coûtent rien et couvrent les fournisseurs qui nomment autrement.
+            nom: (session.user.user_metadata as any)?.full_name
+              || (session.user.user_metadata as any)?.name
+              || (session.user.user_metadata as any)?.given_name
+              || null,
             app_utilisee: true,
             prenom_sur_ticket: true,
           });
           setNaissanceUserId(session.user.id);
+          setPrenomUserId(null);
         } else {
           await supabase.from('profils')
             .update({ app_utilisee: true })
             .eq('id', session.user.id)
             .eq('app_utilisee', false); // n'écrit que si nécessaire
           setNaissanceUserId(prof.date_naissance ? null : session.user.id);
+          const sansPrenom = !prof.nom || !String(prof.nom).trim();
+          setPrenomUserId(sansPrenom && !(await prenomReporte()) ? session.user.id : null);
         }
       } catch (_) { /* silencieux */ }
     };
     marquer();
     const { data: sub } = supabase.auth.onAuthStateChange((evt) => {
       if (evt === 'SIGNED_IN') marquer();
-      else if (evt === 'SIGNED_OUT') setNaissanceUserId(null);
+      else if (evt === 'SIGNED_OUT') { setNaissanceUserId(null); setPrenomUserId(null); }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -107,6 +122,9 @@ export default function TabLayout() {
       <GardeMiseAJour />
       {naissanceUserId && (
         <GateNaissance userId={naissanceUserId} onDone={() => setNaissanceUserId(null)} />
+      )}
+      {!naissanceUserId && prenomUserId && (
+        <GatePrenom userId={prenomUserId} onDone={() => setPrenomUserId(null)} />
       )}
     </ThemeProvider>
   );

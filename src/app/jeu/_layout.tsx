@@ -11,6 +11,7 @@ import {
 import { C, F, R } from '@/constants/charte';
 import { trouverCollectible } from '@/components/jeu/economie';
 import { useJeuVisible } from '@/lib/app-config';
+import { InviteInscription, useEstConnecte } from '@/components/garde-jeu';
 import { surveillerAppState, synchroniser } from '@/lib/sauvegarde-jeu';
 import {
   synchroniserAchatsJeu, type ResultatSynchronisationAchats,
@@ -22,6 +23,7 @@ const POLL_ACHATS_MS = 15_000;
 
 export default function JeuLayout() {
   const { visible, charge } = useJeuVisible();
+  const connecte = useEstConnecte();
   const hydratation = useHydratationBobaQuest();
 
   // 💾 SAUVEGARDE SERVEUR — la progression suit le compte, plus le téléphone.
@@ -35,6 +37,7 @@ export default function JeuLayout() {
   const [syncFaite, setSyncFaite] = useState(false);
   useEffect(() => {
     if (hydratation === 'chargement') return;   // on attend l'état local d'abord
+    if (connecte !== true) return;              // pas de session = rien à synchroniser
     let vivant = true;
     // Filet : une sauvegarde ne doit JAMAIS empêcher de jouer. Réseau lent, session
     // expirée, table pas encore migrée → on laisse entrer au bout de 4 s.
@@ -45,7 +48,7 @@ export default function JeuLayout() {
       setSyncFaite(true);
     });
     return () => { vivant = false; clearTimeout(secours); };
-  }, [hydratation]);
+  }, [hydratation, connecte]);
 
   // sauvegarde immédiate au passage en arrière-plan : c'est là qu'on risque de perdre l'app
   useEffect(() => surveillerAppState(), []);
@@ -56,7 +59,7 @@ export default function JeuLayout() {
   // retour au premier plan. Aucun échec réseau ne retire une progression acquise.
   const [achatPrisEnCompte, setAchatPrisEnCompte] = useState<ResultatSynchronisationAchats | null>(null);
   useEffect(() => {
-    if (!syncFaite || hydratation === 'chargement' || hydratation === 'erreur' || !visible) return;
+    if (!syncFaite || hydratation === 'chargement' || hydratation === 'erreur' || !visible || connecte !== true) return;
     let vivant = true;
     const rafraichir = async () => {
       try {
@@ -76,7 +79,7 @@ export default function JeuLayout() {
       clearInterval(intervalle);
       cycle.remove();
     };
-  }, [syncFaite, hydratation, visible]);
+  }, [syncFaite, hydratation, visible, connecte]);
 
   useEffect(() => {
     if (!achatPrisEnCompte) return;
@@ -86,6 +89,20 @@ export default function JeuLayout() {
 
   // fail-closed : rien tant qu'on ne sait pas (cache/serveur), redirect si caché
   if (!visible) return charge ? <Redirect href={'/' as any} /> : null;
+  // Non inscrit : la progression Boba Quest vit sur le compte (sauvegarde serveur)
+  // et les lots se retirent en boutique. Placé AVANT les écrans de chargement :
+  // un visiteur ne doit pas patienter sur « Synchronisation… » pour se voir
+  // refuser ensuite. Ce layout couvre les 15 écrans de /jeu, donc /jeu/boutique
+  // et les autres liens directs passent par ici.
+  if (connecte === null) return null;
+  if (!connecte) {
+    return (
+      <InviteInscription
+        emoji="🕹️"
+        texte="Boba Quest garde ta progression, ta collection et tes perles sur ton compte, et ce que tu y gagnes se retire en boutique avec ta carte de fidélité."
+      />
+    );
+  }
   if (hydratation === 'chargement') {
     return (
       <View style={styles.etat}>

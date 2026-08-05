@@ -33,7 +33,8 @@ import {
   instantsDeCrans, joursAvantMoisSuivant, pourcentagesHonnetes, rotationCibleVers,
   segmentSousPointeur, tirageComplet,
 } from '@/components/roue/roue';
-import { MotifRoueMono, type IdSegmentRoue } from '@/components/roue/icones-roue';
+import { IconeRoue, MotifRoueMono, type IdSegmentRoue } from '@/components/roue/icones-roue';
+import { EcranAttente, InviteInscription, useEstConnecte } from '@/components/garde-jeu';
 
 // --- Verrou mensuel local -------------------------------------------------------------
 const CLE_TIRAGE = 'roueDuMois.v1.tirage';
@@ -128,27 +129,43 @@ function libelleStatut(statut: StatutCaisse, envoiEnCours: boolean): string {
 const TAILLE = 300;
 const RAYON_ROUE = 138;
 const DUREE_TOUR_1 = 4600;   // le grand tour du mois
-const DUREE_TOUR_2 = 2600;   // le re-spin du double tour, plus court : c'est un rappel
+const DUREE_TOUR_2 = 2600;   // le re-spin du nouveau tour, plus court : c'est un rappel
 const TOURS_PLEINS_1 = 4;
 const TOURS_PLEINS_2 = 2;
-const PAUSE_FLOURISH = 950;  // le temps de LIRE « DOUBLE TOUR ! » avant que ça reparte
+const PAUSE_FLOURISH = 950;  // le temps de LIRE « NOUVEAU TOUR ! » avant que ça reparte
 
 // Palette DA (04/08) : tout est clair et gourmand, texte ENCRE partout — sauf le
 // segment violet du gros lot (boisson), seul à porter du texte blanc.
 const TEXTE_SOMBRE = new Set(['tampon1', 'topping', 'double', 'tampon2', 'reduc10', 'tampon3', 'reduc20']);
 
 // ======================================================================================
-// Porte d'entrée : le flag serveur d'abord, le contenu ensuite. Les hooks lourds
-// vivent dans RoueContenu — jamais de hook après un return anticipé (leçon AGENTS.md).
+// Porte d'entrée : le flag serveur, PUIS la session, puis le contenu. Les hooks lourds
+// vivent dans RoueContenu — jamais de hook après un return anticipé (leçon AGENTS.md),
+// d'où `useEstConnecte` appelé AVANT tout return.
+//
+// La porte session n'est pas une sécurité — un client modifié la contourne. C'est de la
+// cohérence : la RPC exige déjà un compte et une carte de fidélité (`acces au jeu non
+// autorise`, `carte fidelite inactive`). Sans elle, un visiteur tournerait la roue,
+// gagnerait, et se prendrait un refus à l'écran suivant.
 export default function RoueScreen() {
   const flag = useRoueDuMoisVisible();
+  const connecte = useEstConnecte();
   if (!flag.charge && !flag.visible) return <View style={styles.fond} />;
   if (!flag.visible) return <RoueRepli />;
+  if (connecte === null) return <EcranAttente />;   // on ne montre rien tant qu'on ne sait pas
+  if (!connecte) return (
+    <InviteInscription
+      emoji="🎡"
+      texte="La Roue du Mois offre un tour gratuit par mois, et le lot se retire en boutique avec ta carte de fidélité. Il faut donc un compte pour la lancer."
+    />
+  );
   return <RoueContenu />;
 }
 
 // Écran de repli DOUX : flag éteint (ou lien direct /roue alors que la roue est
 // fermée) → on l'explique gentiment, on ne crashe jamais, on ne montre rien du jeu.
+// À distinguer de l'invite d'inscription : ici la roue est FERMÉE pour tout le monde,
+// il n'y a donc rien à proposer — juste un retour.
 function RoueRepli() {
   const insets = useSafeAreaInsets();
   return (
@@ -297,7 +314,7 @@ function RoueContenu() {
     void envoyerEnCaisse(tirage);
   }, [carteOpacite, carteScale, envoyerEnCaisse]);
 
-  // --- Double tour : flourish puis re-spin automatique (le tour du mois reste UN tour) --
+  // --- Nouveau tour : flourish puis re-spin automatique (le tour du mois reste UN tour) --
   const flourishPuisRelancer = useCallback((tirage: TirageStocke, rotationActuelle: number) => {
     if (!monte.current) return;
     setFlourish(true);
@@ -431,14 +448,14 @@ function RoueContenu() {
               </View>
             </View>
 
-            {/* Flourish « DOUBLE TOUR ! » — par-dessus la roue, le temps d'un souffle */}
+            {/* Flourish « NOUVEAU TOUR ! » — par-dessus la roue, le temps d'un souffle */}
             {flourish && (
               <Animated.View
                 pointerEvents="none"
                 style={[styles.flourish, { opacity: flourishOpacite, transform: [{ scale: flourishScale }] }]}
               >
                 <Text style={styles.flourishEmoji}>🌀</Text>
-                <Text style={styles.flourishTxt}>DOUBLE TOUR !</Text>
+                <Text style={styles.flourishTxt}>NOUVEAU TOUR !</Text>
                 <Text style={styles.flourishSous}>La roue repart pour un vrai lot</Text>
               </Animated.View>
             )}
@@ -476,14 +493,20 @@ function RoueContenu() {
               <Text style={styles.lotTitre}>Mon lot du mois</Text>
             </View>
             {!!verrou && (
-              <View style={[styles.lotPill, { backgroundColor: couleurDe(verrou.finalId) }]}>
+              <View style={[styles.lotPill, styles.lotPillRang, { backgroundColor: couleurDe(verrou.finalId) }]}>
+                <IconeRoue
+                  id={verrou.finalId as IdSegmentRoue}
+                  variante="mono"
+                  couleur={TEXTE_SOMBRE.has(verrou.finalId) ? '#2A1D46' : '#fff'}
+                  taille={18}
+                />
                 <Text style={[styles.lotPillTxt, TEXTE_SOMBRE.has(verrou.finalId) && { color: '#2A1D46' }]}>
-                  {emojiDe(verrou.finalId)}  {verrou.libelle}
+                  {verrou.libelle}
                 </Text>
               </View>
             )}
             {!!verrou?.doubleTour && (
-              <Text style={styles.lotDouble}>Gagné après un double tour 🌀</Text>
+              <Text style={styles.lotDouble}>Gagné après un nouveau tour 🌀</Text>
             )}
             <View style={styles.statutRang}>
               <View style={[styles.statutPastille, {
@@ -525,7 +548,7 @@ function RoueContenu() {
           {pourcentagesHonnetes().map((ligne) => (
             <View key={ligne.id} style={styles.chanceLigne}>
               <View style={[styles.chancePastille, { backgroundColor: couleurDe(ligne.id) }]} />
-              <Text style={styles.chanceEmoji}>{emojiDe(ligne.id)}</Text>
+              <IconeRoue id={ligne.id as IdSegmentRoue} variante="mono" couleur={C.violet} taille={17} />
               <Text style={styles.chanceLabel}>{ligne.libelle}</Text>
               <Text style={styles.chancePct}>
                 {ligne.pct.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
@@ -534,7 +557,7 @@ function RoueContenu() {
           ))}
           <Text style={styles.chancesNote}>
             Le lot est tiré selon ces pourcentages exacts, avant même que la roue tourne —
-            les parts sont dessinées égales pour rester lisibles. « Double tour » relance
+            les parts sont dessinées égales pour rester lisibles. « Nouveau tour » relance
             la roue : le lot final est toujours un vrai lot.
           </Text>
         </View>
@@ -544,14 +567,14 @@ function RoueContenu() {
       {revele && (
         <View style={styles.voile}>
           <Animated.View style={[styles.gainCarte, { opacity: carteOpacite, transform: [{ scale: carteScale }] }]}>
-            <Text style={styles.gainEmoji}>{revele.emoji}</Text>
+            <IconeRoue id={revele.id as IdSegmentRoue} variante="mono" couleur={C.violet} taille={56} />
             <Text style={styles.gainTitre}>Tu as gagné !</Text>
             <View style={[styles.gainPill, { backgroundColor: revele.couleur }]}>
               <Text style={[styles.gainPillTxt, TEXTE_SOMBRE.has(revele.id) && { color: '#2A1D46' }]}>
                 {revele.libelleGain ?? revele.libelle}
               </Text>
             </View>
-            {!!verrou?.doubleTour && <Text style={styles.gainDouble}>… et avec un double tour 🌀</Text>}
+            {!!verrou?.doubleTour && <Text style={styles.gainDouble}>… et avec un nouveau tour 🌀</Text>}
             <Text style={styles.gainAide}>
               {envoiEnCours
                 ? 'Préparation pour la caisse…'
@@ -567,12 +590,12 @@ function RoueContenu() {
   );
 }
 
-// --- Petits accès table (id → couleur/emoji), pour verrou stocké et liste des chances --
+// --- Petit accès table (id → couleur), pour verrou stocké et liste des chances --------
+// `emojiDe` a disparu avec le dernier emoji de l'écran : les pictogrammes viennent
+// désormais tous de `icones-roue`. Le champ `emoji` reste dans SEGMENTS_ROUE, inutilisé
+// ici — à retirer de roue.ts quand plus aucun écran ne s'en sert.
 function couleurDe(id: string): string {
   return SEGMENTS_ROUE.find((s) => s.id === id)?.couleur ?? C.violetClair;
-}
-function emojiDe(id: string): string {
-  return SEGMENTS_ROUE.find((s) => s.id === id)?.emoji ?? '🎁';
 }
 
 // --- La roue SVG ----------------------------------------------------------------------
@@ -660,9 +683,14 @@ function RoueSvg({ misEnAvantId }: { misEnAvantId: string | null }) {
         const rot = centre > 90 && centre < 270 ? centre + 180 : centre;
         const lignes = couperLibelle(seg.libelle);
         const interligne = POLICE_ROUE * 1.06;
-        // Bloc emoji + libellé centré sur pTxt : l'emoji occupe la première « ligne ».
-        const yEmoji = pTxt.y - ((lignes.length + 0.4) * interligne) / 2;
-        const y0 = yEmoji + interligne * 1.35;
+        // Bloc icône + libellé, centré sur pTxt. L'ancien calcul traitait l'emoji comme
+        // UNE ligne de texte (11,7 px) ; une icône de 32 px déborde de 16 px sous son
+        // ancrage et venait couvrir la première ligne. On mesure donc le bloc pour ce
+        // qu'il est : l'icône, un souffle, puis les lignes.
+        const SOUFFLE = 3;
+        const hautBloc = pTxt.y - (TAILLE_ICONE + SOUFFLE + lignes.length * interligne) / 2;
+        const yIcone = hautBloc;                                   // bord HAUT de l'icône
+        const y0 = hautBloc + TAILLE_ICONE + SOUFFLE + interligne / 2;
         return (
           <G key={seg.id} opacity={eteint ? 0.32 : 1}>
             <Path
@@ -676,7 +704,7 @@ function RoueSvg({ misEnAvantId }: { misEnAvantId: string | null }) {
                 pour ne rien imposer à la palette pastel des secteurs. */}
             <G
               transform={`rotate(${rot} ${pTxt.x} ${pTxt.y}) `
-                + `translate(${pTxt.x - TAILLE_ICONE / 2} ${yEmoji - TAILLE_ICONE / 2}) `
+                + `translate(${pTxt.x - TAILLE_ICONE / 2} ${yIcone}) `
                 + `scale(${TAILLE_ICONE / 96})`}
             >
               <MotifRoueMono id={seg.id as IdSegmentRoue} couleur={sombre ? '#2A1D46' : '#fff'} />
@@ -757,6 +785,7 @@ const styles = StyleSheet.create({
   lotTitreEmoji: { fontSize: 17 },
   lotTitre: { fontFamily: F.titre, fontSize: 16.5, color: C.violet },
   lotPill: { borderRadius: R.pill, paddingVertical: 9, paddingHorizontal: 18 },
+  lotPillRang: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   lotPillTxt: { fontFamily: F.t800, fontSize: 15, color: '#fff' },
   lotDouble: { fontFamily: F.t600, fontSize: 12, color: C.violetClair },
   statutRang: { flexDirection: 'row', alignItems: 'center', gap: 7 },
