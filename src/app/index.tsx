@@ -9,7 +9,7 @@ import { SvgXml } from 'react-native-svg';
 import { supabase } from '@/lib/supabase';
 import { useJeuVisible, useRoueDuMoisVisible, useTowerVisible } from '@/lib/app-config';
 import { useFonctionnalite } from '@/lib/fonctionnalites';
-import { offreEnCours } from '@/lib/offres';
+import { offreEnCours, offreVisiblePour } from '@/lib/offres';
 import { constaterFidelite } from '@/lib/visites';
 import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
 import {
@@ -77,8 +77,21 @@ export default function AccueilScreen() {
       // Offres actives (visibles même sans compte) — les offres PROGRAMMÉES
       // (jours/heures/dates) ne s'affichent que pendant leur fenêtre (offreEnCours).
       if (offresFlag.actif) {
+        // Boutique du membre : une promo restreinte ne doit s'afficher qu'à SES
+        // clients (correctif 05/08/2026). Lecture volontairement isolée et sans
+        // throw : sans compte ou en cas d'échec, `magasinClient` reste null et le
+        // filtre ne laisse passer que les promos valables dans les 3 boutiques.
+        let magasinClient: string | null = null;
+        try {
+          const { data: sess } = await supabase.auth.getSession();
+          if (sess?.session) {
+            const { data: pm } = await supabase.from('profils')
+              .select('magasin').eq('id', sess.session.user.id).maybeSingle();
+            magasinClient = (pm?.magasin as string | null) || null;
+          }
+        } catch (_) { magasinClient = null; }
         const { data: offresData, error: erreurChargementOffres } = await supabase.from('offres')
-          .select('id, titre, message, jours, heure_debut, heure_fin, date_debut, date_fin, active')
+          .select('id, titre, message, jours, heure_debut, heure_fin, date_debut, date_fin, active, magasins')
           .eq('active', true)
           .order('created_at', { ascending: false }).limit(10);
         if (erreurChargementOffres) {
@@ -86,7 +99,9 @@ export default function AccueilScreen() {
           setErreurOffres(true);
         } else {
           setErreurOffres(false);
-          setOffres((offresData ?? []).filter((o) => offreEnCours(o as any)).slice(0, 5));
+          setOffres((offresData ?? [])
+            .filter((o) => offreEnCours(o as any) && offreVisiblePour(o as any, magasinClient))
+            .slice(0, 5));
         }
       } else {
         setErreurOffres(false);

@@ -27,7 +27,31 @@ export type Offre = {
   remise_type?: 'pourcent' | 'montant' | 'tampons' | null; // −% | −€/boisson | tampons ×N
   remise_valeur?: number | null;
   cible_categories?: string[] | null;          // ids catégories POS (fruit-tea…) ; null = toute la carte (ignoré pour 'tampons')
+  // Périmètre boutiques (04/08/2026). Absent/vide = promo valable partout.
+  magasins?: string[] | null;
 };
+
+export const MAGASINS_OFFRE = ['aix', 'lyon', 'toulouse'] as const;
+
+// === Périmètre BOUTIQUES d'une promo — correctif du 05/08/2026 ===
+// Une promo peut être restreinte à certaines boutiques (colonne `magasins`).
+// Les caisses respectaient déjà ce périmètre (tpv-api impose le filtre) et la
+// notification aussi (promos-api cible `profils.magasin`), mais l'AFFICHAGE dans
+// l'appli l'ignorait complètement : une promo réservée à une boutique s'affichait
+// à TOUS les membres (signalé par Yoann). Deux conséquences : le client croit y
+// avoir droit, et la caisse de sa boutique refuse — promesse non tenue.
+// On ferme donc ici, en FAIL-CLOSED : sans boutique connue (visiteur non connecté,
+// profil sans magasin), seules les promos valables dans les TROIS boutiques
+// s'affichent. Mieux vaut ne pas montrer une promo que d'en montrer une inapplicable.
+export function offreVisiblePour(o: Offre, magasinClient?: string | null): boolean {
+  const vises = Array.isArray(o?.magasins)
+    ? o.magasins.map((m) => String(m).toLowerCase().trim()).filter(Boolean)
+    : [];
+  if (!vises.length) return true;                                    // aucun périmètre = partout
+  if (MAGASINS_OFFRE.every((m) => vises.includes(m))) return true;    // les 3 = tout le monde
+  const mien = String(magasinClient || '').toLowerCase().trim();
+  return !!mien && vises.includes(mien);
+}
 
 const minutes = (hhmm?: string | null): number | null => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '').trim());

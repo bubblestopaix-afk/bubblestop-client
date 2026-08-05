@@ -6,7 +6,7 @@ import { Redirect } from 'expo-router';
 
 import { supabase } from '@/lib/supabase';
 import { useFonctionnalite } from '@/lib/fonctionnalites';
-import { offreEnCours } from '@/lib/offres';
+import { offreEnCours, offreVisiblePour } from '@/lib/offres';
 import RappelNotifs from '@/components/rappel-notifs';
 import { IconeApp } from '@/components/icones-app';
 import { BORD, C, F, OMBRE, R } from '@/constants/charte';
@@ -34,8 +34,19 @@ function OffresScreen() {
   const [erreur, setErreur] = useState(false);
 
   const charger = useCallback(async () => {
+    // Même règle que l'accueil : une promo restreinte à certaines boutiques ne
+    // s'affiche qu'à leurs clients (correctif 05/08/2026, fail-closed sans compte).
+    let magasinClient: string | null = null;
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      if (sess?.session) {
+        const { data: pm } = await supabase.from('profils')
+          .select('magasin').eq('id', sess.session.user.id).maybeSingle();
+        magasinClient = (pm?.magasin as string | null) || null;
+      }
+    } catch (_) { magasinClient = null; }
     const { data, error } = await supabase.from('offres')
-      .select('id, titre, message, created_at, jours, heure_debut, heure_fin, date_debut, date_fin, active')
+      .select('id, titre, message, created_at, jours, heure_debut, heure_fin, date_debut, date_fin, active, magasins')
       .eq('active', true)
       .order('created_at', { ascending: false })
       .limit(20);
@@ -45,7 +56,7 @@ function OffresScreen() {
     }
     setErreur(false);
     // Offres programmées : visibles uniquement pendant leur fenêtre (jours/heures/dates)
-    setOffres((data ?? []).filter((o) => offreEnCours(o as any)));
+    setOffres((data ?? []).filter((o) => offreEnCours(o as any) && offreVisiblePour(o as any, magasinClient)));
   }, []);
 
   useEffect(() => { charger(); }, [charger]);
