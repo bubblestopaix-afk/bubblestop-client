@@ -26,7 +26,7 @@ import { chargerDemandesRecompensesJeu, creerDemandeRecompenseJeu } from '@/lib/
 // Import de TYPE uniquement (effacé à la compilation) : le catalogue serveur connaît
 // déjà `roue_topping` / `roue_chantilly`, mais l'union client vit dans economie.ts
 // (Boba Quest), qu'on ne modifie pas — le `as` au point d'appel fait le pont.
-import type { CodeRecompenseReelle } from '@/components/jeu/economie';
+import type { CodeRecompenseReelle } from '@/lib/codes-recompenses';
 import { hapticLeger, hapticMoyen, hapticSucces } from '@/lib/juice';
 import {
   LOT_VALIDITE_JOURS, PART_DEG, SEGMENTS_ROUE, SegmentRoue, cleDuMois, expireLe,

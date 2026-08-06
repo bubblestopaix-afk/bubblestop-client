@@ -1,4 +1,4 @@
-import { CodeRecompenseReelle } from '@/components/jeu/economie';
+import { CodeRecompenseReelle } from '@/lib/codes-recompenses';
 import { supabase } from '@/lib/supabase';
 
 export type DemandeRecompenseJeu = {

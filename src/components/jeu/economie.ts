@@ -19,13 +19,13 @@ export type TypePrix = 'tampon' | 'reduction' | 'boisson' | 'perles' | 'capsule_
 // Identifiants CANONIQUES partagés avec le catalogue serveur. Le téléphone ne
 // transmet jamais une quantité libre : le serveur retrouve type, valeur et quota
 // depuis ce code avant de créer une demande pour la caisse.
-export type CodeRecompenseReelle =
-  | 'quete_premier_tampon'
-  | 'set_milk' | 'set_fruit' | 'set_topping' | 'set_signature'
-  | 'collection_complete'
-  | 'boutique_tampon_1' | 'boutique_reduction_10' | 'boutique_reduction_20' | 'boutique_boisson_l'
-  | 'roulette_tampon_1' | 'roulette_tampon_2' | 'roulette_tampon_3'
-  | 'roulette_reduction_10' | 'roulette_boisson_l';
+// Le type a déménagé dans `@/lib/codes-recompenses`, module neutre : la Roue du Mois
+// n'a plus à importer un fichier de Boba Quest pour réclamer ses lots. Ré-exporté ici
+// pour que les appelants de Quest n'aient pas à changer.
+// Import RELATIF volontaire : `scripts/test-jeu.cjs` compile ce fichier avec un tsc
+// nu, sans les `paths` du tsconfig — l'alias @/ n'y serait pas résolu.
+export type { CodeRecompenseReelle } from '../../lib/codes-recompenses';
+import type { CodeRecompenseReelle } from '../../lib/codes-recompenses';
 
 // Un PRIX RÉEL gagné (à réclamer en caisse dans la version finale)
 export type Gain = {

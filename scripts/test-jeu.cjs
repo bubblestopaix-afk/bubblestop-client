@@ -10,7 +10,9 @@ const sortie = fs.mkdtempSync(path.join(os.tmpdir(), 'boba-quest-tests-'));
 try {
   execFileSync(path.join(racine, 'node_modules', '.bin', 'tsc'), [
     '--outDir', sortie,
-    '--rootDir', path.join(racine, 'src/components/jeu'),
+    // rootDir remonte à src/ : economie.ts référence désormais src/lib/codes-recompenses,
+    // le type des récompenses ayant quitté Boba Quest pour un module neutre (05/08/2026).
+    '--rootDir', path.join(racine, 'src'),
     '--module', 'commonjs',
     '--moduleResolution', 'node',
     '--target', 'es2020',
@@ -22,10 +24,12 @@ try {
     path.join(racine, 'src/components/jeu/moteur-shooter.ts'),
   ], { cwd: racine, stdio: 'pipe' });
 
-  const shooter = require(path.join(sortie, 'moteur-shooter.js'));
-  const arene = require(path.join(sortie, 'arene.js'));
-  const economie = require(path.join(sortie, 'economie.js'));
-  const tournee = require(path.join(sortie, 'tournee.js'));
+  // rootDir vaut désormais src/, donc tsc reproduit l'arborescence sous `sortie`.
+  const jeu = path.join(sortie, 'components/jeu');
+  const shooter = require(path.join(jeu, 'moteur-shooter.js'));
+  const arene = require(path.join(jeu, 'arene.js'));
+  const economie = require(path.join(jeu, 'economie.js'));
+  const tournee = require(path.join(jeu, 'tournee.js'));
 
   // Tous les prix qui ont une valeur réelle en boutique possèdent un code
   // canonique unique. Les gains purement internes (perles/capsule) n'en ont pas.
