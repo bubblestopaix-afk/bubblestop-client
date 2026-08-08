@@ -55,3 +55,6 @@ assets/images/
 **/*.wav
 **/*.mp4
 **/*.mov
+
+# Archives IA intégrales : consultables par recherche, jamais indexées en bloc
+docs/agents/archive/

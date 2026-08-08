@@ -50,7 +50,10 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "test:agents": "node scripts/test-agents-contexte.cjs",
+    "test:quiet": "npm run test:agents --silent && npm run test:jeu:quiet --silent && npm run test:menu --silent && tsc --noEmit --pretty false",
     "test:jeu": "node scripts/test-jeu.cjs",
+    "test:jeu:quiet": "node --no-warnings scripts/test-jeu.cjs",
     "test:menu": "node scripts/test-menu-vitrine.cjs"
   },
   "private": true
