@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { useJeuVisible, useRoueDuMoisVisible, useTowerVisible } from '@/lib/app-config';
 import { useFonctionnalite } from '@/lib/fonctionnalites';
 import { useEstConnecte } from '@/components/garde-jeu';
-import { offreEnCours, offreVisiblePour } from '@/lib/offres';
+import { magasinOffresDepuisProfil, offreEnCours, offreVisiblePour } from '@/lib/offres';
 import { constaterFidelite } from '@/lib/visites';
 import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
 import {
@@ -86,17 +86,15 @@ export default function AccueilScreen() {
       // Offres actives (visibles même sans compte) — les offres PROGRAMMÉES
       // (jours/heures/dates) ne s'affichent que pendant leur fenêtre (offreEnCours).
       if (offresFlag.actif) {
-        // Boutique du membre : une promo restreinte ne doit s'afficher qu'à SES
-        // clients (correctif 05/08/2026). Lecture volontairement isolée et sans
-        // throw : sans compte ou en cas d'échec, `magasinClient` reste null et le
-        // filtre ne laisse passer que les promos valables dans les 3 boutiques.
+        // Une promo flash suit uniquement le dernier QR scanné en boutique. Sans
+        // scan connu, le filtre ne laisse passer que les promos nationales.
         let magasinClient: string | null = null;
         try {
           const { data: sess } = await supabase.auth.getSession();
           if (sess?.session) {
             const { data: pm } = await supabase.from('profils')
-              .select('magasin').eq('id', sess.session.user.id).maybeSingle();
-            magasinClient = (pm?.magasin as string | null) || null;
+              .select('dernier_magasin_scan').eq('id', sess.session.user.id).maybeSingle();
+            magasinClient = magasinOffresDepuisProfil(pm);
           }
         } catch (_) { magasinClient = null; }
         const { data: offresData, error: erreurChargementOffres } = await supabase.from('offres')

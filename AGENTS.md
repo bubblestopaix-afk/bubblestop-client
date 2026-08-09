@@ -75,6 +75,9 @@ garde de sécurité, d'accès aux clients réels ou de publication.
   réintroduire `profils.telephone` ou `fidelite_cloud.telephone`, colonnes supprimées.
 - L'activation de carte passe par la RPC serveur ; le client ne choisit ni n'écrit
   lui-même son numéro de fidélité.
+- Pour les seules offres flash, le magasin vient du dernier scan QR physique
+  enregistré par le POS. Ne jamais demander ni déduire une boutique d'origine à
+  l'inscription ; sans scan connu, seules les offres nationales sont visibles.
 - La commande en ligne est retirée du produit. Les anciennes routes ne doivent pas
   redevenir accessibles par un flag ou un lien résiduel.
 - Email, Sign in with Apple et Google sont des voies d'authentification supportées.

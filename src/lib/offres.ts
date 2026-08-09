@@ -33,16 +33,17 @@ export type Offre = {
 
 export const MAGASINS_OFFRE = ['aix', 'lyon', 'toulouse'] as const;
 
-// === Périmètre BOUTIQUES d'une promo — correctif du 05/08/2026 ===
+export function magasinOffresDepuisProfil(
+  profil?: { dernier_magasin_scan?: string | null } | null,
+): string | null {
+  const magasin = String(profil?.dernier_magasin_scan || '').toLowerCase().trim();
+  return MAGASINS_OFFRE.includes(magasin as (typeof MAGASINS_OFFRE)[number]) ? magasin : null;
+}
+
+// === Périmètre BOUTIQUES d'une promo ===
 // Une promo peut être restreinte à certaines boutiques (colonne `magasins`).
-// Les caisses respectaient déjà ce périmètre (tpv-api impose le filtre) et la
-// notification aussi (promos-api cible `profils.magasin`), mais l'AFFICHAGE dans
-// l'appli l'ignorait complètement : une promo réservée à une boutique s'affichait
-// à TOUS les membres (signalé par Yoann). Deux conséquences : le client croit y
-// avoir droit, et la caisse de sa boutique refuse — promesse non tenue.
-// On ferme donc ici, en FAIL-CLOSED : sans boutique connue (visiteur non connecté,
-// profil sans magasin), seules les promos valables dans les TROIS boutiques
-// s'affichent. Mieux vaut ne pas montrer une promo que d'en montrer une inapplicable.
+// Le rattachement marketing vient uniquement du dernier QR scanné en boutique.
+// Sans scan connu, seules les promos valables dans les TROIS boutiques s'affichent.
 export function offreVisiblePour(o: Offre, magasinClient?: string | null): boolean {
   const vises = Array.isArray(o?.magasins)
     ? o.magasins.map((m) => String(m).toLowerCase().trim()).filter(Boolean)

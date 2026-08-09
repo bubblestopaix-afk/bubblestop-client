@@ -276,6 +276,7 @@ export default function CompteScreen() {
   const [offreDateDebut, setOffreDateDebut] = useState(''); // JJ/MM/AAAA (optionnel)
   const [offreDateFin, setOffreDateFin] = useState('');
   const [offrePushAuto, setOffrePushAuto] = useState(false);
+  const [offreMagasins, setOffreMagasins] = useState<MagasinId[]>(() => MAGASINS.map((m) => m.id));
   // Contenu STRUCTURÉ (remise appliquée AUTOMATIQUEMENT par la caisse, ≥ POS 0.28.138) :
   // type −% (sur les lignes ciblées) ou −€ (par boisson ciblée) + catégories cibles.
   const [offreRemiseType, setOffreRemiseType] = useState<'' | 'pourcent' | 'montant' | 'tampons' | 'duo'>('');
@@ -465,6 +466,12 @@ export default function CompteScreen() {
   };
   const basculerJourOffre = (j: number) =>
     setOffreJours((prev) => (prev.includes(j) ? prev.filter((x) => x !== j) : [...prev, j]));
+  const basculerMagasinOffre = (magasin: MagasinId) => setOffreMagasins((courants) => {
+    const suivants = courants.includes(magasin)
+      ? courants.filter((m) => m !== magasin)
+      : [...courants, magasin];
+    return suivants.length ? suivants : courants;
+  });
 
   const publierOffre = async (avecPush: boolean) => {
     if (!offreTitre.trim() || !offreMessage.trim()) {
@@ -518,6 +525,7 @@ export default function CompteScreen() {
           heure_debut: hDebut, heure_fin: hFin,
           date_debut: dDebut, date_fin: dFin,
           push_auto: offrePushAuto,
+          magasins: offreMagasins,
           remise_type: offreRemiseType || null,
           remise_valeur: remiseValeur,
           // 'tampons' s'applique à TOUTE la commande → jamais de catégories ciblées
@@ -540,6 +548,7 @@ export default function CompteScreen() {
       setOffreTitre(''); setOffreMessage(''); setPresetId(null);
       setOffreJours([]); setOffreHeureDebut(''); setOffreHeureFin('');
       setOffreDateDebut(''); setOffreDateFin(''); setOffrePushAuto(false);
+      setOffreMagasins(MAGASINS.map((m) => m.id));
       setOffreRemiseType(''); setOffreRemiseValeur(''); setOffreCibleCats([]);
       setOffreEtat(txt);
       chargerOffres();
@@ -1431,6 +1440,24 @@ export default function CompteScreen() {
                   multiline
                   maxLength={180}
                 />
+                <View style={styles.progBloc}>
+                  <Text style={styles.progTitre}>🏪 Boutiques concernées</Text>
+                  <View style={styles.msgCaisseMags}>
+                    {MAGASINS.map((m) => (
+                      <Pressable
+                        key={m.id}
+                        style={[styles.msgCaisseChip, offreMagasins.includes(m.id) && styles.msgCaisseChipActif]}
+                        onPress={() => basculerMagasinOffre(m.id)}>
+                        <Text style={[styles.msgCaisseChipTxt, offreMagasins.includes(m.id) && styles.msgCaisseChipTxtActif]}>
+                          {m.nom}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Text style={styles.progAide}>
+                    Seules ces caisses reçoivent l'offre. Les notifications suivent le dernier QR scanné, sans choix demandé au client.
+                  </Text>
+                </View>
                 {/* === ⏰ Programmation (optionnelle) : jours · heures · période · push auto === */}
                 <View style={styles.progBloc}>
                   <Text style={styles.progTitre}>⏰ Programmation (optionnel)</Text>
@@ -1467,7 +1494,7 @@ export default function CompteScreen() {
                   <View style={styles.cmdMagLigne}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.cmdMagNom}>📣 Push auto à chaque occurrence</Text>
-                      <Text style={styles.progAide}>Notification envoyée à tous au début de chaque créneau (max 1/jour par offre).</Text>
+                      <Text style={styles.progAide}>Notification envoyée aux clients des boutiques sélectionnées, selon leur dernier scan QR (max 1/jour par offre).</Text>
                     </View>
                     <Switch
                       value={offrePushAuto}
@@ -1568,6 +1595,11 @@ export default function CompteScreen() {
                           ⏰ {resumeRecurrence(o)}{o.push_auto ? ' · 📣 push auto' : ''}
                         </Text>
                       )}
+                      <Text style={styles.offreLigneSous} numberOfLines={1}>
+                        🏪 {(Array.isArray(o.magasins) && o.magasins.length ? o.magasins : MAGASINS.map((m) => m.id))
+                          .map((id: string) => MAGASINS.find((m) => m.id === id)?.nom || id)
+                          .join(' · ')}
+                      </Text>
                       {o.remise_type === 'tampons' && Number(o.remise_valeur) >= 2 && (
                         <Text style={styles.offreLigneSous} numberOfLines={1}>
                           🎟️ Tampons ×{Math.round(Number(o.remise_valeur))} sur tout le ticket · scan fidélité requis

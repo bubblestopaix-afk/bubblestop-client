@@ -6,7 +6,7 @@ import { Redirect } from 'expo-router';
 
 import { supabase } from '@/lib/supabase';
 import { useFonctionnalite } from '@/lib/fonctionnalites';
-import { offreEnCours, offreVisiblePour } from '@/lib/offres';
+import { magasinOffresDepuisProfil, offreEnCours, offreVisiblePour } from '@/lib/offres';
 import RappelNotifs from '@/components/rappel-notifs';
 import { IconeApp } from '@/components/icones-app';
 import { BORD, C, F, OMBRE, R } from '@/constants/charte';
@@ -34,15 +34,14 @@ function OffresScreen() {
   const [erreur, setErreur] = useState(false);
 
   const charger = useCallback(async () => {
-    // Même règle que l'accueil : une promo restreinte à certaines boutiques ne
-    // s'affiche qu'à leurs clients (correctif 05/08/2026, fail-closed sans compte).
+    // Même règle que l'accueil : dernier QR scanné, fail-closed sans scan connu.
     let magasinClient: string | null = null;
     try {
       const { data: sess } = await supabase.auth.getSession();
       if (sess?.session) {
         const { data: pm } = await supabase.from('profils')
-          .select('magasin').eq('id', sess.session.user.id).maybeSingle();
-        magasinClient = (pm?.magasin as string | null) || null;
+          .select('dernier_magasin_scan').eq('id', sess.session.user.id).maybeSingle();
+        magasinClient = magasinOffresDepuisProfil(pm);
       }
     } catch (_) { magasinClient = null; }
     const { data, error } = await supabase.from('offres')

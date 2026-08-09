@@ -29,7 +29,8 @@ Ces règles s'ajoutent à `../AGENTS.md` pour tout fichier sous `src/`.
 - Utiliser `numero_fidelite` comme identifiant opaque. Les colonnes téléphone de
   `profils` et `fidelite_cloud` sont supprimées.
 - L'activation de carte passe par la RPC ; le client ne fabrique pas le code.
-- Une promo ciblée est filtrée avec `offreVisiblePour`. Sans boutique connue,
+- Une promo ciblée est filtrée avec `offreVisiblePour` selon
+  `dernier_magasin_scan`, jamais selon une boutique d'origine. Sans scan connu,
   afficher uniquement les offres valables partout : repli fail-closed.
 - Une mutation réseau ambiguë doit conserver l'action et demander une actualisation
   plutôt que provoquer un doublon potentiel.

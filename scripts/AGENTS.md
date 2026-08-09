@@ -9,6 +9,8 @@ Ces règles s'ajoutent à `../AGENTS.md` pour `scripts/`.
 - Une correction de moteur doit avoir un test qui échoue réellement sur l'ancien
   comportement, pas seulement une assertion décorative.
 - `test-menu-vitrine.cjs` protège les familles et saveurs du menu public.
+- `test-offres.cjs` protège le ciblage fail-closed des offres par dernier scan QR
+  et interdit le repli sur une boutique d'origine.
 - `test-agents-contexte.cjs` protège l'architecture de contexte et l'archive ; ne
   pas assouplir ses limites pour faire passer une nouvelle accumulation.
 - La validation complète compacte est `npm run test:quiet`. En cas d'échec,
