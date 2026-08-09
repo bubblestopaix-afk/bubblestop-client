@@ -84,11 +84,6 @@ try {
     ['Crème Brûlée', 'Tiger Sugar', 'Mango Punch'],
     'les signatures doivent être séparées du Matcha et des Mousses',
   );
-  assert.deepEqual(
-    signatures.saveurs.map((saveur) => saveur.prixUnitaire),
-    [6, 5.5, 5.5],
-    'les prix individuels des signatures doivent suivre le PDF',
-  );
   assert.equal(signatures.photo, '/img/photos/creme-brulee-menu.png', 'Signatures doit utiliser la photo Crème Brûlée du PDF');
   assert.ok(fs.existsSync(path.join(racine, 'assets/images/photos/mousses-menu.png')), 'photo Mousses absente');
   assert.ok(fs.existsSync(path.join(racine, 'assets/images/photos/creme-brulee-menu.png')), 'photo Crème Brûlée absente');
@@ -101,6 +96,20 @@ try {
   );
   assert.ok(!toutes.some((saveur) => saveur.id === 'tr-genmaicha'), 'Genmaicha absent du nouveau PDF doit être retiré');
   assert.ok(!toutes.some((saveur) => /s[ée]same/i.test(saveur.nom)), 'Sésame doit être retiré du nouveau menu');
+
+  const ecranMenu = fs.readFileSync(path.join(racine, 'src/app/menu/[categorieId].tsx'), 'utf8');
+  const accueil = fs.readFileSync(path.join(racine, 'src/app/index.tsx'), 'utf8');
+  const onglets = fs.readFileSync(path.join(racine, 'src/components/app-tabs.tsx'), 'utf8');
+  const config = fs.readFileSync(path.join(racine, 'src/lib/app-config.ts'), 'utf8');
+  assert.match(ecranMenu, /Achats uniquement en boutique/);
+  assert.doesNotMatch(ecranMenu, /€|Formats et tarifs|prixSaveur|commande en ligne/i);
+  assert.match(accueil, /achats uniquement en boutique/i);
+  assert.doesNotMatch(accueil, /\/commander|commande en ligne/i);
+  assert.doesNotMatch(onglets, /name="commander"|title: 'Commander'/);
+  assert.doesNotMatch(config, /FLAG_COMMANDE|useCommandeEnLigne|commande_en_ligne_active/);
+  assert.equal(fs.existsSync(path.join(racine, 'src/app/commander')), false, 'les routes de commande doivent être supprimées');
+  assert.equal(fs.existsSync(path.join(racine, 'src/store/panier.ts')), false, 'le panier mort doit être supprimé');
+  assert.equal(fs.existsSync(path.join(racine, 'src/lib/eligibilite.ts')), false, 'la garde de commande morte doit être supprimée');
 
   console.log(`Menu PDF : 8 familles et ${saveursVerifiees} saveurs expliquées`);
 } finally {

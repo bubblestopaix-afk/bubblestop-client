@@ -20,8 +20,7 @@ import { LogoBubbleStop } from '@/components/logo-bubblestop';
 import RappelNotifs from '@/components/rappel-notifs';
 import { FAMILLES_MENU } from '@/data/menu-vitrine';
 
-// Vitrine de consultation : elle reste indépendante de l'ancienne commande en
-// ligne. Chaque tuile ouvre uniquement /menu, jamais /commander ni le panier.
+// Vitrine de consultation : chaque tuile ouvre uniquement les saveurs de la famille.
 // Visuels détourés de la DA kawaii sur pastilles pastel (vert/crème/rose).
 const BOISSONS_VITRINE = [
   { id: 'fruit-tea', nom: 'Fruit Tea', photo: require('@/assets/images/products/fruit-tea.png'), pastel: '#EDF6E1' },
@@ -120,7 +119,7 @@ export default function AccueilScreen() {
       if (!session) { setCarteLiee(false); setErreurReseau(echec); return; }
 
       // Profil : prénom + carte. La ville n'est plus demandée depuis le retrait
-      // de la commande en ligne ; la fidélité reste valable dans les 3 boutiques.
+      // du menu vitrine ; la fidélité reste valable dans les 3 boutiques.
       const { data: p, error: erreurProfil } = await supabase.from('profils')
         .select('nom, numero_fidelite')
         .eq('id', session.user.id).maybeSingle();
@@ -222,9 +221,9 @@ export default function AccueilScreen() {
           {/* 🔔 Rappel notifications (connecté sans permission → il raterait toutes les promos) */}
           {offresFlag.actif && <RappelNotifs />}
 
-          {/* Vitrine boissons : consultation du menu sans réactiver la commande. */}
+          {/* Vitrine boissons : consultation des familles et saveurs. */}
           <View style={styles.vitrine}>
-            <TitreKawaii texte="Nos boissons" sousTitre="À retrouver en boutique" taille={19} />
+            <TitreKawaii texte="Nos boissons" sousTitre="Carte à découvrir · achats uniquement en boutique" taille={19} />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -239,7 +238,7 @@ export default function AccueilScreen() {
                   } as any)}
                   accessibilityRole="button"
                   accessibilityLabel={`Découvrir ${FAMILLES_PAR_ID.get(boisson.id)?.nom ?? boisson.nom}`}
-                  accessibilityHint="Ouvre le menu vitrine de cette famille, sans commande en ligne"
+                  accessibilityHint="Ouvre les saveurs de cette famille"
                   style={({ pressed }) => [
                     styles.vitrineTuile,
                     { backgroundColor: boisson.pastel },

@@ -27,16 +27,6 @@ export default function AppTabs() {
           tabBarIcon: ({ color, size, focused }) => <IconeAccueil color={color} size={size} focused={focused} />,
         }}
       />
-      <Tabs.Screen
-        name="commander"
-        options={{
-          // Commande retirée pour tous ; miroir strict du natif.
-          // ⚠️ pas de `href` + tabBarButton ensemble.
-          title: 'Commander',
-          tabBarButton: () => null,
-          tabBarItemStyle: { display: 'none' },
-        }}
-      />
       {/* Menu vitrine (/menu) — route de détail sans onglet, miroir du natif. */}
       <Tabs.Screen
         name="menu"

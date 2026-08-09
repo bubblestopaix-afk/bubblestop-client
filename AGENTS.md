@@ -34,7 +34,8 @@ Avant toute modification :
 
 ### Chantiers actifs
 
-Aucun chantier déclaré.
+| Session | Depuis | Statut | Fichiers / dossiers verrouillés |
+|---|---|---|---|
 
 À la fin, marquer le journal `TERMINÉ` puis retirer sa ligne de ce tableau.
 
@@ -79,7 +80,9 @@ garde de sécurité, d'accès aux clients réels ou de publication.
   enregistré par le POS. Ne jamais demander ni déduire une boutique d'origine à
   l'inscription ; sans scan connu, seules les offres nationales sont visibles.
 - La commande en ligne est retirée du produit. Les anciennes routes ne doivent pas
-  redevenir accessibles par un flag ou un lien résiduel.
+  être conservées ni redevenir accessibles par un flag ou un lien résiduel.
+- Le menu client est une vitrine de familles et saveurs sans prix ni panier. Il
+  indique explicitement que les achats se font uniquement en boutique.
 - Email, Sign in with Apple et Google sont des voies d'authentification supportées.
   Apple reste proposé sur iOS quand une connexion tierce est disponible.
 - Le module Google natif est chargé à la demande : Expo Go doit continuer à ouvrir

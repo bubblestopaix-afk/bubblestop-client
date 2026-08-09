@@ -3,16 +3,11 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BoutonRetour, Carte, Etincelle, Message, TitreKawaii } from '@/components/ui-kit';
+import { BoutonRetour, Etincelle, Message, TitreKawaii } from '@/components/ui-kit';
 import { BORD, C, F, OMBRE, R } from '@/constants/charte';
 import { useCatalogueCloud } from '@/data/catalogue-cloud';
 import { construireCategorieVitrine, descriptionSaveur, trouverFamilleMenu } from '@/data/menu-vitrine';
 import { photoCategorie } from '@/data/photos-categories';
-
-function euros(valeur: unknown) {
-  const nombre = Number(valeur);
-  return Number.isFinite(nombre) ? `${nombre.toFixed(2).replace('.', ',')} €` : null;
-}
 
 export default function MenuCategorieScreen() {
   const insets = useSafeAreaInsets();
@@ -37,12 +32,6 @@ export default function MenuCategorieScreen() {
   }
 
   const photo = photoCategorie(categorie);
-  const tarifs: string[] = (categorie.formats ?? [])
-    .map((format: string) => {
-      const prix = euros(categorie.prix?.[format]);
-      return prix ? `${format} · ${prix}` : null;
-    })
-    .filter((tarif: string | null): tarif is string => !!tarif);
   const groupesMap = new Map<string, any[]>();
   for (const saveur of categorie.saveurs ?? []) {
     const groupe = String(saveur.groupe ?? '');
@@ -73,27 +62,11 @@ export default function MenuCategorieScreen() {
           <TitreKawaii texte={famille.nom} sousTitre={famille.introduction} taille={25} />
 
           <View style={styles.bandeauVitrine} accessibilityRole="summary">
-            <Text style={styles.bandeauTitre}>À découvrir en boutique</Text>
+            <Text style={styles.bandeauTitre}>Achats uniquement en boutique</Text>
             <Text style={styles.bandeauTexte}>
-              Ce menu est un aperçu. La commande en ligne n’est pas proposée : choisis et personnalise ta boisson directement avec notre équipe.
+              Découvre ici les familles et les saveurs, puis choisis et personnalise ta boisson directement avec notre équipe.
             </Text>
           </View>
-
-          {tarifs.length > 0 && (
-            <Carte style={styles.tarifs}>
-              <Text style={styles.tarifsTitre}>Formats et tarifs</Text>
-              <View style={styles.tarifsLigne}>
-                {tarifs.map((tarif) => (
-                  <View key={tarif} style={styles.tarifPill}>
-                    <Text style={styles.tarifTexte}>{tarif}</Text>
-                  </View>
-                ))}
-              </View>
-              <Text style={styles.tarifsNote}>
-                {categorie.noteTarif ?? 'Tarifs indicatifs, hors suppléments éventuels.'}
-              </Text>
-            </Carte>
-          )}
 
           <TitreKawaii
             texte="Choisis ton parfum"
@@ -125,9 +98,6 @@ export default function MenuCategorieScreen() {
                             <View style={styles.detailsRang}>
                               {indisponible && <Text style={styles.indisponibleTexte}>Indisponible pour le moment</Text>}
                               {!!saveur.froid && <Text style={styles.froidTexte}>Froid uniquement</Text>}
-                              {Number.isFinite(Number(saveur.prixUnitaire)) && (
-                                <Text style={styles.prixSaveur}>M · {euros(saveur.prixUnitaire)}</Text>
-                              )}
                             </View>
                           </View>
                           <Pressable
@@ -177,12 +147,6 @@ const styles = StyleSheet.create({
   },
   bandeauTitre: { fontFamily: F.titre, fontSize: 16, color: C.violet },
   bandeauTexte: { fontFamily: F.t500, fontSize: 13.5, lineHeight: 19, color: C.texte },
-  tarifs: { gap: 10 },
-  tarifsTitre: { fontFamily: F.titre, fontSize: 16, color: C.violet },
-  tarifsLigne: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tarifPill: { backgroundColor: C.lavande, borderRadius: R.pill, paddingHorizontal: 11, paddingVertical: 7 },
-  tarifTexte: { fontFamily: F.t700, fontSize: 13, color: C.violetProfond },
-  tarifsNote: { fontFamily: F.t500, fontSize: 12, color: C.texte2 },
   groupes: { gap: 18 },
   groupe: { gap: 9 },
   groupeTitre: { fontFamily: F.titre, fontSize: 17, color: C.violet, paddingLeft: 4 },
@@ -208,7 +172,6 @@ const styles = StyleSheet.create({
   detailsRang: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   indisponibleTexte: { fontFamily: F.t700, fontSize: 11.5, color: C.danger },
   froidTexte: { fontFamily: F.t600, fontSize: 11.5, color: C.bleu },
-  prixSaveur: { fontFamily: F.t700, fontSize: 11.5, color: C.violet },
   infoBouton: {
     width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center',
     backgroundColor: C.lavande, borderWidth: 2, borderColor: C.violetClair,

@@ -32,6 +32,9 @@ Ces règles s'ajoutent à `../AGENTS.md` pour tout fichier sous `src/`.
 - Une promo ciblée est filtrée avec `offreVisiblePour` selon
   `dernier_magasin_scan`, jamais selon une boutique d'origine. Sans scan connu,
   afficher uniquement les offres valables partout : repli fail-closed.
+- Le menu client est une vitrine de familles et saveurs, sans prix, panier ni
+  parcours d'achat. Les achats sont indiqués comme disponibles uniquement en
+  boutique ; ne pas réintroduire de route ou flag de commande.
 - Une mutation réseau ambiguë doit conserver l'action et demander une actualisation
   plutôt que provoquer un doublon potentiel.
 - Les droits et récompenses réels doivent être revalidés côté serveur ; masquer un

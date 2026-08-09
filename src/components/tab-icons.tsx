@@ -29,28 +29,6 @@ export function IconeAccueil({ color, size, focused }: IconeProps) {
   );
 }
 
-// Bubble tea — couvercle dôme, paille, gobelet fuselé, perles
-export function IconeCommander({ color, size, focused }: IconeProps) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Line x1="15.1" y1="1.8" x2="13.3" y2="7.6" stroke={color} strokeWidth={T} strokeLinecap="round" />
-      <Path
-        d="M6.3 8 L17.7 8 L16.4 19.8 Q16.2 21.5 14.4 21.5 L9.6 21.5 Q7.8 21.5 7.6 19.8 Z"
-        stroke={color} strokeWidth={T} strokeLinejoin="round"
-        fill={focused ? color : 'none'}
-      />
-      <Path d="M6.4 7.9 Q6.4 3.6 12 3.6 Q17.6 3.6 17.6 7.9" stroke={color} strokeWidth={T} strokeLinecap="round" fill="none" />
-      <Line x1="5.5" y1="7.9" x2="18.5" y2="7.9" stroke={color} strokeWidth={T} strokeLinecap="round" />
-      <G fill={focused ? NEG : color}>
-        <Circle cx="9.9" cy="17.6" r="1.15" />
-        <Circle cx="12.1" cy="18.4" r="1.15" />
-        <Circle cx="14.2" cy="17.5" r="1.15" />
-        <Circle cx="11" cy="15.4" r="1.15" />
-      </G>
-    </Svg>
-  );
-}
-
 // Fidélité — carte à tampons (perles) : c'est LITTÉRALEMENT l'écran fidélité
 export function IconeFidelite({ color, size, focused }: IconeProps) {
   return (

@@ -26,19 +26,7 @@ export default function AppTabs() {
           tabBarIcon: ({ color, size, focused }) => <IconeAccueil color={color} size={size} focused={focused} />,
         }}
       />
-      <Tabs.Screen
-        name="commander"
-        options={{
-          // Décision produit 15/07/2026 : commande retirée pour tous, admins compris.
-          // La route reste enregistrée mais cachée ; son layout redirige aussi les anciens liens.
-          // ⚠️ PAS de `href` ici : expo-router crash si href + tabBarButton sont combinés.
-          title: 'Commander',
-          tabBarButton: () => null,
-          tabBarItemStyle: { display: 'none' },
-        }}
-      />
-      {/* Menu vitrine (/menu) — consultable depuis les photos de l'accueil, sans
-          panier ni commande. Route cachée dans la barre, comme les autres détails. */}
+      {/* Menu vitrine (/menu) — route de détail cachée dans la barre. */}
       <Tabs.Screen
         name="menu"
         options={{
