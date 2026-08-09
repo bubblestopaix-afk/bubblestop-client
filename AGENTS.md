@@ -64,9 +64,9 @@ garde de sécurité, d'accès aux clients réels ou de publication.
   même version applicative.
 - `main` est le code de référence. Le dernier commit au début de ce chantier est
   `9370876`; cela ne prouve pas qu'il est publié en OTA.
-- Le dernier état production documenté dans l'ancien journal date du 05/08/2026.
-  Des commits plus récents existent : vérifier EAS avant toute affirmation ou
-  décision de rollback.
+- Dernière OTA production vérifiée : groupe
+  `969af8d1-d696-461b-b080-110e9f885d53`, runtime `1.0.3`, commit `ba5bd07`,
+  publiée le 09/08/2026 pour iOS et Android. Vérifier EAS avant tout rollback.
 - Le seul fichier non suivi initial est `Publier OTA preview.command`, aide locale
   appartenant à Yoann. Ne jamais le modifier ni l'ajouter à un commit sans demande.
 
