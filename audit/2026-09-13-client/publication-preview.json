@@ -1,0 +1,22 @@
+[
+  {
+    "platform": "android",
+    "id": "01a09c13-b6e2-743f-8f55-6f2d6a0a8110",
+    "group": "1e6e82f1-eceb-4600-9ff5-ec39584a8099",
+    "runtime": "1.0.3",
+    "commit": "998fe1b7d0e88d8cbf336f83286d22f180106d65",
+    "launchSHA256": "5T2YJ6YWqIOOyDcyQhdcIOFYZTlmbT3BIVh-svdbNMs",
+    "asset_count": 55,
+    "assets_digest": "bdbde2604b4f10c784c3eaa97304b6160e5a4139551fb3c874fd2492a545e307"
+  },
+  {
+    "platform": "ios",
+    "id": "01a09c13-b6e2-75a6-9650-773ce278d3cc",
+    "group": "1e6e82f1-eceb-4600-9ff5-ec39584a8099",
+    "runtime": "1.0.3",
+    "commit": "998fe1b7d0e88d8cbf336f83286d22f180106d65",
+    "launchSHA256": "Zogsf99SdIDpnH-p8vqE6qFXZxObojHA9FqCA4dR8Z0",
+    "asset_count": 55,
+    "assets_digest": "1709e658d46c4258ce50ac83d530f9e18b3aaa99524af437e1a81483dc510e71"
+  }
+]

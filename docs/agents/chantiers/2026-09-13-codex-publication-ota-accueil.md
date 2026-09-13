@@ -19,3 +19,9 @@ Aucun simulateur avec Bubble Stop ou Expo Go installé n'est disponible ; un bui
 preview iOS 1.0.3 existe sur EAS mais il cible un appareil physique. La recette
 native (connexions, navigation, fidélité, Google) reste non effectuée ; ne pas
 confondre les contrôles du paquet et le test matériel.
+
+Prévisualisation publiée : groupe 1e6e82f1-eceb-4600-9ff5-ec39584a8099,
+source 998fe1b7d0e88d8cbf336f83286d22f180106d65, iOS + Android 1.0.3.
+Les empreintes des deux paquets distants correspondent aux fichiers Hermes
+locaux. Chaque plateforme référence 55 assets. Preuve minimale sans jeton :
+audit/2026-09-13-client/publication-preview.json.
