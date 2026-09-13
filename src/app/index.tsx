@@ -195,7 +195,7 @@ export default function AccueilScreen() {
           {/* === Offres prioritaires : toujours avant la vitrine boissons === */}
           {offresFlag.actif && offres !== null && !erreurOffres && (
             <View style={styles.offresSection}>
-              <TitreKawaii texte="En ce moment" taille={19} />
+              <TitreKawaii texte="Promotion du jour" taille={19} />
               {offres.length > 0 ? (
                 <>
                   {offres.slice(0, 2).map((o, i) => (

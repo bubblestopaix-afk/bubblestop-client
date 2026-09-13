@@ -8,7 +8,7 @@ Une carte **« Ton avis compte »** a été ajoutée. Elle retrouve la boutique 
 
 ## Parcours examinés
 
-1. **Accueil — contrôlé avant/après.** Composant réel de l’application, données fictives, colonnes de 390 et 320 pixels. La roue était après le catalogue, Quest et Tower. Elle est maintenant immédiatement après l’en-tête. Les offres restent avant les boissons.
+1. **Accueil — contrôlé avant/après.** Composant réel de l’application, données fictives, colonnes de 390 et 320 pixels. La roue était après le catalogue, Quest et Tower. Elle est maintenant immédiatement après l’en-tête. Les offres restent avant les boissons, sous le titre « Promotion du jour » demandé par Yoann.
 2. **Roue — contrôlée visuellement.** Navigation depuis l’accueil et retour, libellé L, liste des chances, règle Signature. Aucun tirage effectué. Probabilités, code `roulette_boisson_l`, quota et attribution des récompenses inchangés.
 3. **Offres — revue du rendu et du code.** Titre, message et ancienneté sont affichés ; le filtre suit le dernier scan. La carte fictive ne prouve ni l’éligibilité ni l’application d’une offre réelle en caisse.
 4. **Avis Google — contrôlé avec trois profils fictifs.** Aix, Lyon et Toulouse produisent trois liens distincts. Le cas sans scan donne une consigne de scan ; une erreur réseau conserve un message et permet de réessayer. Aucun lien vers une boutique n’est fabriqué à partir du magasin d’origine.

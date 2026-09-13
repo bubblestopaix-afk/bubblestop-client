@@ -28,3 +28,6 @@ scripts/test-avis-google.cjs, package.json (commande de test),
 src/app/index.tsx, src/app/roue.tsx, src/components/roue/roue.ts,
 audit/2026-09-13-client/ et ce journal. Rapport : audit/2026-09-13-client/AUDIT.md.
 Aucune nouvelle lecture périodique, migration, récompense ni publication.
+
+Ajout demandé par Yoann après la recette : le titre « En ce moment » devient
+« Promotion du jour » sur l’accueil. Aucun changement du filtre ou des offres.
