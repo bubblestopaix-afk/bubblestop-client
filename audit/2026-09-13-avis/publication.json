@@ -1,0 +1,28 @@
+{
+  "productionGroup": "73e80ca0-62d5-4a9a-9e9f-a9e71347392b",
+  "previewGroup": "e4397209-2b0c-4191-a926-4c933668bfa8",
+  "previousProductionGroup": "d522ee02-d024-4ab4-b7cf-1dd866eb28d4",
+  "runtime": "1.0.3",
+  "sourceCommit": "d272649c8f00c3ae99baf3603fa65a8f8bc5c0bb",
+  "canal": "production",
+  "telephonePhysiqueTeste": false,
+  "accordUtilisateur": "publie",
+  "platforms": [
+    {
+      "platform": "android",
+      "id": "01a09ca3-b51c-7cb9-a324-7eae8217ea57",
+      "createdAt": "2026-09-13T21:19:29.564Z",
+      "sha256": "1w4fk0yl-5AlDsLrNH8ENCSNo3B4RffgnIvFpkxW3yM",
+      "assets": 55,
+      "identiquePreview": true
+    },
+    {
+      "platform": "ios",
+      "id": "01a09ca3-b51c-7c3a-8d27-e2ea60c9f44a",
+      "createdAt": "2026-09-13T21:19:29.564Z",
+      "sha256": "ig1vOk3YtsN2RMM5KrCxpLk7sfteX7YM__HS9DLlep4",
+      "assets": 55,
+      "identiquePreview": true
+    }
+  ]
+}

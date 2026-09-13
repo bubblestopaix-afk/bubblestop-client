@@ -10,7 +10,7 @@ const sortie = fs.mkdtempSync(path.join(os.tmpdir(), 'avis-client-tests-'));
     execFileSync(path.join(racine, 'node_modules/.bin/tsc'), ['--outDir', sortie,
       '--module', 'commonjs', '--moduleResolution', 'node', '--target', 'es2020', '--skipLibCheck',
       path.join(racine, 'src/lib/avis-google.ts')], { cwd: racine, stdio: 'pipe' });
-    const { BOUTIQUES_AVIS_GOOGLE, destinationAvisGoogle } = require(path.join(sortie, 'avis-google.js'));
+    const { BOUTIQUES_AVIS_GOOGLE, destinationAvisGoogle, signalerOuvertureAvisGoogle } = require(path.join(sortie, 'avis-google.js'));
     const attendus = { aix: 'ChIJRZe6J72NyRIROG8EKm4FZhI', lyon: 'ChIJif8QNwnr9EcRyMFB4tdVdJo', toulouse: 'ChIJXWQyZRS9rhIRqiyfNgCvnpw' };
     assert.deepEqual(BOUTIQUES_AVIS_GOOGLE.map(b => b.magasin), Object.keys(attendus));
     for (const [magasin, placeId] of Object.entries(attendus)) {
@@ -24,6 +24,14 @@ const sortie = fs.mkdtempSync(path.join(os.tmpdir(), 'avis-client-tests-'));
     const liens = ['lyon', 'aix', 'toulouse', 'lyon'].map(choix => destinationAvisGoogle(choix).url);
     assert.equal(new Set(liens).size, 3, 'les trois boutiques restent accessibles successivement');
     assert.equal(liens[0], liens[3], 'revenir sur une boutique ne la verrouille pas');
+    const mesures=[];
+    for(const m of ['aix','lyon','toulouse'])signalerOuvertureAvisGoogle(m,async m=>{mesures.push(m);});
+    signalerOuvertureAvisGoogle('nimes',async m=>{mesures.push(m);});
+    assert.deepEqual(mesures,['aix','lyon','toulouse']);
+    assert.equal(signalerOuvertureAvisGoogle('lyon',()=>new Promise(()=>{})),undefined,'le lien ne doit pas attendre une mesure lente');
+    assert.doesNotThrow(()=>signalerOuvertureAvisGoogle('lyon',()=>{throw Error('hors ligne');}));
+    signalerOuvertureAvisGoogle('lyon',()=>Promise.reject(Error('serveur indisponible')));
+    await new Promise(r=>setTimeout(r,0));
     console.log('Avis Google : choix explicite des trois boutiques et absence de destination implicite validés');
   } finally { fs.rmSync(sortie, { recursive: true, force: true }); }
 })().catch((error) => { console.error(error); process.exitCode = 1; });

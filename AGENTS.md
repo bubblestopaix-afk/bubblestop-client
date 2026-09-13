@@ -60,6 +60,11 @@ garde de sécurité, d'accès aux clients réels ou de publication.
 
 ## État de référence
 
+- Compteur des ouvertures vers Google publié le 13/09/2026 : OTA production
+  `73e80ca0-62d5-4a9a-9e9f-a9e71347392b`, source `d272649`, iOS/Android
+  runtime 1.0.3 ; fichiers identiques à la preview, exception téléphone autorisée.
+  Journal : `docs/agents/chantiers/2026-09-13-codex-compteur-avis-google.md`.
+
 - Expo SDK **54**, React Native **0.81**, application et runtime **1.0.3**.
 - `runtimeVersion.policy = appVersion` : une OTA ne cible que les binaires de la
   même version applicative.

@@ -15,3 +15,13 @@ export function destinationAvisGoogle(choix: unknown) {
   return { magasin: boutique.magasin, nom: boutique.nom,
     url: `https://search.google.com/local/writereview?placeid=${boutique.placeId}` };
 }
+
+/** Mesure facultative : n’attend jamais le serveur pour ouvrir Google. */
+export function signalerOuvertureAvisGoogle(
+ choix: unknown, enregistrer: (magasin: MagasinAvisGoogle) => PromiseLike<unknown>,
+): void {
+ const destination=destinationAvisGoogle(choix);
+ if(!destination)return;
+ try { Promise.resolve(enregistrer(destination.magasin)).catch(()=>{}); }
+ catch { /* L’ouverture du lien reste indépendante de cette mesure. */ }
+}
