@@ -10,8 +10,8 @@ export default function CadeauAnniversaire({ discret = false, solde }: { discret
   if (cadeau?.statut === 'disponible' && solde !== 0) return (
     <Bloc accessibilityRole={discret ? undefined : "button"} onPress={discret ? undefined : () => router.push('/explore')}
       accessibilityLabel="Mon cadeau anniversaire, voir ma carte fidélité" style={styles.cadeau}>
-      <Text style={styles.titre}>🎂 Ta boisson L d’anniversaire est offerte !</Text>
-      <Text style={styles.texte}>Présente ton QR en caisse jusqu’au {dateCadeau(cadeau.expireLe)} inclus. M pour Signature.</Text>
+      <Text style={styles.titre}>🎂 Ta boisson d’anniversaire est offerte !</Text>
+      <Text style={styles.texte}>Choisis ta boisson dans la plus grande taille disponible de sa catégorie. Présente ton QR en caisse jusqu’au {dateCadeau(cadeau.expireLe)} inclus.</Text>
       {discret && <Text style={styles.texte}>{CONDITION_ANNIVERSAIRE}</Text>}
       {!discret && <Text style={styles.lien}>Voir ma carte fidélité →</Text>}
     </Bloc>

@@ -3,7 +3,7 @@ export type Anniversaire =
   | { statut: 'conditions'; boissons: number; prochainAnniversaire: string }
   | { statut: 'disponible'; expireLe: string };
 
-export const CONDITION_ANNIVERSAIRE = 'Une boisson L offerte pour ton anniversaire (M pour Signature), dès 5 boissons payées avec ta carte fidélité pendant les 12 mois précédents. Cadeaux et tampons bonus exclus. À utiliser sous 30 jours.';
+export const CONDITION_ANNIVERSAIRE = 'Une boisson offerte pour ton anniversaire, dans la plus grande taille disponible de sa catégorie, dès 5 boissons payées avec ta carte fidélité pendant les 12 mois précédents. Cadeaux et tampons bonus exclus. À utiliser sous 30 jours.';
 
 export function lireAnniversaire(value: unknown): Anniversaire | null {
   if (!value || typeof value !== 'object') return null;

@@ -46,14 +46,13 @@ function CarteTampons({ tampons, parCarte, cadeaux }: { tampons: number; parCart
         </View>
       </View>
       <Text style={styles.carteFidInfo}>
-        Encore {restant} boisson{restant > 1 ? 's' : ''} avant ta boisson taille L offerte (M pour Signature)
+        Encore {restant} boisson{restant > 1 ? 's' : ''} avant ta boisson offerte, dans la plus grande taille disponible de sa catégorie.
       </Text>
       {cadeaux > 0 && (
         <View style={styles.cadeau}>
-          <GobeletBubble size={34} avecL />
+          <GobeletBubble size={34} />
           <Text style={styles.cadeauTexte}>
-            {cadeaux} boisson{cadeaux > 1 ? 's' : ''} taille L offerte{cadeaux > 1 ? 's' : ''} (M
-            pour Signature) à réclamer en caisse !
+            {cadeaux} boisson{cadeaux > 1 ? 's' : ''} offerte{cadeaux > 1 ? 's' : ''} à réclamer en caisse, dans la plus grande taille disponible de la catégorie choisie !
           </Text>
         </View>
       )}

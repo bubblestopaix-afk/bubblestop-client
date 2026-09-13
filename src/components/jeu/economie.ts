@@ -60,7 +60,7 @@ export const SETS: Record<SetId, {
   },
   signature: {
     nom: 'Les Signatures Royales', rarete: 'legendaire', couleur: '#D2588A', fond: '#fbe4ee', emoji: '👑',
-    recompense: { code: 'set_signature', type: 'boisson', qte: 1, label: 'Grande boisson offerte (L, M pour Signature)' },
+    recompense: { code: 'set_signature', type: 'boisson', qte: 1, label: 'Boisson offerte dans la plus grande taille de sa catégorie' },
   },
 };
 
@@ -428,7 +428,7 @@ export const BOUTIQUE: { id: string; code: CodeRecompenseReelle; cout: number; t
   { id: 'tampon-1', code: 'boutique_tampon_1', cout: 8000, type: 'tampon', qte: 1, parMois: 1, label: '+1 tampon', detail: 'Un tampon direct sur ta carte de fidélité' },
   { id: 'reduc-10', code: 'boutique_reduction_10', cout: 20000, type: 'reduction', qte: 10, parMois: 3, label: '−10 %', detail: 'Sur ta prochaine commande en boutique' },
   { id: 'reduc-20', code: 'boutique_reduction_20', cout: 40000, type: 'reduction', qte: 20, parMois: 1, label: '−20 %', detail: 'Grosse réduction sur ta prochaine commande' },
-  { id: 'boisson-l', code: 'boutique_boisson_l', cout: 60000, type: 'boisson', qte: 1, parMois: 1, label: 'Grande boisson offerte', detail: 'Taille L (M pour les Signatures)' },
+  { id: 'boisson-l', code: 'boutique_boisson_l', cout: 60000, type: 'boisson', qte: 1, parMois: 1, label: 'Grande boisson offerte', detail: 'La plus grande taille disponible dans la catégorie choisie' },
 ];
 
 // --- Roulette mensuelle (toujours gagnante, 1 tour par mois) -----------------------
@@ -1847,7 +1847,7 @@ export function labelPrix(type: TypePrix, qte: number): string {
   switch (type) {
     case 'tampon': return `+${qte} tampon${qte > 1 ? 's' : ''} de fidélité`;
     case 'reduction': return `−${qte} % sur ta prochaine commande`;
-    case 'boisson': return 'Grande boisson offerte (L, M pour Signature)';
+    case 'boisson': return 'Boisson offerte dans la plus grande taille de sa catégorie';
     case 'perles': return `+${qte} perles`;
     case 'capsule_doree': return 'Capsule dorée offerte';
   }

@@ -501,7 +501,7 @@ function RoueContenu() {
                   taille={18}
                 />
                 <Text style={[styles.lotPillTxt, TEXTE_SOMBRE.has(verrou.finalId) && { color: '#2A1D46' }]}>
-                  {verrou.finalId === 'boisson' ? 'Boisson L offerte' : verrou.libelle}
+                  {verrou.finalId === 'boisson' ? 'Grande boisson offerte' : verrou.libelle}
                 </Text>
               </View>
             )}
@@ -559,7 +559,7 @@ function RoueContenu() {
               </Text>
             </View>
           ))}
-          <Text style={styles.conditionBoisson}>Boisson offerte : taille L, ou taille M pour les Signatures.</Text>
+          <Text style={styles.conditionBoisson}>Boisson offerte : la plus grande taille disponible dans la catégorie choisie.</Text>
           <Text style={styles.chancesNote}>
             Le lot est tiré selon ces pourcentages exacts, avant même que la roue tourne —
             les parts sont dessinées égales pour rester lisibles. « Nouveau tour » relance
