@@ -4,7 +4,7 @@ La roue était peu visible dans l’accueil. Elle dispose maintenant d’une car
 
 Une carte **« Ton avis compte »** a été ajoutée. À la demande finale de Yoann, elle propose le choix explicite entre Aix, Lyon et Toulouse, avec le texte « Partage ton expérience dans ton Bubble Stop préféré ». Le client peut ouvrir successivement les trois fiches. Aucun avis n’est prérempli, aucune note n’est imposée et aucune récompense n’est attribuée en échange.
 
-**État : source locale testée, non publiée.** Base f0f57e7, branche `codex/audit-client-roue-avis-20260913` dans le dossier séparé `bubblestop-client-audit-20260913`.
+**État : OTA publiée le 13/09/2026 sur production, iOS et Android 1.0.3.** Groupe `d522ee02-d024-4ab4-b7cf-1dd866eb28d4`, identique au paquet preview. Recette native encore non effectuée. Base f0f57e7, branche `codex/audit-client-roue-avis-20260913` dans le dossier séparé `bubblestop-client-audit-20260913`.
 
 ## Parcours examinés
 
@@ -50,7 +50,7 @@ Sur téléphone comme sur le web, le client sélectionne sa boutique puis touche
 ## Validation et limites
 
 - `npm run test:quiet` réussi : Tower, Roue, Quest, menu (8 familles / 52 saveurs), offres, tests d’avis actualisés pour le choix explicite des boutiques, TypeScript strict.
-- Export Expo web réussi ; aucune dépendance, version, migration, règle de récompense ou publication modifiée.
+- Export Expo web réussi ; aucune dépendance, version, migration ou règle de récompense modifiée. OTA production publiée après autorisation de Yoann.
 - Rendu contrôlé en 320 et 390 pixels, navigation accueil/roue, cas visiteur, flag désactivé, absence de sélection, changements successifs de boutique et liens des trois boutiques.
 - Le harnais présente les avertissements web déjà rencontrés avec certaines propriétés d’accessibilité des composants existants ; il ne prouve pas la conformité avec VoiceOver/TalkBack. Essai natif, texte agrandi, ouverture Google et vérification des fiches nécessaires avant diffusion.
 - Aucun accès aux comptes réels, aucune attribution de lot, aucun avis transmis.
