@@ -36,6 +36,7 @@ Avant toute modification :
 
 | Session | Depuis | Statut | Fichiers / dossiers verrouillés |
 |---|---|---|---|
+| Codex | 2026-09-13 | EN COURS | Publication OTA accueil ; docs/agents/chantiers/2026-09-13-codex-publication-ota-accueil.md |
 
 À la fin, marquer le journal `TERMINÉ` puis retirer sa ligne de ce tableau.
 
