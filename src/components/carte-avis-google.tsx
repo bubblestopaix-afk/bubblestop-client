@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link } from 'expo-router';
-import { BOUTIQUES_AVIS_GOOGLE, destinationAvisGoogle, type MagasinAvisGoogle } from '@/lib/avis-google';
+import { BOUTIQUES_AVIS_GOOGLE, destinationAvisGoogle, signalerOuvertureAvisGoogle, type MagasinAvisGoogle } from '@/lib/avis-google';
+import { supabase } from '@/lib/supabase';
 import { C, F, R } from '@/constants/charte';
 
 export default function CarteAvisGoogle() {
@@ -9,9 +10,12 @@ export default function CarteAvisGoogle() {
   const [message, setMessage] = useState('');
   const destination = destinationAvisGoogle(choix);
 
+  const compter=()=>signalerOuvertureAvisGoogle(choix,magasin=>supabase.rpc('noter_ouverture_avis_google',{p_magasin:magasin}));
+
   async function ouvrir() {
     if (!destination) return;
     setMessage('');
+    compter();
     try { await Linking.openURL(destination.url); }
     catch { setMessage('Google ne s’est pas ouvert. Réessaie dans un instant.'); }
   }
@@ -33,7 +37,7 @@ export default function CarteAvisGoogle() {
       </View>
       {Platform.OS === 'web' && destination ? (
         <Link href={destination.url as `https://${string}`} target="_blank" rel="noopener noreferrer" asChild>
-          <Pressable accessibilityRole="link" style={s.bouton}><Text style={s.action}>{libelle}</Text></Pressable>
+          <Pressable accessibilityRole="link" onPress={compter} style={s.bouton}><Text style={s.action}>{libelle}</Text></Pressable>
         </Link>
       ) : (
         <Pressable onPress={ouvrir} disabled={!destination} accessibilityRole="button"

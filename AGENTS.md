@@ -36,6 +36,7 @@ Avant toute modification :
 
 | Session | Depuis | Statut | Fichiers / dossiers verrouillés |
 |---|---|---|---|
+| Codex avis | 2026-09-13 | EN COURS | `src/lib/avis-google.ts`, `src/components/carte-avis-google.tsx`, `scripts/test-avis-google.cjs`, journal |
 
 À la fin, marquer le journal `TERMINÉ` puis retirer sa ligne de ce tableau.
 
