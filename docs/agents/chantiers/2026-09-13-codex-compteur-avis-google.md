@@ -1,6 +1,6 @@
 # Mesurer les ouvertures vers Google
 
-EN COURS — Codex. Demande acceptée par Yoann : compteur de clics vers Google par
+TERMINÉ — Codex. Demande acceptée par Yoann : compteur de clics vers Google par
 boutique et période, distinct des avis effectivement publiés. Base 1d9c97c, même
 source produit que l’OTA accueil d522ee02. Fichiers : avis-google.ts,
 carte-avis-google.tsx, test-avis-google.cjs ; serveur/Stock dans le dépôt POS.
@@ -29,3 +29,16 @@ Groupe **e4397209-2b0c-4191-a926-4c933668bfa8**, source **d272649**, publié le 
 ## Autorisation de diffusion
 
 Yoann répond **« publie »** à la demande de diffusion du compteur aux clients malgré l’absence de recette sur téléphone physique. Cette instruction autorise la promotion du groupe preview exact vers le canal production pour iOS et Android, runtime 1.0.3. Aucun nouveau build natif, aucune modification de fidélité et aucun rejeu de migration.
+
+## Production publiée et contrôlée
+
+Le groupe **73e80ca0-62d5-4a9a-9e9f-a9e71347392b** est actif sur le canal **production**, pour **iOS et Android / runtime 1.0.3**, depuis le **13/09/2026 à 21:19:29 UTC**. Source **d272649**. Il promeut le groupe preview **e4397209-2b0c-4191-a926-4c933668bfa8** sans reconstruire les fichiers.
+
+Contrôle live après diffusion : les deux bundles de lancement, les 55 assets par plateforme et leur configuration correspondent exactement à la preview. Le canal production n’est pas en pause et cible la branche production. Preuve minimale sans lien signé : `audit/2026-09-13-avis/publication.json`. Aucun changement de code depuis les tests et les exports précédents ; pas de nouvelle suite répétée pour cette promotion seule. Essai physique non réalisé, exception acceptée par le « publie » de Yoann. La publication ne prouve pas encore l’installation sur les téléphones.
+
+Le groupe précédent **d522ee02-d024-4ab4-b7cf-1dd866eb28d4** a été relu avant promotion ; il reste la référence de retour arrière, sans rollback effectué. Pour vérifier la diffusion :
+```sh
+cd /Users/yoannderoo/Desktop/bubblestop-client-avis-20260913 && npx eas-cli@latest update:view 73e80ca0-62d5-4a9a-9e9f-a9e71347392b
+```
+
+L’application vérifie les mises à jour au lancement : une ouverture peut télécharger le lot, la suivante l’appliquer. Aucun avis publié sur Google n’est déduit de ce compteur ; seuls les clics des applications compatibles sont mesurés.
