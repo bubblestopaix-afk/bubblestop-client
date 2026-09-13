@@ -1,0 +1,20 @@
+[
+  {
+    "id": "01a09cb6-24bb-70dc-bade-c7428d3ebef6",
+    "group": "f6ce6d74-9bbc-4ccd-a306-d9398e8b4ae4",
+    "platform": "android",
+    "runtimeVersion": "1.0.3",
+    "createdAt": "2026-09-13T21:39:37.787Z",
+    "message": "Cadeaux et anniversaire : taille par cat\u00e9gorie, condition et rappel",
+    "gitCommitHash": "bb6898f3e598034003d781303c6025a3e9ae0023"
+  },
+  {
+    "id": "01a09cb6-24bb-73fc-a739-b34a9187eb75",
+    "group": "f6ce6d74-9bbc-4ccd-a306-d9398e8b4ae4",
+    "platform": "ios",
+    "runtimeVersion": "1.0.3",
+    "createdAt": "2026-09-13T21:39:37.787Z",
+    "message": "Cadeaux et anniversaire : taille par cat\u00e9gorie, condition et rappel",
+    "gitCommitHash": "bb6898f3e598034003d781303c6025a3e9ae0023"
+  }
+]

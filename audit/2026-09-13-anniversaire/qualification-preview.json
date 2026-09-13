@@ -1,0 +1,22 @@
+[
+  {
+    "platform": "android",
+    "runtime": "1.0.3",
+    "group": "f6ce6d74-9bbc-4ccd-a306-d9398e8b4ae4",
+    "gitCommitHash": "bb6898f3e598034003d781303c6025a3e9ae0023",
+    "bundleSha256": "634677b80555b5fecee7c3f7cc561e8c38c9ffb7196c2f8e32795cab43862397",
+    "assetsCount": 55,
+    "assetsHash": "53f3ad6dbd045b4889c12f9e3a3d379ae30ad823b69450255efed0ce4592e57a",
+    "localIdentical": true
+  },
+  {
+    "platform": "ios",
+    "runtime": "1.0.3",
+    "group": "f6ce6d74-9bbc-4ccd-a306-d9398e8b4ae4",
+    "gitCommitHash": "bb6898f3e598034003d781303c6025a3e9ae0023",
+    "bundleSha256": "f0a7c0e7c931ebeddfcef9eb02a988430d4a167c011b4d6b7de97b6c02c1981b",
+    "assetsCount": 55,
+    "assetsHash": "5a4d836069401c4af05efadc8fa8f24619af7e122e83a2b2b649273ce21dd0b7",
+    "localIdentical": true
+  }
+]

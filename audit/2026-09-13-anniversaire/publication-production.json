@@ -1,0 +1,20 @@
+[
+  {
+    "id": "01a09cbd-f673-70f1-8d30-ae594ae28c12",
+    "group": "9762b8d6-4d3f-4dfc-b38f-06761abf569e",
+    "platform": "android",
+    "runtimeVersion": "1.0.3",
+    "createdAt": "2026-09-13T21:48:10.227Z",
+    "message": "Cadeaux : plus grande taille de la catégorie et anniversaire avec condition, rappel et notification",
+    "gitCommitHash": "bb6898f3e598034003d781303c6025a3e9ae0023"
+  },
+  {
+    "id": "01a09cbd-f673-7ec9-8586-b41ad144950c",
+    "group": "9762b8d6-4d3f-4dfc-b38f-06761abf569e",
+    "platform": "ios",
+    "runtimeVersion": "1.0.3",
+    "createdAt": "2026-09-13T21:48:10.227Z",
+    "message": "Cadeaux : plus grande taille de la catégorie et anniversaire avec condition, rappel et notification",
+    "gitCommitHash": "bb6898f3e598034003d781303c6025a3e9ae0023"
+  }
+]

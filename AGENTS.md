@@ -36,7 +36,6 @@ Avant toute modification :
 
 | Session | Depuis | Statut | Fichiers / dossiers verrouillés |
 |---|---|---|---|
-| Codex publication | 2026-09-13 | EN COURS | preuves OTA et docs/agents/chantiers/2026-09-13-codex-publication-anniversaire.md |
 
 À la fin, marquer le journal `TERMINÉ` puis retirer sa ligne de ce tableau.
 
