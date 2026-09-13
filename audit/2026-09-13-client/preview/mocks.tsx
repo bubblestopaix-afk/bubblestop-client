@@ -7,7 +7,7 @@ export function Link({href,children,asChild,...rest}:any){return asChild ? React
 export const useFocusEffect = React.useEffect;
 export const useSafeAreaInsets=()=>({top:0,right:0,bottom:0,left:0});
 export const SafeAreaView=({children}:any)=><>{children}</>;
-export const useJeuVisible=()=>({visible:true,charge:true});
+export const useJeuVisible=()=>({visible:args.has('jeux-demo'),charge:true});
 export const useTowerVisible=useJeuVisible;
 export const useRoueDuMoisVisible=()=>({visible:!args.has('roue-off'),charge:true});
 export const useFonctionnalite=()=>({actif:!args.has('offres-off'),charge:true});
