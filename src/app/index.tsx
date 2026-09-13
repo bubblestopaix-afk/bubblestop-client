@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { SvgXml } from 'react-native-svg';
 
+import CadeauAnniversaire from '@/components/cadeau-anniversaire';
 import { supabase } from '@/lib/supabase';
 import { useJeuVisible, useRoueDuMoisVisible, useTowerVisible } from '@/lib/app-config';
 import { useFonctionnalite } from '@/lib/fonctionnalites';
@@ -186,6 +187,8 @@ export default function AccueilScreen() {
               <BoutonGhost titre="Réessayer" onPress={charger} />
             </View>
           )}
+
+          {estConnecte === true && <CadeauAnniversaire solde={carte?.cadeaux} />}
 
           {/* La roue conserve son flag indépendant et sa garde de connexion. */}
           {roueFlag.visible && estConnecte === true && (

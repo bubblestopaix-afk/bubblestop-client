@@ -1867,7 +1867,7 @@ export default function CompteScreen() {
                   returnKeyType="done"
                   onSubmitEditing={() => Keyboard.dismiss()}
                 />
-                <Text style={styles.reglesMdp}>🎂 Une grande boisson (taille L) offerte le jour de ton anniversaire. Non modifiable une fois enregistrée · {AGE_MINIMUM} ans minimum.</Text>
+                <Text style={styles.reglesMdp}>🎂 Une boisson L offerte pour ton anniversaire (M pour Signature), dès 5 boissons payées avec ta carte dans les 12 mois précédents. Cadeaux et tampons bonus exclus. Non modifiable une fois enregistrée · {AGE_MINIMUM} ans minimum.</Text>
                 <ChampTexte
                   label="Numéro fidélité de ton parrain (optionnel)"
                   value={codeParrain}

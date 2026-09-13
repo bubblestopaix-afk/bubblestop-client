@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { SvgXml } from 'react-native-svg';
 
+import CadeauAnniversaire from '@/components/cadeau-anniversaire';
 import { supabase } from '@/lib/supabase';
 import GobeletBubble from '@/components/gobelet-bubble';
 import Parrainage from '@/components/parrainage';
@@ -265,6 +266,8 @@ export default function FideliteScreen() {
               parCarte={carte?.tampons_par_carte || 9}
               cadeaux={carte?.cadeaux || 0}
             />
+
+            <CadeauAnniversaire discret solde={carte?.cadeaux} />
 
             {/* Le solde prépayé appartient à cette même carte fidélité : aucun second code. */}
             {carteCadeau.actif && <Pressable

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { router } from 'expo-router';
 import { AppState, Platform } from 'react-native';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
@@ -58,6 +59,31 @@ export default function TabLayout() {
     const sub = AppState.addEventListener('change', (s) => { if (s === 'active') effacer(); });
     return () => sub.remove();
   }, []);
+
+  // Le push anniversaire ouvre la carte, sans accepter d'URL arbitraire du message.
+  useEffect(() => {
+    if (Platform.OS === 'web' || !polices) return;
+    let vivant = true;
+    let retirer: (() => void) | undefined;
+    let dernierId = '';
+    void (async () => {
+      try {
+        const n = await import('expo-notifications');
+        if (!vivant) return;
+        const ouvrir = (response: import('expo-notifications').NotificationResponse | null) => {
+          const request = response?.notification.request;
+          if (!vivant || request?.content.data?.type !== 'anniversaire' || request.identifier === dernierId) return;
+          dernierId = request.identifier;
+          router.push('/explore');
+          void n.clearLastNotificationResponseAsync().catch(() => {});
+        };
+        const sub = n.addNotificationResponseReceivedListener(ouvrir);
+        retirer = () => sub.remove();
+        ouvrir(await n.getLastNotificationResponseAsync());
+      } catch { /* module absent : l'accueil conserve le rappel */ }
+    })();
+    return () => { vivant = false; retirer?.(); };
+  }, [polices]);
 
   // Marque le profil "utilise l'appli" (la borne masque alors la promo de téléchargement)
   // + garantit qu'une ligne profils existe (ex. première connexion via Google)

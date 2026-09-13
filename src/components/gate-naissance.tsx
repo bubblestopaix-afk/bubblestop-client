@@ -56,7 +56,7 @@ export function GateNaissance({ userId, onDone }: { userId: string; onDone: () =
                 <Text style={styles.titre}>Bienvenue</Text>
                 <Text style={styles.sous}>
                   Avant de continuer, indique ta date de naissance. Elle nous sert à t'offrir une boisson
-                  le jour de ton anniversaire.
+                  le jour de ton anniversaire, dès 5 boissons payées avec ta carte fidélité dans les 12 mois précédents (hors cadeaux et tampons bonus).
                 </Text>
                 <ChampTexte
                   value={valeur}
