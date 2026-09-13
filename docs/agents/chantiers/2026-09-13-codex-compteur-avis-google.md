@@ -21,3 +21,7 @@ Commande locale de validation :
 ```sh
 cd /Users/yoannderoo/Desktop/bubblestop-client-avis-20260913 && npm run test:quiet
 ```
+
+## Preview publiée et vérifiée
+
+Groupe **e4397209-2b0c-4191-a926-4c933668bfa8**, source **d272649**, publié le 13/09/2026 à 21:13:53 UTC pour Android et iOS, runtime **1.0.3**. Les deux bundles sont exportés et téléversés ; aucun nouvel asset natif. Production précédente non remplacée. Le 13/09, question explicite envoyée à Yoann pour autoriser la diffusion client malgré l’absence de recette native sur téléphone ; réponse en attente.
