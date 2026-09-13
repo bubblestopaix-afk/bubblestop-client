@@ -52,3 +52,7 @@ Fermer complètement et rouvrir l’app ; une seconde fermeture/réouverture peu
 
 Commande de vérification :
 `cd /Users/yoannderoo/Desktop/bubblestop-client && npx eas-cli@latest update:list --branch production --limit 1 --non-interactive`.
+
+Règlement public relu après push Git : nouvelle formulation présente à
+https://commande.bubblestop.fr/reglement-roue-du-mois et sur son chemin .html.
+Preuve : audit/2026-09-13-anniversaire/publication-reglement.json.
