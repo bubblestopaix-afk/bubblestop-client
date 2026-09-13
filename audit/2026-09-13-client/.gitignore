@@ -1,0 +1,5 @@
+preview/build/
+*.png
+
+expo-web/
+export.log

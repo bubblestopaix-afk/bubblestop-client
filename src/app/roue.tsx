@@ -501,7 +501,7 @@ function RoueContenu() {
                   taille={18}
                 />
                 <Text style={[styles.lotPillTxt, TEXTE_SOMBRE.has(verrou.finalId) && { color: '#2A1D46' }]}>
-                  {verrou.libelle}
+                  {verrou.finalId === 'boisson' ? 'Boisson L offerte' : verrou.libelle}
                 </Text>
               </View>
             )}
@@ -559,6 +559,7 @@ function RoueContenu() {
               </Text>
             </View>
           ))}
+          <Text style={styles.conditionBoisson}>Boisson offerte : taille L, ou taille M pour les Signatures.</Text>
           <Text style={styles.chancesNote}>
             Le lot est tiré selon ces pourcentages exacts, avant même que la roue tourne —
             les parts sont dessinées égales pour rester lisibles. « Nouveau tour » relance
@@ -824,6 +825,7 @@ const styles = StyleSheet.create({
     fontFamily: F.t600, fontSize: 11.5, color: C.violetClair,
     textAlign: 'center', marginTop: 10, textDecorationLine: 'underline',
   },
+  conditionBoisson: { fontFamily: F.t600, fontSize: 13, color: C.texte, marginTop: 8, lineHeight: 18 },
   chancesNote: { fontFamily: F.t600, fontSize: 11.5, color: C.texte3, marginTop: 4, textAlign: 'center', lineHeight: 16 },
 
   voile: {

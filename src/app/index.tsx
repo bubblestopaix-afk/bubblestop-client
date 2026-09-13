@@ -18,6 +18,8 @@ import {
 } from '@/components/ui-kit';
 import { LogoBubbleStop } from '@/components/logo-bubblestop';
 import RappelNotifs from '@/components/rappel-notifs';
+import CarteRoueAccueil from '@/components/carte-roue-accueil';
+import CarteAvisGoogle from '@/components/carte-avis-google';
 import { FAMILLES_MENU } from '@/data/menu-vitrine';
 
 // Vitrine de consultation : chaque tuile ouvre uniquement les saveurs de la famille.
@@ -185,6 +187,11 @@ export default function AccueilScreen() {
             </View>
           )}
 
+          {/* La roue conserve son flag indépendant et sa garde de connexion. */}
+          {roueFlag.visible && estConnecte === true && (
+            <CarteRoueAccueil onPress={() => router.push('/roue' as any)} />
+          )}
+
           {/* === Offres prioritaires : toujours avant la vitrine boissons === */}
           {offresFlag.actif && offres !== null && !erreurOffres && (
             <View style={styles.offresSection}>
@@ -297,28 +304,6 @@ export default function AccueilScreen() {
             </Pressable>
           )}
 
-          {/* === 🎡 La Roue du Mois : le 3e jeu, INDÉPENDANT de Boba Quest (toggle
-               serveur `roue_du_mois`, fail-closed) — sortie du hub Boba Quest le
-               03/08/2026. Un tour gratuit par mois, lot RÉEL à retirer en boutique.
-               Masqué → aucune carte, aucun lien mort. === */}
-          {roueFlag.visible && estConnecte === true && (
-            <Pressable
-              style={styles.roue}
-              onPress={() => router.push('/roue' as any)}
-              accessibilityRole="button"
-              accessibilityLabel="La Roue du Mois : un tour gratuit par mois, un vrai lot à gagner en boutique">
-              <Text style={{ fontSize: 34 }}>🎡</Text>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={styles.roueTitre}>La Roue du Mois</Text>
-                  <View style={styles.roueBadge}><Text style={styles.roueBadgeTxt}>1 TOUR/MOIS</Text></View>
-                </View>
-                <Text style={styles.roueSous}>Tourne la roue, repars avec un vrai lot en boutique</Text>
-              </View>
-              <Chevron couleur="#8A6D1D" />
-            </Pressable>
-          )}
-
           {/* === Carte de fidélité (tampons en direct) === */}
           {carteLiee && carte ? (
             <Pressable style={styles.fidelite} onPress={() => router.push('/explore' as any)}>
@@ -345,6 +330,8 @@ export default function AccueilScreen() {
               <Text style={styles.fideliteTexte}>Ton QR et tes tampons en direct : 9 boissons = 1 offerte ›</Text>
             </Pressable>
           ) : null}
+
+          {estConnecte === true && <CarteAvisGoogle />}
         </View>
       </ScrollView>
     </View>
@@ -405,18 +392,6 @@ const styles = StyleSheet.create({
   towerBadge: { backgroundColor: '#DFF0BC', borderRadius: R.pill, paddingVertical: 3, paddingHorizontal: 8 },
   towerBadgeTxt: { fontFamily: F.t800, fontSize: 10, color: C.vertFonce, letterSpacing: 0.4 },
   towerSous: { fontFamily: F.t500, fontSize: 12.5, color: C.vertFonce, marginTop: 3 },
-
-  // La Roue du Mois (3e jeu) — carte jaune pâle « lactées », pendant du rose (Quest)
-  // et du vert (Tower). Textes en brun doré : le seul foncé lisible sur ce pastel.
-  roue: {
-    backgroundColor: C.jaunePale, borderRadius: R.carte, paddingVertical: 13, paddingHorizontal: 16,
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderWidth: BORD.largeur, borderColor: BORD.surPastel, ...OMBRE,
-  },
-  roueTitre: { fontFamily: F.titre, fontSize: 17, color: C.violet },
-  roueBadge: { backgroundColor: '#F6E5A8', borderRadius: R.pill, paddingVertical: 3, paddingHorizontal: 8 },
-  roueBadgeTxt: { fontFamily: F.t800, fontSize: 10, color: '#8A6D1D', letterSpacing: 0.4 },
-  roueSous: { fontFamily: F.t500, fontSize: 12.5, color: '#8A6D1D', marginTop: 3 },
 
   // Carte fidélité (violette, ombre violette DA)
   fidelite: {

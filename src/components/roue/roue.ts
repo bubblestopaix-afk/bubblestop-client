@@ -60,7 +60,7 @@ export const SEGMENTS_ROUE: SegmentRoue[] = [
   { id: 'reduc10', libelle: '−10 %', poids: 13, code: 'roulette_reduction_10', couleur: '#F7B8D6', emoji: '🏷️' },       // C.rose (rose bubble)
   { id: 'tampon3', libelle: '+3 tampons', poids: 11, code: 'roulette_tampon_3', couleur: '#DFF0BC', emoji: '🌺' },       // vert pâle (pastel badge)
   { id: 'reduc20', libelle: '−20 %', poids: 9, code: 'roue_reduction_20', couleur: '#89CFE3', emoji: '🎟️' },            // C.bleu (bleu charte)
-  { id: 'boisson', libelle: 'Boisson offerte', poids: 7, code: 'roulette_boisson_l', couleur: '#815FAE', emoji: '🧋' },  // C.violetClair — LE gros lot
+  { id: 'boisson', libelle: 'Boisson L offerte', poids: 7, code: 'roulette_boisson_l', couleur: '#815FAE', emoji: '🧋' },  // C.violetClair — LE gros lot
 ];
 
 /** Ouverture angulaire d'une part affichée : 8 parts égales. */
