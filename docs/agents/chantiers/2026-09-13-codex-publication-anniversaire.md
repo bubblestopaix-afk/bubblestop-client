@@ -20,3 +20,8 @@ Aucune migration ni fonction serveur déployée pour ce lot à ce stade.
 
 La recette native reste à effectuer ; les tests automatiques et le rendu web
 sont distincts de la réception d’une notification réelle et de la recette POS.
+
+## Accord reçu
+
+Yoann répond « oui vas y » à la demande d’exception cloud pour ce lot.
+Le plafond reste inchangé pour les autres évolutions ; aucun forfait modifié.
