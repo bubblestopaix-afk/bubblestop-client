@@ -1,5 +1,6 @@
 import { CodeRecompenseReelle } from '@/lib/codes-recompenses';
 import { supabase } from '@/lib/supabase';
+import { lireEtatRoueServeur, type EtatRoueServeur } from './roue-serveur';
 
 export type DemandeRecompenseJeu = {
   id: string;
@@ -35,6 +36,25 @@ export async function creerDemandeRecompenseJeu(
   const { data, error } = await supabase.functions.invoke('jeu-recompenses', {
     body: { action: 'creer-demande', gain_local_id: gainLocalId, code },
   });
+  await verifierReponse(data, error);
+  if (!data?.demande) throw new Error('La demande n’a pas pu être préparée.');
+  return data.demande as DemandeRecompenseJeu;
+}
+
+export async function chargerRoueDuMois(creer = false): Promise<EtatRoueServeur> {
+  const { data: avant } = await supabase.auth.getSession();
+  const clientId = avant.session?.user.id;
+  if (!clientId) throw new Error('session invalide');
+  const { data, error } = await supabase.functions.invoke('jeu-recompenses', {
+    body: { action: creer ? 'tirer-roue' : 'etat-roue' },
+  });
+  await verifierReponse(data, error);
+  const { data: apres } = await supabase.auth.getSession();
+  if (apres.session?.user.id !== clientId) throw new Error('session modifiee');
+  return lireEtatRoueServeur(data, clientId, creer);
+}
+
+async function verifierReponse(data: { ok?: boolean; erreur?: unknown } | null, error: unknown): Promise<void> {
   // 🩹 03/08/2026 — refus métier de l'Edge (plafond mensuel, carte inactive…) : la RPC
   // répond ok:false en HTTP 409, et supabase-js range alors le corps NON PAS dans
   // `data` (null) mais derrière `error.context` (la Response brute). Sans cette
@@ -50,8 +70,7 @@ export async function creerDemandeRecompenseJeu(
       if (typeof brute === 'string') erreurServeur = brute;
     } catch { /* corps non-JSON ou déjà consommé : messages génériques ci-dessous */ }
   }
-  if (error || !data?.ok || !data?.demande) {
-    throw new Error(erreurServeur || error?.message || 'La demande n’a pas pu être préparée.');
+  if (error || !data?.ok) {
+    throw new Error(erreurServeur || (error instanceof Error ? error.message : '') || 'La demande n’a pas pu être préparée.');
   }
-  return data.demande as DemandeRecompenseJeu;
 }

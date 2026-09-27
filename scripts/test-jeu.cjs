@@ -4960,6 +4960,7 @@ try {
         }
       }
 
+      execFileSync(process.execPath, [path.join(racine, 'scripts/test-roue-serveur.cjs'), '--quiet'], { cwd: racine, stdio: 'inherit' });
       console.log('Roue du Mois : moteur pur OK');
     } finally {
       fs.rmSync(sortieRoue, { recursive: true, force: true });

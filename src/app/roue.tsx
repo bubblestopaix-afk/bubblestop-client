@@ -1,90 +1,32 @@
-// === La Roue du Mois — 3e jeu autonome de l'appli (route /roue) ===
-// Un tour GRATUIT par mois, toujours gagnant, et des lots RÉELS (tampons, topping,
-// chantilly, réduction, boisson) retirés en boutique via le pont caisse
-// `jeu-recompenses`. Indépendant de Boba Quest : moteur pur dans components/roue/,
-// flag serveur `roue_du_mois`, verrou mensuel local `roueDuMois.v1.*`.
-// Trois règles héritées des leçons du repo (AGENTS.md) :
-//   · le lot est TIRÉ puis PERSISTÉ AVANT l'animation — fermer l'app pendant les
-//     ~5 s de rotation ne fait rien perdre, l'animation ne décide jamais de rien ;
-//   · `gain_local_id` = `roue-AAAA-MM`, DÉTERMINISTE : la RPC serveur est idempotente
-//     par (client, gain local), donc « réessayer » est toujours sans risque ;
-//   · les chances EXACTES s'affichent sous la roue — les parts égales ne sont
-//     honnêtes qu'accompagnées de cette liste (doctrine de la roulette Quest).
+// La Roue du Mois : le serveur tire et enregistre le lot avant toute animation.
+// Le téléphone ne choisit ni code de lot ni mois ; un rejeu retrouve le même gain.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated, Easing, Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle, G, Path, Text as SvgText, SvgXml } from 'react-native-svg';
 
 import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
 import { BoutonPrimaire, BoutonRetour, Etincelle, MascottePerle, TrioPastilles } from '@/components/ui-kit';
 import { useRoueDuMoisVisible } from '@/lib/app-config';
-import { chargerDemandesRecompensesJeu, creerDemandeRecompenseJeu } from '@/lib/recompenses-jeu';
-// Import de TYPE uniquement (effacé à la compilation) : le catalogue serveur connaît
-// déjà `roue_topping` / `roue_chantilly`, mais l'union client vit dans economie.ts
-// (Boba Quest), qu'on ne modifie pas — le `as` au point d'appel fait le pont.
-import type { CodeRecompenseReelle } from '@/lib/codes-recompenses';
+import { chargerRoueDuMois } from '@/lib/recompenses-jeu';
+import type { TirageStocke } from '@/lib/roue-serveur';
+import { supabase } from '@/lib/supabase';
 import { hapticLeger, hapticMoyen, hapticSucces } from '@/lib/juice';
 import {
   LOT_VALIDITE_JOURS, PART_DEG, SEGMENTS_ROUE, SegmentRoue, cleDuMois, expireLe,
   instantsDeCrans, joursAvantMoisSuivant, pourcentagesHonnetes, rotationCibleVers,
-  segmentSousPointeur, tirageComplet,
+  segmentSousPointeur,
 } from '@/components/roue/roue';
 import { IconeRoue, MotifRoueMono, type IdSegmentRoue } from '@/components/roue/icones-roue';
-import { EcranAttente, InviteInscription, useEstConnecte } from '@/components/garde-jeu';
-
-// --- Verrou mensuel local -------------------------------------------------------------
-const CLE_TIRAGE = 'roueDuMois.v1.tirage';
+import { EcranAttente, InviteInscription } from '@/components/garde-jeu';
 
 // Vagues signature de la DA (même idiome que le header et la carte fidélité de
 // l'accueil : COPIER-COLLER du motif de la maquette, jamais de retranscription) —
 // une rosée en haut, une violette profonde en bas de l'écrin.
 const VAGUES_ROUE_XML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 420" preserveAspectRatio="none"><path d="M-20,40 Q40,26 100,40 T220,40 T340,40 T460,40 L460,-20 L-20,-20 Z" fill="#f2a7cf" opacity=".10"></path><path d="M-20,384 Q60,402 140,384 T300,384 T460,384 L460,440 L-20,440 Z" fill="#452a6e" opacity=".35"></path></svg>`;
-
-type TirageStocke = {
-  mois: string;       // 'AAAA-MM' du tour joué
-  joueLe: string;     // ISO du tirage — base du « valable 30 jours » affiché
-  premierId: string;
-  finalId: string;    // jamais 'double'
-  doubleTour: boolean;
-  code: string;       // code caisse du lot final
-  libelle: string;
-};
-
-// Parsing TOLÉRANT : un JSON corrompu, un id inconnu ou un final « double » (données
-// bricolées) rendent null — l'écran retombe sur « pas encore joué », jamais un crash.
-// Rejouer n'ouvre aucune faille : le quota mensuel serveur (1 lot roue/mois, partagé
-// avec l'ancienne roulette) et l'idempotence par gain_local_id verrouillent le réel.
-function parserTirage(brut: string | null): TirageStocke | null {
-  if (!brut) return null;
-  try {
-    const v = JSON.parse(brut) as Record<string, unknown>;
-    if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
-    if (typeof v.mois !== 'string' || !/^\d{4}-\d{2}$/.test(v.mois)) return null;
-    const final = SEGMENTS_ROUE.find((s) => s.id === v.finalId);
-    if (!final || final.code === null) return null;
-    // `joueLe` absent ou illisible (donnée d'avant l'expiration, bricolage) → on
-    // retombe sur le 1er du mois stocké : l'échéance affichée est alors la plus
-    // COURTE possible — on sous-promet, le serveur tranche de toute façon.
-    const joueLe = typeof v.joueLe === 'string' && Number.isFinite(Date.parse(v.joueLe))
-      ? v.joueLe
-      : `${v.mois}-01T00:00:00.000`;
-    return {
-      mois: v.mois,
-      joueLe,
-      premierId: typeof v.premierId === 'string' ? v.premierId : final.id,
-      finalId: final.id,
-      doubleTour: v.doubleTour === true,
-      code: typeof v.code === 'string' && v.code ? v.code : final.code,
-      libelle: typeof v.libelle === 'string' && v.libelle ? v.libelle : (final.libelleGain ?? final.libelle),
-    };
-  } catch {
-    return null;
-  }
-}
 
 // --- Pont caisse : messages doux ------------------------------------------------------
 // Les erreurs serveur arrivent SANS accents (strings exactes de la RPC). On normalise
@@ -99,13 +41,13 @@ function messageDoux(brut: string): string {
   if (m.includes('carte fidelite inactive')) {
     return 'Active ta carte de fidélité en boutique pour récupérer ton lot.';
   }
-  if (m.includes('acces au jeu non autorise')) {
+  if (m.includes('acces au jeu non autorise') || m.includes('roue indisponible')) {
     return 'La roue n’est pas disponible pour le moment.';
   }
   if (m.includes('prix inconnu ou inactif') || m.includes('gain local deja associe')) {
     return 'Un souci avec ce lot — passe en boutique, l’équipe arrangera ça.';
   }
-  return 'Hors connexion — réessaie pour l’envoyer en caisse.';
+  return 'Connexion interrompue. Réessaie pour retrouver ton lot.';
 }
 
 type StatutCaisse = 'en_attente' | 'appliquee' | 'refusee' | 'aucune' | null;
@@ -141,7 +83,7 @@ const TEXTE_SOMBRE = new Set(['tampon1', 'topping', 'double', 'tampon2', 'reduc1
 // ======================================================================================
 // Porte d'entrée : le flag serveur, PUIS la session, puis le contenu. Les hooks lourds
 // vivent dans RoueContenu — jamais de hook après un return anticipé (leçon AGENTS.md),
-// d'où `useEstConnecte` appelé AVANT tout return.
+// la session est suivie AVANT tout return et chaque compte a son écran isolé.
 //
 // La porte session n'est pas une sécurité — un client modifié la contourne. C'est de la
 // cohérence : la RPC exige déjà un compte et une carte de fidélité (`acces au jeu non
@@ -149,17 +91,29 @@ const TEXTE_SOMBRE = new Set(['tampon1', 'topping', 'double', 'tampon2', 'reduc1
 // gagnerait, et se prendrait un refus à l'écran suivant.
 export default function RoueScreen() {
   const flag = useRoueDuMoisVisible();
-  const connecte = useEstConnecte();
+  const [clientId, setClientId] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let vivant = true;
+    let evenementRecu = false;
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
+      evenementRecu = true;
+      if (vivant) setClientId(session?.user.id ?? null);
+    });
+    void supabase.auth.getSession().then(({ data }) => {
+      if (vivant && !evenementRecu) setClientId(data.session?.user.id ?? null);
+    }).catch(() => { if (vivant && !evenementRecu) setClientId(null); });
+    return () => { vivant = false; sub.subscription.unsubscribe(); };
+  }, []);
   if (!flag.charge && !flag.visible) return <View style={styles.fond} />;
   if (!flag.visible) return <RoueRepli />;
-  if (connecte === null) return <EcranAttente />;   // on ne montre rien tant qu'on ne sait pas
-  if (!connecte) return (
+  if (clientId === undefined) return <EcranAttente />;   // on ne montre rien tant qu'on ne sait pas
+  if (!clientId) return (
     <InviteInscription
       emoji="🎡"
       texte="La Roue du Mois offre un tour gratuit par mois, et le lot se retire en boutique avec ta carte de fidélité. Il faut donc un compte pour la lancer."
     />
   );
-  return <RoueContenu />;
+  return <RoueContenu key={clientId} />;
 }
 
 // Écran de repli DOUX : flag éteint (ou lien direct /roue alors que la roue est
@@ -199,6 +153,9 @@ function RoueContenu() {
   const [revele, setRevele] = useState<SegmentRoue | null>(null);
   const [statutCaisse, setStatutCaisse] = useState<StatutCaisse>(null);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
+  const [chargement, setChargement] = useState(true);
+  const requeteActive = useRef(false);
+  const revision = useRef(0);
   const [erreurCaisse, setErreurCaisse] = useState<string | null>(null);
 
   const rotation = useRef(new Animated.Value(0)).current;
@@ -218,7 +175,10 @@ function RoueContenu() {
     minuteries.current.forEach(clearTimeout);
     minuteries.current = [];
   }, []);
-  useEffect(() => () => { monte.current = false; viderMinuteries(); }, [viderMinuteries]);
+  useEffect(() => {
+    monte.current = true;
+    return () => { monte.current = false; revision.current += 1; viderMinuteries(); };
+  }, [viderMinuteries]);
 
   const programmerCrans = useCallback((rotationDelta: number, dureeMs: number) => {
     const instants = instantsDeCrans(rotationDelta, dureeMs);
@@ -232,52 +192,31 @@ function RoueContenu() {
 
   const dejaJoue = !!verrou && verrou.mois === moisCourant;
 
-  // --- Pont caisse ---------------------------------------------------------------------
-  const envoyerEnCaisse = useCallback(async (tirage: TirageStocke) => {
-    if (!monte.current) return;
-    setEnvoiEnCours(true);
+  // Lecture explicite au focus : récupération après fermeture, changement de
+  // téléphone ou réponse perdue. Aucun lot n'est créé par cette lecture.
+  const actualiser = useCallback(async () => {
+    if (requeteActive.current) return;
+    const numero = ++revision.current;
+    setChargement(true);
     setErreurCaisse(null);
     try {
-      // `roue-AAAA-MM` : déterministe et rejouable — le serveur dédoublonne, et
-      // `deja_creee: true` revient comme un succès normal (la lib rend la demande).
-      const demande = await creerDemandeRecompenseJeu(`roue-${tirage.mois}`, tirage.code as CodeRecompenseReelle);
-      if (monte.current) setStatutCaisse(demande.statut ?? 'en_attente');
+      const etat = await chargerRoueDuMois();
+      if (!monte.current || numero !== revision.current) return;
+      setMoisCourant(etat.mois);
+      setVerrou(etat.tirage);
+      setStatutCaisse(etat.statut);
     } catch (e) {
-      if (monte.current) {
-        setStatutCaisse((s) => (s === null ? 'aucune' : s));
+      if (monte.current && numero === revision.current) {
         setErreurCaisse(messageDoux(e instanceof Error ? e.message : ''));
       }
     } finally {
-      if (monte.current) setEnvoiEnCours(false);
+      if (monte.current && numero === revision.current) setChargement(false);
     }
   }, []);
-
-  // --- Mois + verrou + statut caisse, rafraîchis au focus ------------------------------
-  const rafraichir = useCallback(() => {
-    let vivant = true;
-    const mois = cleDuMois(new Date());
-    setMoisCourant(mois);
-    (async () => {
-      let tirage: TirageStocke | null = null;
-      try {
-        tirage = parserTirage(await AsyncStorage.getItem(CLE_TIRAGE));
-      } catch { /* stockage illisible → « pas encore joué », le serveur borne le réel */ }
-      if (!vivant) return;
-      setVerrou(tirage);
-      if (!tirage || tirage.mois !== mois) return;
-      try {
-        const demandes = await chargerDemandesRecompensesJeu();
-        if (!vivant) return;
-        const demande = demandes.find((d) => d.gain_local_id === `roue-${mois}`);
-        setStatutCaisse(demande ? demande.statut : 'aucune');
-      } catch {
-        // Hors-ligne : statut inconnu (null) — on n'invente rien, on proposera l'envoi.
-        if (vivant) setStatutCaisse((s) => (s === 'en_attente' || s === 'appliquee' || s === 'refusee' ? s : null));
-      }
-    })();
-    return () => { vivant = false; };
-  }, []);
-  useFocusEffect(rafraichir);
+  useFocusEffect(useCallback(() => {
+    void actualiser();
+    return () => { revision.current += 1; };
+  }, [actualiser]));
 
   // Roue au repos d'un mois déjà joué : on la FIGE sur le lot gagné — l'écran
   // raconte le résultat au lieu d'une roue à zéro. Si elle pointe DÉJÀ le bon
@@ -309,10 +248,8 @@ function RoueContenu() {
       Animated.spring(carteScale, { toValue: 1, friction: 6, tension: 60, useNativeDriver: true }),
       Animated.timing(carteOpacite, { toValue: 1, duration: 260, useNativeDriver: true }),
     ]).start();
-    // Envoi caisse immédiat : tous les lots réels ont un code. En cas d'échec, le
-    // bouton « Préparer pour la caisse » réessaie le MÊME gain_local_id, sans risque.
-    void envoyerEnCaisse(tirage);
-  }, [carteOpacite, carteScale, envoyerEnCaisse]);
+    // Le lot est déjà durable en caisse ; l'animation n'a rien à confirmer.
+  }, [carteOpacite, carteScale]);
 
   // --- Nouveau tour : flourish puis re-spin automatique (le tour du mois reste UN tour) --
   const flourishPuisRelancer = useCallback((tirage: TirageStocke, rotationActuelle: number) => {
@@ -345,35 +282,35 @@ function RoueContenu() {
   }, [flourishOpacite, flourishScale, programmerCrans, rotation, terminerTour]);
 
   // --- Le lancer -----------------------------------------------------------------------
-  const lancer = () => {
-    if (enCours || dejaJoue || revele || flourish) return;
-    // Le résultat D'ABORD (Math.random est permis ICI, jamais dans le moteur), puis
-    // l'animation ne fait que le mettre en scène.
-    const tirage = tirageComplet(Math.random);
-    const final = SEGMENTS_ROUE.find((s) => s.id === tirage.finalId);
-    if (!final || final.code === null) return; // impossible par construction (finalId ≠ 'double')
-    const maintenant = new Date();
-    const mois = cleDuMois(maintenant);
-    const stocke: TirageStocke = {
-      mois,
-      joueLe: maintenant.toISOString(),
-      premierId: tirage.premierId,
-      finalId: final.id,
-      doubleTour: tirage.doubleTour,
-      code: final.code,
-      // Le libellé de GAIN (long, expliqué) : c'est lui qu'on stocke et qu'on
-      // montre partout où l'on parle du lot — la roue garde le court pour elle.
-      libelle: final.libelleGain ?? final.libelle,
-    };
-    // Persisté AVANT d'animer : app fermée pendant la rotation ⇒ lot retrouvé au
-    // prochain focus, avec proposition d'envoi en caisse (leçon roulette du 26/07).
-    AsyncStorage.setItem(CLE_TIRAGE, JSON.stringify(stocke)).catch(() => {});
-    setMoisCourant(mois);
-    setStatutCaisse(null);
+  const lancer = async () => {
+    if (requeteActive.current || chargement || enCours || dejaJoue || revele || flourish) return;
+    requeteActive.current = true;
+    const numero = ++revision.current;
+    setEnvoiEnCours(true);
     setErreurCaisse(null);
+    let stocke: TirageStocke;
+    try {
+      const etat = await chargerRoueDuMois(true);
+      if (!monte.current || numero !== revision.current || !etat.tirage) return;
+      stocke = etat.tirage;
+      setMoisCourant(etat.mois);
+      setVerrou(stocke);
+      setStatutCaisse(etat.statut);
+      // Réponse retrouvée après une coupure : afficher le gain existant,
+      // sans laisser croire à un second tour.
+      if (etat.dejaCreee) return;
+    } catch (e) {
+      if (monte.current && numero === revision.current) {
+        setErreurCaisse(messageDoux(e instanceof Error ? e.message : ''));
+      }
+      return;
+    } finally {
+      requeteActive.current = false;
+      if (monte.current) setEnvoiEnCours(false);
+    }
     setEnCours(true);
     viderMinuteries();
-    const indexPremier = SEGMENTS_ROUE.findIndex((s) => s.id === tirage.premierId);
+    const indexPremier = SEGMENTS_ROUE.findIndex((s) => s.id === stocke.premierId);
     const cible = rotationCibleVers(indexPremier, Math.random, TOURS_PLEINS_1);
     rotation.setValue(0);
     rotationPosee.current = cible;
@@ -393,7 +330,7 @@ function RoueContenu() {
   // le serveur tranche). Un lot déjà utilisé n'expire pas : « Utilisé ✅ » reste vrai.
   const expiration = verrou && dejaJoue ? expireLe(new Date(verrou.joueLe)) : null;
   const lotExpire = !!expiration && Date.now() > expiration.getTime() && statutCaisse !== 'appliquee';
-  const montrerEnvoi = dejaJoue && !lotExpire && !envoiEnCours && (statutCaisse === 'aucune' || statutCaisse === null);
+
 
   return (
     <View style={[styles.fond, { paddingTop: insets.top + 10 }]}>
@@ -462,7 +399,7 @@ function RoueContenu() {
           </View>
 
           <Text style={styles.roueNote}>
-            {enCours
+            {chargement || envoiEnCours ? 'Un instant…' : enCours
               ? 'La roue tourne…'
               : dejaJoue ? 'Roue du mois déjà jouée' : 'Ton tour gratuit du mois t’attend'}
           </Text>
@@ -479,12 +416,12 @@ function RoueContenu() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Lancer la roue"
-            accessibilityState={{ disabled: enCours }}
+            accessibilityState={{ disabled: enCours || envoiEnCours || chargement }}
             onPress={lancer}
-            disabled={enCours || dejaJoue}
+            disabled={enCours || dejaJoue || envoiEnCours || chargement}
             style={({ pressed }) => [styles.btnLancer, (pressed || enCours) && { opacity: 0.75 }]}
           >
-            <Text style={styles.btnLancerTxt}>{enCours ? 'La roue tourne…' : 'Lancer ma roue du mois !'}</Text>
+            <Text style={styles.btnLancerTxt}>{chargement || envoiEnCours ? 'Un instant…' : enCours ? 'La roue tourne…' : 'Lancer ma roue du mois !'}</Text>
           </Pressable>
         ) : (
           <View style={styles.lotCarte}>
@@ -505,13 +442,8 @@ function RoueContenu() {
                 </Text>
               </View>
             )}
-            {/* Le « nouveau tour » n'est PAS un lot : c'est un relanceur, et seul le
-                tirage final compte. La carte que le client présente en caisse ne doit
-                donc afficher QUE ce lot final — une mention « nouveau tour » à côté se
-                lit comme un second gain à honorer. Le pont caisse était déjà sain (le
-                code envoyé est celui du lot final, `finalId` n'est jamais 'double') :
-                c'était l'affichage qui mentait. `verrou.doubleTour` reste stocké, il
-                sert au rejeu de l'animation au rechargement. */}
+            {/* Seul le lot final enregistré au serveur est présenté en caisse.
+                « Nouveau tour » reste une étape de l'animation, jamais un second lot. */}
             <View style={styles.statutRang}>
               <View style={[styles.statutPastille, {
                 backgroundColor: lotExpire ? C.texte3
@@ -528,18 +460,16 @@ function RoueContenu() {
                 Valable jusqu’au {expiration.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
               </Text>
             )}
-            {!lotExpire && !!erreurCaisse && <Text style={styles.erreurTxt}>{erreurCaisse}</Text>}
-            {montrerEnvoi && !!verrou && (
-              <BoutonPrimaire
-                titre="Préparer pour la caisse"
-                loading={envoiEnCours}
-                onPress={() => { void envoyerEnCaisse(verrou); }}
-                style={{ alignSelf: 'stretch' }}
-              />
-            )}
             <Text style={styles.compteARebours}>
               Nouvelle roue dans {joursRestants} j
             </Text>
+          </View>
+        )}
+
+        {!!erreurCaisse && (
+          <View>
+            <Text style={styles.erreurTxt}>{erreurCaisse}</Text>
+            <BoutonPrimaire titre="Actualiser" loading={chargement} onPress={() => { void actualiser(); }} />
           </View>
         )}
 
