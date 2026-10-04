@@ -1,6 +1,6 @@
 # Roue sécurisée et inscriptions — Codex, 04/10/2026
 
-Statut : EN COURS.
+Statut : SOURCES VALIDÉES — publication en attente de la garde cloud et de la recette native.
 
 Autorisation Yoann : « ok fais 1 et 2 » après audit production. Tirage serveur préparé dans b8b03cb activé côté Supabase (dépôt POS), nouveaux tours réservés aux comptes inscrits depuis 7 jours révolus et scannés en boutique. Aucun achat requis. Anciens gains conservés ; aucun autre jeu ou mécanisme fidélité modifié.
 
@@ -11,3 +11,5 @@ Garde cloud : aucune nouvelle boucle, lecture explicite au focus / actualisation
 Validation locale : npm run test:quiet et TypeScript réussis ; export web vérifié par dix scénarios fictifs mobile 390×844 / bureau 1280×900 (conditions, scan, actualisation, double appui, animation, reprise après perte de réponse, panne). Zéro erreur JavaScript ; aucune requête de récompense réelle. Graphify mis à jour (1 820 nœuds / 4 290 liens), 14 fichiers non-code sans nœuds non utilisés comme preuve.
 
 Publication attend la garde Usage Supabase, la coordination migration → Edge → clients et la recette OTA preview native. Aucun push / OTA / serveur de ce lot effectué. Le fichier local non suivi de Yoann reste intact.
+
+Exports Hermes iOS et Android et export web réussis : /tmp/codex-roue-inscriptions-ota-20261004, runtime 1.0.3 inchangé. Source f93d547, plus SEC-02 b8b03cb déjà local ; aucun push. Les bundlings ne valent pas recette sur téléphone.
