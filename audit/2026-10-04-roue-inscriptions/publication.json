@@ -1,0 +1,97 @@
+{
+  "date": "2026-10-04",
+  "autorisation": "Yoann : active le, exception cloud limitee a ce lot",
+  "statut": "active",
+  "serveur": {
+    "edgeVersion": 11,
+    "edgeFilesIdentiques": true,
+    "anonExecute": false,
+    "authenticatedExecute": false,
+    "serviceExecute": true,
+    "indexUnique": true,
+    "historiques": 461,
+    "total": 461,
+    "legacyInjectionRejected": true,
+    "clientUnknown": {
+      "ok": false,
+      "erreur": "profil introuvable"
+    },
+    "noNewAdvisories": true,
+    "unauthenticatedHttpStatus": 401,
+    "migrations": [
+      {
+        "version": "20261004164407",
+        "name": "roue_tirage_serveur_atomique"
+      },
+      {
+        "version": "20261004164408",
+        "name": "roue_eligibilite_inscription_scan"
+      }
+    ],
+    "corpsRpcIdentiques": true,
+    "sourceHashes": [
+      "4dcf7e646e3b9acdb187fab91b3d7f537c2e413cd23dd63d60d177afab0025b5  supabase/migrations/20260927195907_roue_tirage_serveur_atomique.sql",
+      "db827347c49c21c0ebc738cc62d4a23e9dcf607f1c656d6ca137a6788cffa051  supabase/migrations/20261004160933_roue_eligibilite_inscription_scan.sql",
+      "d5ed4ee2e58e28f1907a2dc34012d3ce994013fbff5f6a847d5f5d0855d8f9cc  supabase/functions/jeu-recompenses/index.ts"
+    ]
+  },
+  "client": {
+    "source": "ea21bf377d67167a58a023aa75d344cd840b5dca",
+    "previewGroup": "80b643ef-6a7e-4984-977c-0426e9c502a5",
+    "productionGroup": "0697e049-f6d2-43f0-8699-c4bda0c61585",
+    "canal": "production",
+    "canalBranche": "production",
+    "runtime": "1.0.3",
+    "ota": [
+      {
+        "platform": "ios",
+        "id": "01a107d4-8fc6-7c55-82e2-429b4e7d659d",
+        "runtimeVersion": "1.0.3",
+        "manifestBundleHashIdentique": true,
+        "assetHttp": 200,
+        "bundleSha256": "76e91a55b8e07ab419c1f10b5c3b33fc003f08e9c6f25b3723e8bd419162f66b",
+        "bundleTelechargeIdentique": true
+      },
+      {
+        "platform": "android",
+        "id": "01a107d4-8fc6-7d3f-8377-acb79fea1fbc",
+        "runtimeVersion": "1.0.3",
+        "manifestBundleHashIdentique": true,
+        "assetHttp": 200,
+        "bundleSha256": "ed06f6901371d4df568e4bcf8859b3d4044add76c3bc0d0bea0442930d9bbf8c",
+        "bundleTelechargeIdentique": true
+      }
+    ],
+    "reglement": {
+      "url": "https://commande.bubblestop.fr/reglement-roue-du-mois",
+      "status": 200,
+      "septJours": true,
+      "scan": true,
+      "gratuit": true,
+      "anciensGains": true
+    }
+  },
+  "validation": {
+    "sqlFictifScenarios": 14,
+    "webFictifScenarios": 10,
+    "suiteClient": true,
+    "types": true,
+    "exportsHermes": true,
+    "recetteTelephone": false,
+    "donneesClientReellesMutations": 0
+  },
+  "budget": {
+    "projectionConservatrice30j": 155816,
+    "gardeSansException": 150000,
+    "exceptionLot": true,
+    "usageMesure": null,
+    "nouveauPoll": 0,
+    "cible": "Free",
+    "forfaitChange": false
+  },
+  "limites": [
+    "Les comptes multiples restent possibles : pas de preuve d unicite de personne.",
+    "Recette sur telephone et adoption par les installations non constatees."
+  ],
+  "repli": "Fermer temporairement seulement la roue ; conserver les lots et le contrat serveur, ne pas republier seul l ancien client."
+}
