@@ -12,7 +12,7 @@ import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
 import { BoutonPrimaire, BoutonRetour, Etincelle, MascottePerle, TrioPastilles } from '@/components/ui-kit';
 import { useRoueDuMoisVisible } from '@/lib/app-config';
 import { chargerRoueDuMois } from '@/lib/recompenses-jeu';
-import type { TirageStocke } from '@/lib/roue-serveur';
+import { messageEligibiliteRoue, type EtatRoueServeur, type TirageStocke } from '@/lib/roue-serveur';
 import { supabase } from '@/lib/supabase';
 import { hapticLeger, hapticMoyen, hapticSucces } from '@/lib/juice';
 import {
@@ -34,6 +34,7 @@ const VAGUES_ROUE_XML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36
 // humain — jamais un code d'erreur brut face au client.
 function messageDoux(brut: string): string {
   const m = brut.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (m.includes('conditions roue non remplies')) return 'Ta roue se débloque 7 jours après ton inscription et un premier scan en boutique. Actualise pour voir tes conditions.';
   if (m.includes('plafond')) {
     // Cas migration : le quota roue du mois est PARTAGÉ avec l'ancienne roulette Quest.
     return 'Ton lot roue est déjà réservé pour ce mois-ci — vois en boutique.';
@@ -110,7 +111,7 @@ export default function RoueScreen() {
   if (!clientId) return (
     <InviteInscription
       emoji="🎡"
-      texte="La Roue du Mois offre un tour gratuit par mois, et le lot se retire en boutique avec ta carte de fidélité. Il faut donc un compte pour la lancer."
+      texte="La Roue du Mois offre un tour gratuit par mois, dès 7 jours après ton inscription et un premier scan de ta carte en boutique. Aucun achat nécessaire."
     />
   );
   return <RoueContenu key={clientId} />;
@@ -154,6 +155,7 @@ function RoueContenu() {
   const [statutCaisse, setStatutCaisse] = useState<StatutCaisse>(null);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [chargement, setChargement] = useState(true);
+  const [eligibilite, setEligibilite] = useState<EtatRoueServeur['eligibilite']>(null);
   const requeteActive = useRef(false);
   const revision = useRef(0);
   const [erreurCaisse, setErreurCaisse] = useState<string | null>(null);
@@ -205,6 +207,7 @@ function RoueContenu() {
       setMoisCourant(etat.mois);
       setVerrou(etat.tirage);
       setStatutCaisse(etat.statut);
+      setEligibilite(etat.eligibilite);
     } catch (e) {
       if (monte.current && numero === revision.current) {
         setErreurCaisse(messageDoux(e instanceof Error ? e.message : ''));
@@ -283,7 +286,7 @@ function RoueContenu() {
 
   // --- Le lancer -----------------------------------------------------------------------
   const lancer = async () => {
-    if (requeteActive.current || chargement || enCours || dejaJoue || revele || flourish) return;
+    if (requeteActive.current || chargement || enCours || dejaJoue || revele || flourish || eligibilite?.autorisee !== true) return;
     requeteActive.current = true;
     const numero = ++revision.current;
     setEnvoiEnCours(true);
@@ -296,6 +299,7 @@ function RoueContenu() {
       setMoisCourant(etat.mois);
       setVerrou(stocke);
       setStatutCaisse(etat.statut);
+      setEligibilite(etat.eligibilite);
       // Réponse retrouvée après une coupure : afficher le gain existant,
       // sans laisser croire à un second tour.
       if (etat.dejaCreee) return;
@@ -325,6 +329,8 @@ function RoueContenu() {
   };
 
   const joursRestants = joursAvantMoisSuivant(new Date());
+  const conditions = messageEligibiliteRoue(eligibilite);
+  const peutLancer = eligibilite?.autorisee === true;
   const segmentMisEnAvant = revele ? revele.id : (dejaJoue && !enCours && verrou ? verrou.finalId : null);
   // Validité 30 jours : comptée depuis le TIRAGE (voir expireLe — l'appli sous-promet,
   // le serveur tranche). Un lot déjà utilisé n'expire pas : « Utilisé ✅ » reste vrai.
@@ -401,13 +407,19 @@ function RoueContenu() {
           <Text style={styles.roueNote}>
             {chargement || envoiEnCours ? 'Un instant…' : enCours
               ? 'La roue tourne…'
-              : dejaJoue ? 'Roue du mois déjà jouée' : 'Ton tour gratuit du mois t’attend'}
+              : dejaJoue ? 'Roue du mois déjà jouée' : peutLancer ? 'Ton tour gratuit du mois t’attend' : 'Ta roue se débloque bientôt'}
           </Text>
         </View>
 
         <Text style={styles.legende}>
           🧋 Lots réels, à récupérer en boutique avec ta carte — quand tu veux, valables {LOT_VALIDITE_JOURS} jours.
         </Text>
+        {!dejaJoue && !!conditions && (
+          <View>
+            <Text style={styles.legende}>{conditions}</Text>
+            {!erreurCaisse && <BoutonPrimaire titre="Actualiser" loading={chargement} onPress={() => { void actualiser(); }} />}
+          </View>
+        )}
 
         {/* === Lancer / déjà joué. Tant que la roue TOURNE, on garde le bouton (grisé) :
              le verrou est déjà posé en stockage, mais afficher la carte du lot pendant
@@ -416,12 +428,12 @@ function RoueContenu() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Lancer la roue"
-            accessibilityState={{ disabled: enCours || envoiEnCours || chargement }}
+            accessibilityState={{ disabled: enCours || envoiEnCours || chargement || !peutLancer }}
             onPress={lancer}
-            disabled={enCours || dejaJoue || envoiEnCours || chargement}
-            style={({ pressed }) => [styles.btnLancer, (pressed || enCours) && { opacity: 0.75 }]}
+            disabled={enCours || dejaJoue || envoiEnCours || chargement || !peutLancer}
+            style={({ pressed }) => [styles.btnLancer, (pressed || enCours || !peutLancer) && { opacity: 0.55 }]}
           >
-            <Text style={styles.btnLancerTxt}>{chargement || envoiEnCours ? 'Un instant…' : enCours ? 'La roue tourne…' : 'Lancer ma roue du mois !'}</Text>
+            <Text style={styles.btnLancerTxt}>{chargement || envoiEnCours ? 'Un instant…' : enCours ? 'La roue tourne…' : peutLancer ? 'Lancer ma roue du mois !' : 'Roue bientôt disponible'}</Text>
           </Pressable>
         ) : (
           <View style={styles.lotCarte}>

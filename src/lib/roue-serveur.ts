@@ -15,7 +15,18 @@ export type EtatRoueServeur = {
   dejaCreee: boolean;
   tirage: TirageStocke | null;
   statut: 'en_attente' | 'appliquee' | 'refusee' | null;
+  eligibilite: { autorisee: boolean; disponibleLe: string; scanRequis: boolean } | null;
 };
+
+export function messageEligibiliteRoue(conditions: EtatRoueServeur['eligibilite']): string | null {
+  if (!conditions || conditions.autorisee) return null;
+  const date = new Date(conditions.disponibleLe);
+  const attente = date.getTime() > Date.now();
+  const quand = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+  if (attente && conditions.scanRequis) return `Ta roue sera disponible dès le ${quand}, après un premier scan de ta carte en boutique.`;
+  if (attente) return `Ta roue sera disponible dès le ${quand}, 7 jours après ton inscription.`;
+  return 'Pour débloquer ta roue, fais scanner ta carte de fidélité en boutique. Aucun achat nécessaire.';
+}
 
 // Aucun tirage ni lecture du cache local : seul le résultat persistant du serveur
 // peut fournir un lot. Les anciens lots n'ont pas de métadonnées d'animation.
@@ -25,7 +36,12 @@ export function lireEtatRoueServeur(brut: unknown, clientId: string, creation: b
     throw new Error('resultat roue invalide');
   }
   if (r.demande === null && !creation) {
-    return { mois: r.mois, dejaCreee: false, tirage: null, statut: null };
+    const e = r.eligibilite as Record<string, unknown> | null;
+    if (!e || typeof e.autorisee !== 'boolean' || typeof e.scan_requis !== 'boolean'
+        || typeof e.disponible_le !== 'string' || !Number.isFinite(Date.parse(e.disponible_le))
+        || (e.autorisee && e.scan_requis)) throw new Error('conditions roue invalides');
+    return { mois: r.mois, dejaCreee: false, tirage: null, statut: null,
+      eligibilite: { autorisee: e.autorisee, disponibleLe: e.disponible_le, scanRequis: e.scan_requis } };
   }
   const d = r.demande as Record<string, unknown> | null;
   const segment = SEGMENTS_ROUE.find((s) => s.code !== null && s.code === d?.code);
@@ -40,6 +56,7 @@ export function lireEtatRoueServeur(brut: unknown, clientId: string, creation: b
     mois: r.mois,
     dejaCreee: r.deja_creee === true,
     statut: d.statut as EtatRoueServeur['statut'],
+    eligibilite: null,
     tirage: {
       mois: r.mois, joueLe: d.created_at, premierId, finalId: segment.id,
       doubleTour: premierId === 'double', code: segment.code!,

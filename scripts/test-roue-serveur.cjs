@@ -29,7 +29,18 @@ const resultat={ok:true,mois:'2026-09',deja_creee:false,demande:{
     {...resultat,demande:{...resultat.demande,roue_premier_id:'boisson'}},
     {...resultat,demande:{...resultat.demande,created_at:'invalide'}},
   ]) assert.throws(()=>adaptateur.lireEtatRoueServeur(mauvais,'compte-fictif',true));
-  assert.equal(adaptateur.lireEtatRoueServeur({...resultat,demande:null},'compte-fictif',false).tirage,null);
+  const eligible={autorisee:true,disponible_le:'2026-09-20T10:00:00Z',scan_requis:false};
+  const lecture={...resultat,demande:null,eligibilite:eligible};
+  assert.equal(adaptateur.lireEtatRoueServeur(lecture,'compte-fictif',false).tirage,null);
+  assert.equal(adaptateur.lireEtatRoueServeur(lecture,'compte-fictif',false).eligibilite.autorisee,true);
+  for(const conditions of [null,{}, {...eligible,autorisee:'oui'}, {...eligible,disponible_le:'invalide'}, {...eligible,scan_requis:true}]) {
+    assert.throws(()=>adaptateur.lireEtatRoueServeur({...lecture,eligibilite:conditions},'compte-fictif',false));
+  }
+  const attente={autorisee:false,disponibleLe:'2099-10-20T10:00:00Z',scanRequis:true};
+  assert.match(adaptateur.messageEligibiliteRoue(attente),/20 octobre.*premier scan/);
+  assert.match(adaptateur.messageEligibiliteRoue({...attente,scanRequis:false}),/7 jours/);
+  assert.match(adaptateur.messageEligibiliteRoue({...attente,disponibleLe:'2020-01-01T00:00:00Z'}),/Aucun achat nécessaire/);
+  assert.equal(adaptateur.messageEligibiliteRoue({autorisee:true,disponibleLe:eligible.disponible_le,scanRequis:false}),null);
   let clientId='compte-fictif', panne=false, changer=false, dernierCorps, appels=0;
   const supabase={auth:{getSession:async()=>({data:{session:clientId ? {user:{id:clientId}}:null}})},functions:{invoke:async(nom,{body})=>{
     appels++; dernierCorps=body;
