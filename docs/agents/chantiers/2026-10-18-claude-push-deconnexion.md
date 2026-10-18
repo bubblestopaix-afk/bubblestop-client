@@ -51,3 +51,20 @@ ce journal.
 - `npm run test:quiet` réussi (dont `tsc --noEmit`), `git diff --check` propre.
 - JavaScript seul, aucune dépendance native : compatible OTA runtime 1.0.3. Non
   constaté : essai sur téléphone (déconnexion puis notification non reçue).
+
+## Publication preview — Claude, 18/10/2026
+
+Yoann : « oui publie en preview ». Source `600e73c` ; depuis la dernière OTA
+(`ea21bf3`, « Roue sécurisée », preview `80b643ef…` et production `0697e049…`), seul
+ce lot touche l'appli (le commit `b691ca9` de Codex ne contient que de l'audit).
+
+- Contrôles : `npm run test:quiet` et `tsc --noEmit` réussis, `git diff --check`
+  propre, export Expo iOS/Android/web réussi (33 pages web), clé `push.jeton` présente
+  dans les deux bundles natifs.
+- `npx eas-cli@latest update --branch preview` : groupe
+  `082e6d17-afb0-480d-a9ea-afa3057cd913`, runtime 1.0.3, Android
+  `01a14fd3-7cf1-783b-a6df-ba3d97acb4c1`, iOS `01a14fd3-7cf1-7d2e-a4ff-ae170c493500`.
+  Commit marqué modifié par EAS à cause du seul fichier local non suivi de Yoann.
+- Vérifié : preview pointe sur `082e6d17…` ; production inchangée (`0697e049…`).
+- Non constaté : essai sur téléphone. Production : aucune publication sans accord
+  explicite de Yoann après cet essai.
