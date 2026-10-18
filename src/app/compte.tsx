@@ -13,7 +13,7 @@ import type { Session } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
 import { connexionGoogleNative } from '@/lib/google-natif';
-import { enregistrerPush } from '@/lib/push';
+import { enregistrerPush, retirerPushAvantDeconnexion } from '@/lib/push';
 import { memoriserCodeParrain } from '@/lib/parrainage';
 import {
   lireConfigCarteCadeau, ecrireConfigCarteCadeau,
@@ -969,6 +969,8 @@ export default function CompteScreen() {
   };
 
   const deconnexion = async () => {
+    // Retire d'abord le jeton de notification de ce téléphone (session encore active).
+    await retirerPushAvantDeconnexion();
     await supabase.auth.signOut();
   };
 

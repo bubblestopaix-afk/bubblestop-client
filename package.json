@@ -51,13 +51,14 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test:agents": "node scripts/test-agents-contexte.cjs",
-    "test:quiet": "npm run test:agents --silent && npm run test:jeu:quiet --silent && npm run test:menu --silent && npm run test:offres --silent && npm run test:avis && npm run test:anniversaire --silent && tsc --noEmit --pretty false",
+    "test:quiet": "npm run test:agents --silent && npm run test:jeu:quiet --silent && npm run test:menu --silent && npm run test:offres --silent && npm run test:avis && npm run test:anniversaire --silent && npm run test:push --silent && tsc --noEmit --pretty false",
     "test:jeu": "node scripts/test-jeu.cjs",
     "test:jeu:quiet": "node --no-warnings scripts/test-jeu.cjs",
     "test:menu": "node scripts/test-menu-vitrine.cjs",
     "test:offres": "node scripts/test-offres.cjs",
     "test:avis": "node scripts/test-avis-google.cjs",
-    "test:anniversaire": "node scripts/test-anniversaire.cjs"
+    "test:anniversaire": "node scripts/test-anniversaire.cjs",
+    "test:push": "node scripts/test-push-deconnexion.cjs"
   },
   "private": true
 }
