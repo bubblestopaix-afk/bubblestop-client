@@ -60,8 +60,10 @@ function CarteTampons({ tampons, parCarte, cadeaux }: { tampons: number; parCart
   );
 }
 
-// Boutons « Ajouter au Wallet » — ouvrent l'Edge Function wallet-pass avec le jeton
-// de session en query (le navigateur système ne peut pas poser d'en-tête Authorization).
+// Boutons « Ajouter au Wallet » — ouvrent l'Edge Function wallet-pass dans le navigateur
+// système (qui ne peut pas poser d'en-tête Authorization). Audit de sécurité du 27/10/2026 :
+// l'appli demande d'abord, avec sa session, un code d'ouverture de 2 minutes propre à sa
+// carte ; le jeton de session (1 h, accès à tout le compte) ne passe plus dans l'URL.
 // iOS → renvoie le .pkpass (Safari propose « Ajouter à Apple Wallet »).
 // Android → redirige vers la page « Enregistrer dans Google Wallet ».
 function BoutonsWallet() {
@@ -69,11 +71,11 @@ function BoutonsWallet() {
   const ouvrir = useCallback(async (plateforme: 'apple' | 'google') => {
     try {
       setBusy(plateforme);
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
       const base = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://zpnoopitysojsvuqnbuo.supabase.co';
-      if (!token || !base) return;
-      const url = `${base}/functions/v1/wallet-pass?platform=${plateforme}&token=${encodeURIComponent(token)}`;
+      const { data, error } = await supabase.functions.invoke('wallet-pass?action=code', { method: 'POST' });
+      const code = !error && typeof data?.code === 'string' ? data.code : '';
+      if (!code || !base) return;
+      const url = `${base}/functions/v1/wallet-pass?platform=${plateforme}&code=${encodeURIComponent(code)}`;
       await Linking.openURL(url);
     } catch {
       /* silencieux */

@@ -52,6 +52,11 @@ function modeValide(valeur: unknown): ModeMiseAJour {
   return valeur === 'conseillee' || valeur === 'obligatoire' ? valeur : 'inactive';
 }
 
+// Audit de sécurité du 27/10/2026 : le bouton de mise à jour n'ouvre que les stores
+// officiels, même si la configuration serveur était modifiée (sinon : redirection de tous
+// les clients vers un site tiers).
+const URL_STORE_OFFICIEL = /^https:\/\/(apps\.apple\.com|itunes\.apple\.com|play\.google\.com)\//;
+
 /** Parse une valeur serveur sans jamais rendre une configuration invalide bloquante. */
 export function parserConfigMiseAJour(valeur: unknown): ConfigMiseAJour {
   const v = valeur && typeof valeur === 'object' && !Array.isArray(valeur)
@@ -60,10 +65,10 @@ export function parserConfigMiseAJour(valeur: unknown): ConfigMiseAJour {
   const message = typeof v.message === 'string' && v.message.trim()
     ? v.message.trim().slice(0, 240)
     : CONFIG_MISE_A_JOUR_DEFAUT.message;
-  const iosUrl = typeof v.ios_url === 'string' && /^https:\/\//.test(v.ios_url)
+  const iosUrl = typeof v.ios_url === 'string' && URL_STORE_OFFICIEL.test(v.ios_url)
     ? v.ios_url
     : URL_APP_STORE;
-  const androidUrl = typeof v.android_url === 'string' && /^https:\/\//.test(v.android_url)
+  const androidUrl = typeof v.android_url === 'string' && URL_STORE_OFFICIEL.test(v.android_url)
     ? v.android_url
     : URL_PLAY_STORE;
 
