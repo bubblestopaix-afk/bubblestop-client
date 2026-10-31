@@ -38,7 +38,8 @@ const resultat={ok:true,mois:'2026-09',deja_creee:false,demande:{
   }
   const attente={autorisee:false,disponibleLe:'2099-10-20T10:00:00Z',scanRequis:true};
   assert.match(adaptateur.messageEligibiliteRoue(attente),/20 octobre.*premier scan/);
-  assert.match(adaptateur.messageEligibiliteRoue({...attente,scanRequis:false}),/7 jours/);
+  assert.doesNotMatch(adaptateur.messageEligibiliteRoue({...attente,scanRequis:false}),/7 jours/);
+  assert.match(adaptateur.messageEligibiliteRoue({...attente,scanRequis:false}),/disponible dès le/);
   assert.match(adaptateur.messageEligibiliteRoue({...attente,disponibleLe:'2020-01-01T00:00:00Z'}),/Aucun achat nécessaire/);
   assert.equal(adaptateur.messageEligibiliteRoue({autorisee:true,disponibleLe:eligible.disponible_le,scanRequis:false}),null);
   let clientId='compte-fictif', panne=false, changer=false, dernierCorps, appels=0;

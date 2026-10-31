@@ -24,7 +24,8 @@ export function messageEligibiliteRoue(conditions: EtatRoueServeur['eligibilite'
   const attente = date.getTime() > Date.now();
   const quand = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
   if (attente && conditions.scanRequis) return `Ta roue sera disponible dès le ${quand}, après un premier scan de ta carte en boutique.`;
-  if (attente) return `Ta roue sera disponible dès le ${quand}, 7 jours après ton inscription.`;
+  // 31/10/2026 : plus de délai après l'inscription côté serveur ; branche gardée si une date future revenait.
+  if (attente) return `Ta roue sera disponible dès le ${quand}.`;
   return 'Pour débloquer ta roue, fais scanner ta carte de fidélité en boutique. Aucun achat nécessaire.';
 }
 

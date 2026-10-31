@@ -34,7 +34,7 @@ const VAGUES_ROUE_XML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36
 // humain — jamais un code d'erreur brut face au client.
 function messageDoux(brut: string): string {
   const m = brut.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  if (m.includes('conditions roue non remplies')) return 'Ta roue se débloque 7 jours après ton inscription et un premier scan en boutique. Actualise pour voir tes conditions.';
+  if (m.includes('conditions roue non remplies')) return 'Ta roue se débloque dès un premier scan de ta carte en boutique. Actualise pour voir tes conditions.';
   if (m.includes('plafond')) {
     // Cas migration : le quota roue du mois est PARTAGÉ avec l'ancienne roulette Quest.
     return 'Ton lot roue est déjà réservé pour ce mois-ci — vois en boutique.';
@@ -111,7 +111,7 @@ export default function RoueScreen() {
   if (!clientId) return (
     <InviteInscription
       emoji="🎡"
-      texte="La Roue du Mois offre un tour gratuit par mois, dès 7 jours après ton inscription et un premier scan de ta carte en boutique. Aucun achat nécessaire."
+      texte="La Roue du Mois offre un tour gratuit par mois, dès un premier scan de ta carte en boutique. Aucun achat nécessaire."
     />
   );
   return <RoueContenu key={clientId} />;
