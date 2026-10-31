@@ -1,6 +1,6 @@
 # Roue du Mois — accès dès un premier scan en boutique
 
-Claude — 31/10/2026 — TERMINÉ (serveur, règlement et preview publiés ; production en attente d'accord).
+Claude — 31/10/2026 — TERMINÉ (serveur, règlement, preview et production publiés).
 
 ## Demande
 
@@ -43,3 +43,18 @@ du réseau. Seule `tirer_roue_du_mois` l'appliquait (aucune autre fonction ni Ed
   Wallet par code et le retrait du jeton à la déconnexion, en preview depuis le 18 et le 27/10).
   Jusque-là, l'appli en production affiche encore « dès 7 jours après ton inscription » dans
   l'intro de la roue, alors que le serveur ne l'exige plus.
+
+## Production — Claude, 31/10/2026
+
+Yoann : « publie ». Republication à l'identique du groupe preview `71fc355c…` vers la branche
+`production` : groupe `c3cd7a5f-cfa2-44a6-aed8-1e2a74a072e2` (Android
+`01a1921b-2f02-7272-82cd-0da4ead4964e`, iOS `01a1921b-2f02-79d6-a1fd-9bb70c1b1636`), runtime
+1.0.3. Vérifié : c'est la dernière update de `production`, qui précède `0697e049…`.
+
+Contenu par rapport à `0697e049` : roue dès le premier scan (textes), Wallet par code de 2 min
+(13d2a96), mise à jour limitée aux stores officiels, retrait du jeton de notification à la
+déconnexion (600e73c).
+
+Non constaté : recette sur téléphone (démarrage, connexions, Wallet, déconnexion, roue).
+Retour arrière : republier `0697e049-f6d2-43f0-8699-c4bda0c61585` (groupe production stable
+précédent, vérifié dans la liste live) après contrôle de l'update fautive.
