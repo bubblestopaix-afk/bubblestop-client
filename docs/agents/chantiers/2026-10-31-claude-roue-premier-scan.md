@@ -1,6 +1,6 @@
 # Roue du Mois — accès dès un premier scan en boutique
 
-Claude — 31/10/2026 — EN COURS.
+Claude — 31/10/2026 — TERMINÉ (serveur, règlement et preview publiés ; production en attente d'accord).
 
 ## Demande
 
@@ -29,3 +29,17 @@ du réseau. Seule `tirer_roue_du_mois` l'appliquait (aucune autre fonction ni Ed
 
 `npm run test:quiet` (dont `tsc --noEmit`) réussi ; `npm run test:jeu` : Tower, Roue, Quest OK ;
 `git diff --check` propre.
+
+## Publication — Claude, 31/10/2026
+
+- Serveur : appliqué et vérifié (voir ci-dessus) ; effet immédiat pour toutes les versions de l'appli.
+- Dépôt client poussé (`d603412`, avec les 4 commits de sécurité déjà en preview, sans autre
+  changement sous `public/`) : règlement en ligne sur `commande.bubblestop.fr/reglement-roue-du-mois`
+  vérifié « Version du 31 octobre 2026 », sans « 7 jours révolus ».
+- OTA preview : groupe `71fc355c-85af-49a5-8e7d-d91278ecc894` (Android
+  `01a19216-a657-7e53-92ab-17f5d941e14f`, iOS `01a19216-a657-7abb-8ecc-50024e3365b6`), runtime
+  1.0.3, commit marqué modifié par EAS à cause du seul fichier local non suivi de Yoann.
+- Production : inchangée, en attente de l'accord explicite de Yoann (elle embarquerait aussi le
+  Wallet par code et le retrait du jeton à la déconnexion, en preview depuis le 18 et le 27/10).
+  Jusque-là, l'appli en production affiche encore « dès 7 jours après ton inscription » dans
+  l'intro de la roue, alors que le serveur ne l'exige plus.
