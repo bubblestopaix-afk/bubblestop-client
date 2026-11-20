@@ -21,6 +21,8 @@ import { LogoBubbleStop } from '@/components/logo-bubblestop';
 import RappelNotifs from '@/components/rappel-notifs';
 import CarteRoueAccueil from '@/components/carte-roue-accueil';
 import CarteAvisGoogle from '@/components/carte-avis-google';
+import { IconeApp } from '@/components/icones-app';
+import PictoBobaTower from '@/components/picto-boba-tower';
 import { FAMILLES_MENU } from '@/data/menu-vitrine';
 
 // Vitrine de consultation : chaque tuile ouvre uniquement les saveurs de la famille.
@@ -162,6 +164,8 @@ export default function AccueilScreen() {
   const onRefresh = async () => { setRefresh(true); await charger(); setRefresh(false); };
 
   const tampons = carte?.tampons ?? 0;
+  // La section promo porte le seul trio de pastilles de l'écran quand elle est affichée.
+  const offresAffichees = offresFlag.actif && offres !== null && !erreurOffres;
 
   return (
     <View style={styles.fond}>
@@ -176,7 +180,7 @@ export default function AccueilScreen() {
           <Etincelle taille={12} couleur="#EAE8F5" style={{ position: 'absolute', top: 34 + insets.top, right: 56, opacity: 0.5 }} />
           <LogoBubbleStop variante="blanc" largeur={168} />
           <Text style={styles.salut}>
-            {prenom ? `Salut ${prenom}` : 'Ton bubble tea préféré, dans ta poche'}
+            {prenom ? `Salut ${prenom}` : 'Bienvenue chez Bubble Stop'}
           </Text>
         </View>
 
@@ -188,6 +192,34 @@ export default function AccueilScreen() {
             </View>
           )}
 
+          {/* === Carte de fidélité (tampons en direct) : en premier, c'est ce qu'on
+               ouvre au comptoir. Les jeux et la vitrine viennent après. === */}
+          {carteLiee && carte ? (
+            <Pressable style={styles.fidelite} onPress={() => router.push('/explore' as any)} accessibilityRole="button">
+              <VaguesFidelite />
+              <View style={styles.fideliteHaut}>
+                <Text style={styles.fideliteTitre}>Ma fidélité</Text>
+                <Text style={styles.fideliteCompteur}>{tampons}/9</Text>
+              </View>
+              <View style={styles.tampons}>
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <View key={i} style={[styles.tampon, i < tampons && styles.tamponPlein]} />
+                ))}
+              </View>
+              <Text style={styles.fideliteTexte}>
+                {carte.cadeaux > 0
+                  ? `${carte.cadeaux} boisson${carte.cadeaux > 1 ? 's' : ''} offerte${carte.cadeaux > 1 ? 's' : ''} à utiliser`
+                  : `Encore ${9 - tampons} boisson${9 - tampons > 1 ? 's' : ''} avant la prochaine offerte`}
+              </Text>
+            </Pressable>
+          ) : carteLiee === false ? (
+            <Pressable style={styles.fidelite} onPress={() => router.push('/explore' as any)} accessibilityRole="button">
+              <VaguesFidelite />
+              <Text style={styles.fideliteTitre}>Active ta carte de fidélité</Text>
+              <Text style={styles.fideliteTexte}>Ton QR et tes tampons en direct : 9 boissons = 1 offerte ›</Text>
+            </Pressable>
+          ) : null}
+
           {estConnecte === true && <CadeauAnniversaire solde={carte?.cadeaux} />}
 
           {/* La roue conserve son flag indépendant et sa garde de connexion. */}
@@ -196,7 +228,7 @@ export default function AccueilScreen() {
           )}
 
           {/* === Offres prioritaires : toujours avant la vitrine boissons === */}
-          {offresFlag.actif && offres !== null && !erreurOffres && (
+          {offresAffichees && (
             <View style={styles.offresSection}>
               <TitreKawaii texte="Promotion du jour" taille={19} />
               {offres.length > 0 ? (
@@ -217,11 +249,11 @@ export default function AccueilScreen() {
                   )}
                 </>
               ) : (
-                <View style={styles.offreVide} accessibilityLabel="Pas d'offre pour le moment">
-                  <Etincelle taille={24} couleur={C.jaune} />
+                <View style={styles.offreVide} accessibilityLabel="Pas d'offre en ce moment">
+                  <IconeApp nom="cadeau" taille={28} />
                   <View style={styles.offreVideTextes}>
-                    <Text style={styles.offreVideTitre}>Pas d'offre pour le moment</Text>
-                    <Text style={styles.offreVideMessage}>Reviens bientôt découvrir les prochains bons plans.</Text>
+                    <Text style={styles.offreVideTitre}>Pas d'offre en ce moment</Text>
+                    <Text style={styles.offreVideMessage}>Les prochaines s'afficheront ici.</Text>
                   </View>
                 </View>
               )}
@@ -233,7 +265,7 @@ export default function AccueilScreen() {
 
           {/* Vitrine boissons : consultation des familles et saveurs. */}
           <View style={styles.vitrine}>
-            <TitreKawaii texte="Nos boissons" sousTitre="Carte à découvrir · achats uniquement en boutique" taille={19} />
+            <TitreKawaii texte="Nos boissons" sousTitre="Carte à découvrir · achats uniquement en boutique" taille={19} trio={!offresAffichees} />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -295,7 +327,7 @@ export default function AccueilScreen() {
               onPress={() => router.push('/boba-tower' as any)}
               accessibilityRole="button"
               accessibilityLabel="Boba Tower, le jeu d'adresse : parties rapides et records">
-              <Text style={{ fontSize: 34 }}>🗼</Text>
+              <PictoBobaTower taille={46} />
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={styles.towerTitre}>Boba Tower</Text>
@@ -306,33 +338,6 @@ export default function AccueilScreen() {
               <Chevron couleur={C.vertFonce} />
             </Pressable>
           )}
-
-          {/* === Carte de fidélité (tampons en direct) === */}
-          {carteLiee && carte ? (
-            <Pressable style={styles.fidelite} onPress={() => router.push('/explore' as any)}>
-              <VaguesFidelite />
-              <View style={styles.fideliteHaut}>
-                <Text style={styles.fideliteTitre}>Ma fidélité</Text>
-                <Text style={styles.fideliteCompteur}>{tampons}/9</Text>
-              </View>
-              <View style={styles.tampons}>
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <View key={i} style={[styles.tampon, i < tampons && styles.tamponPlein]} />
-                ))}
-              </View>
-              <Text style={styles.fideliteTexte}>
-                {carte.cadeaux > 0
-                  ? `${carte.cadeaux} boisson${carte.cadeaux > 1 ? 's' : ''} offerte${carte.cadeaux > 1 ? 's' : ''} à utiliser`
-                  : `Encore ${9 - tampons} boisson${9 - tampons > 1 ? 's' : ''} avant la prochaine offerte`}
-              </Text>
-            </Pressable>
-          ) : carteLiee === false ? (
-            <Pressable style={styles.fidelite} onPress={() => router.push('/explore' as any)}>
-              <VaguesFidelite />
-              <Text style={styles.fideliteTitre}>Active ta carte de fidélité</Text>
-              <Text style={styles.fideliteTexte}>Ton QR et tes tampons en direct : 9 boissons = 1 offerte ›</Text>
-            </Pressable>
-          ) : null}
 
           {estConnecte === true && <CarteAvisGoogle />}
         </View>

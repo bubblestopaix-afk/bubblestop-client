@@ -1,0 +1,51 @@
+# Navigation et visuels de l'accueil, de la fidélité et des offres
+
+Claude — 20/11/2026 — TERMINÉ (commité sur `main` à la demande de Yoann, « Oui, commite » ;
+non poussé ; aucune OTA preview ni production).
+
+## Demande
+
+Yoann : « regarde l'appli stock et l'appli client et propose des améliorations de navigation
+et graphique », « rends ça moins IA et plus humain », puis après la maquette avant/après :
+« change aussi l'icône roue du mois, cette roue avec le smiley au milieu fait cheap » et
+« tu peux passer aux corrections que tu as proposées, je les aime bien ».
+Travail demandé sur la branche courante (`main`), sans nouvelle branche.
+
+## Périmètre exhaustif
+
+- `src/app/index.tsx` : carte fidélité remontée sous l'en-tête, picto dessiné pour Boba Tower
+  à la place de l'emoji, trio de pastilles sur le premier titre seulement, textes plus simples.
+- `src/app/explore.tsx` : Fidélité sans compte, boutons « Me connecter » et « Créer mon compte ».
+- `src/app/compte.tsx` : paramètre de route `mode=inscription` qui ouvre l'onglet Inscription.
+- `src/app/offres.tsx` : bouton retour (repli vers l'accueil sans historique), texte vide.
+- `src/components/ui-kit.tsx` : option `trio` de `TitreKawaii` (vrai par défaut).
+- `src/components/carte-roue-accueil.tsx` : nouvelle petite roue, sans visage.
+- `src/components/picto-boba-tower.tsx` (nouveau) : gobelets empilés.
+
+Hors périmètre de ce lot : bloc des trois boutiques avec photos, badge « préféré de l'équipe »,
+accroche courte des promos (champ à créer côté éditeur), écran admin séparé de Compte.
+
+## Réalisé (commité, non poussé, non publié)
+
+- Fidélité sans compte : « Me connecter » (vers Compte) et « Créer mon compte » (vers Compte,
+  onglet Inscription par `?mode=inscription&t=…`, hook placé avant tout retour).
+- Offres : bouton retour ; sans historique (ouverture depuis une notification), retour à l'accueil.
+- Accueil : carte fidélité (ou « Active ta carte ») sous l'en-tête, avant anniversaire, roue,
+  promo, vitrine et jeux ; trio de pastilles sur le premier titre seulement (« Nos boissons » le
+  garde quand la promo n'est pas affichée) ; « Pas d'offre en ce moment » avec le picto cadeau au
+  lieu d'une étincelle sur fond jaune ; salut sans compte « Bienvenue chez Bubble Stop ».
+- Boba Tower : picto dessiné (trois gobelets empilés) sur la carte d'accueil. L'emoji reste sur
+  l'invitation à s'inscrire de `boba-tower.tsx` (prop `emoji` de `InviteInscription`).
+- Roue du Mois : petite roue à huit parts sans visage, repère cerné, mêmes couleurs.
+- Maquette avant/après (artefact privé) alignée sur ce code.
+
+## Validation
+
+- `npm run test:quiet` (agents, jeux, menu, offres, avis, anniversaire, push, sécurité et
+  `tsc --noEmit`) : réussi. `git diff --check` propre.
+- `npx expo export --platform web` vers un dossier temporaire : réussi (`dist/` non touché).
+- Web local sans compte, 375 × 812 : carte fidélité en tête, trio unique ; Fidélité → « Créer
+  mon compte » ouvre l'onglet Inscription ; Accueil → promo → Offres → retour ; Offres ouvert
+  directement → retour à l'accueil. Console : seulement les avertissements web déjà présents.
+- Non vu à l'écran : accueil connecté (roue, Boba Tower, carte avec tampons), qui demande une vraie
+  session. Natif iOS/Android non essayé. Une OTA est nécessaire pour les clients : non faite.

@@ -1,22 +1,34 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, G, Path } from 'react-native-svg';
 import { C, F, OMBRE_VIOLETTE, R } from '@/constants/charte';
+
+// Huit parts séparées par un filet blanc, sans visage (Yoann, 20/11 : le smiley « fait cheap »).
+const PARTS = [
+  { d: 'M44 49L44 13A36 36 0 0 1 69.46 23.54Z', fill: C.rose },
+  { d: 'M44 49L69.46 23.54A36 36 0 0 1 80 49Z', fill: C.jaune },
+  { d: 'M44 49L80 49A36 36 0 0 1 69.46 74.46Z', fill: C.vert },
+  { d: 'M44 49L69.46 74.46A36 36 0 0 1 44 85Z', fill: '#B6A0DA' },
+  { d: 'M44 49L44 85A36 36 0 0 1 18.54 74.46Z', fill: C.rose },
+  { d: 'M44 49L18.54 74.46A36 36 0 0 1 8 49Z', fill: C.jaune },
+  { d: 'M44 49L8 49A36 36 0 0 1 18.54 23.54Z', fill: C.vert },
+  { d: 'M44 49L18.54 23.54A36 36 0 0 1 44 13Z', fill: '#B6A0DA' },
+] as const;
+// Picots du bord, entre les parts (le haut est occupé par le repère).
+const PICOTS = [[70.9, 22.1], [82, 49], [70.9, 75.9], [44, 87], [17.1, 75.9], [6, 49], [17.1, 22.1]] as const;
 
 /** Illustration décorative : elle ne représente ni les lots ni leurs probabilités. */
 function PetiteRoue() {
   return (
     <View aria-hidden pointerEvents="none">
       <Svg width={88} height={96} viewBox="0 0 88 96" aria-hidden>
-        <Circle cx={44} cy={49} r={40} fill="#fff" />
-        <Path d="M44 49L44 13A36 36 0 0 1 80 49Z" fill={C.rose} />
-        <Path d="M44 49L80 49A36 36 0 0 1 44 85Z" fill={C.jaune} />
-        <Path d="M44 49L44 85A36 36 0 0 1 8 49Z" fill={C.vert} />
-        <Path d="M44 49L8 49A36 36 0 0 1 44 13Z" fill="#B6A0DA" />
-        <Circle cx={44} cy={49} r={13} fill="#fff" />
-        <Circle cx={40} cy={47} r={2} fill={C.violetProfond} />
-        <Circle cx={48} cy={47} r={2} fill={C.violetProfond} />
-        <Path d="M40 53Q44 57 48 53" fill="none" stroke={C.violetProfond} strokeWidth={2} strokeLinecap="round" />
-        <Path d="M36 3H52L44 19Z" fill={C.jaune} />
+        <Circle cx={44} cy={49} r={41} fill="#fff" />
+        <G stroke="#fff" strokeWidth={1.6} strokeLinejoin="round">
+          {PARTS.map((p) => <Path key={p.d} d={p.d} fill={p.fill} />)}
+        </G>
+        {PICOTS.map(([x, y]) => <Circle key={`${x}-${y}`} cx={x} cy={y} r={1.5} fill={C.violetProfond} />)}
+        <Circle cx={44} cy={49} r={9} fill="#fff" />
+        <Circle cx={44} cy={49} r={3.6} fill={C.violet} />
+        <Path d="M37 3H51L44 18Z" fill={C.jaune} stroke={C.violetProfond} strokeWidth={1.6} strokeLinejoin="round" />
       </Svg>
     </View>
   );

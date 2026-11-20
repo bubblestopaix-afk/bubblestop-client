@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, View, Text, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Redirect } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 
 import { supabase } from '@/lib/supabase';
 import { useFonctionnalite } from '@/lib/fonctionnalites';
@@ -10,7 +10,7 @@ import { magasinOffresDepuisProfil, offreEnCours, offreVisiblePour } from '@/lib
 import RappelNotifs from '@/components/rappel-notifs';
 import { IconeApp } from '@/components/icones-app';
 import { BORD, C, F, OMBRE, R } from '@/constants/charte';
-import { PointillesRose, TitreKawaii } from '@/components/ui-kit';
+import { BoutonRetour, PointillesRose, TitreKawaii } from '@/components/ui-kit';
 
 // "il y a 2 j" / "aujourd'hui" pour dater une offre
 function depuis(dateIso: string): string {
@@ -67,6 +67,9 @@ function OffresScreen() {
       <ScrollView
         contentContainerStyle={[styles.contenu, { paddingTop: insets.top + 18 }]}
         refreshControl={<RefreshControl refreshing={refresh} onRefresh={tirer} tintColor={C.violet} />}>
+        {/* L'écran n'est pas un onglet : sans retour, on y restait bloqué. Ouvert depuis
+            une notification (pas d'historique), le retour mène à l'accueil. */}
+        <BoutonRetour onPress={() => (router.canGoBack() ? router.back() : router.replace('/' as any))} />
         <TitreKawaii texte="Offres" taille={24} sousTitre="Les bons plans du moment." />
 
         {/* 🔔 Sans notifications activées, les promos passent à la trappe → rappel */}
@@ -90,7 +93,7 @@ function OffresScreen() {
             <IconeApp nom="cadeau" taille={42} />
             <Text style={styles.videTitre}>Pas d'offre en ce moment</Text>
             <Text style={styles.videTexte}>
-              Reviens bientôt — les nouvelles offres et nouveautés apparaissent ici.
+              Les prochaines s'afficheront ici.
             </Text>
           </View>
         )}

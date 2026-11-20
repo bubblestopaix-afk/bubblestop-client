@@ -52,13 +52,14 @@ export function TrioPastilles({ taille = 1 }: { taille?: number }) {
 }
 
 // Titre de page/section kawaii : trio de pastilles + Fredoka violet (+ sous-titre)
-export function TitreKawaii({ texte, sousTitre, droite, taille = 22 }: {
-  texte: string; sousTitre?: string; droite?: ReactNode; taille?: number;
+// `trio={false}` : un seul trio par écran, sur le premier titre (sinon il devient un tic).
+export function TitreKawaii({ texte, sousTitre, droite, taille = 22, trio = true }: {
+  texte: string; sousTitre?: string; droite?: ReactNode; taille?: number; trio?: boolean;
 }) {
   return (
     <View style={{ gap: 2 }}>
       <View style={styles.titreKawaiiRang}>
-        <TrioPastilles />
+        {trio && <TrioPastilles />}
         <Text style={[styles.titreKawaiiTxt, { fontSize: taille }]}>{texte}</Text>
         <View style={{ flex: 1 }} />
         {droite}

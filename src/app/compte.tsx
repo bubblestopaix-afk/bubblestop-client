@@ -7,7 +7,7 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert, Switch, Linking, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import type { Session } from '@supabase/supabase-js';
 
@@ -219,6 +219,13 @@ export default function CompteScreen() {
   const [mdpReset2, setMdpReset2] = useState(''); // confirmation du nouveau mot de passe (mdp oublié)
   const [enCours, setEnCours] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  // « Créer mon compte » depuis Fidélité ouvre directement l'onglet Inscription.
+  // `t` change à chaque toucher, pour rouvrir l'inscription même si le paramètre est déjà là.
+  const { mode: modeDemande, t: demandeLe } = useLocalSearchParams<{ mode?: string; t?: string }>();
+  useEffect(() => {
+    if (modeDemande === 'inscription') { setMode('inscription'); setMessage(null); }
+  }, [modeDemande, demandeLe]);
 
   // Écoute la session (connexion/déconnexion automatiques)
   useEffect(() => {

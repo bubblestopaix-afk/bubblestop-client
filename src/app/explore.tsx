@@ -16,7 +16,7 @@ import GobeletBubble from '@/components/gobelet-bubble';
 import Parrainage from '@/components/parrainage';
 import QrView from '@/components/qr-view';
 import { BORD, C, F, OMBRE, OMBRE_VIOLETTE, R } from '@/constants/charte';
-import { BoutonPrimaire, Etincelle, Message, TitreKawaii, Vague } from '@/components/ui-kit';
+import { BoutonGhost, BoutonPrimaire, Etincelle, Message, TitreKawaii, Vague } from '@/components/ui-kit';
 import { IconeApp } from '@/components/icones-app';
 import { LogoBubbleStop } from '@/components/logo-bubblestop';
 import { AppleLogo, GoogleWalletLogo } from '@/components/wallet-logos';
@@ -202,8 +202,15 @@ export default function FideliteScreen() {
           <IconeApp nom="ticket" taille={44} />
           <Text style={styles.videTitre}>Ma carte de fidélité</Text>
           <Text style={styles.aide}>
-            Connecte-toi dans l'onglet Compte pour accéder à ta carte et ton QR.
+            Connecte-toi pour accéder à ta carte et à ton QR.
           </Text>
+          {/* Plus de cul-de-sac : la connexion et l'inscription s'ouvrent d'ici. */}
+          <BoutonPrimaire titre="Me connecter" onPress={() => router.push('/compte' as any)} style={styles.videBouton} />
+          <BoutonGhost
+            titre="Créer mon compte"
+            onPress={() => router.push({ pathname: '/compte', params: { mode: 'inscription', t: String(Date.now()) } } as any)}
+            style={styles.videBouton}
+          />
         </View>
       </View>
     );
@@ -472,4 +479,5 @@ const styles = StyleSheet.create({
     borderWidth: BORD.largeur, borderColor: BORD.surBlanc, ...OMBRE,
   },
   videTitre: { fontFamily: F.titre, fontSize: 17, color: C.violet },
+  videBouton: { alignSelf: 'stretch' },
 });
