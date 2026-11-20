@@ -1,6 +1,6 @@
 # Navigation et visuels de l'accueil, de la fidélité et des offres
 
-Claude — 20/11/2026 — TERMINÉ (commité sur `main`, non poussé ; OTA preview puis production
+Claude — 20/11/2026 — TERMINÉ (commité et poussé sur `main` ; OTA preview puis production
 publiées le 20/11 après l'essai de Yoann).
 
 ## Demande
@@ -83,3 +83,12 @@ au-dessus de `c3cd7a5f…`.
 Retour arrière si besoin : republier `c3cd7a5f-cfa2-44a6-aed8-1e2a74a072e2` (groupe production
 stable précédent, vérifié dans la liste live) après contrôle de l'update fautive.
 Non constaté par Claude : réception par les clients, recette sur téléphone.
+
+## Push GitHub — Claude, 20/11/2026
+
+Yoann : « Oui, pousse ». Origine vérifiée inchangée (`1db9233`), puis `1885c7a`, `205a55f` et
+`0b42eb8` poussés sur `main` (`1db9233..0b42eb8`) ; GitHub et le dépôt local identiques. Aucun
+fichier sous `public/` : le redéploiement Cloudflare Pages ne change pas le site. Contrôlé juste
+après le push sur `commande.bubblestop.fr` : confidentialité, trois règlements et `/app/` en
+HTTP 200, identiques aux fichiers du dépôt hormis le masquage des adresses e-mail que Cloudflare
+ajoute. L'aide locale non suivie `Publier OTA preview.command` reste hors commit.
