@@ -1,7 +1,7 @@
 # Navigation et visuels de l'accueil, de la fidélité et des offres
 
-Claude — 20/11/2026 — TERMINÉ (commité sur `main`, non poussé ; OTA preview publiée le 20/11 ;
-production non publiée, en attente de l'essai sur l'iPhone et de l'accord explicite de Yoann).
+Claude — 20/11/2026 — TERMINÉ (commité sur `main`, non poussé ; OTA preview puis production
+publiées le 20/11 après l'essai de Yoann).
 
 ## Demande
 
@@ -67,3 +67,19 @@ selon la garde production (essai sur la build interne avant toute production).
 - Dépôt client non poussé (rien sous `public/` dans ce lot).
 - Reste à faire avant production : essai sur l'iPhone avec la build preview (démarrage, connexions
   email, Apple et Google, onglets, fidélité, écrans touchés), puis accord explicite de Yoann.
+
+## Production — Claude, 20/11/2026
+
+Yoann : « Testé, en production » (essai sur l'iPhone fait par Yoann ; détail non transmis).
+Contrôle avant publication : aucun `console.*`, secret ni jeton ajouté dans `src/` depuis
+`d603412` ; production sur `c3cd7a5f…`, sans déploiement progressif en cours.
+
+Republication à l'identique du groupe preview testé `f81d875f…` vers la branche `production`
+(même méthode que le 31/10) : groupe `5eff4410-86c0-4117-be29-764854a34cc0` (Android
+`01a1f886-5b1c-734f-96fe-1aa18515b0b6`, iOS `01a1f886-5b1c-7952-839d-f8f9cbad2dda`), runtime
+1.0.3, publié à 10:35:18 UTC. Vérifié : dernière update de `production`, déployée à 100 %,
+au-dessus de `c3cd7a5f…`.
+
+Retour arrière si besoin : republier `c3cd7a5f-cfa2-44a6-aed8-1e2a74a072e2` (groupe production
+stable précédent, vérifié dans la liste live) après contrôle de l'update fautive.
+Non constaté par Claude : réception par les clients, recette sur téléphone.
